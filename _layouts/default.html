@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% if page.title %}{{ page.title }} · {% endif %}{{ site.title }}</title>
+  <meta name="description" content="{{ site.description }}">
+  <link rel="icon" href="{{ '/assets/icon.png' | relative_url }}">
+  <style>
+    :root {
+      --background: #000000;
+      --panel: #121212;
+      --border: #2e2e2e;
+      --text: #eef3f1;
+      --muted: #8d9a98;
+      --accent: #79d6bd;
+      --accent-dark: #284e45;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--background);
+      color: var(--text);
+      font: 16px/1.65 "Segoe UI", system-ui, -apple-system, sans-serif;
+    }
+    header, main, footer { max-width: 720px; margin: 0 auto; padding: 0 16px; }
+    header { display: flex; align-items: center; gap: 12px; padding-top: 24px; padding-bottom: 24px; }
+    header img { width: 40px; height: 40px; }
+    header a.brand { color: var(--text); font-weight: 600; font-size: 18px; text-decoration: none; margin-right: auto; }
+    nav a { color: var(--muted); text-decoration: none; margin-left: 16px; font-size: 14px; }
+    nav a:hover { color: var(--accent); }
+    main { padding-bottom: 48px; }
+    h1 { font-size: 32px; line-height: 1.2; margin: 16px 0; }
+    h2 { font-size: 20px; margin: 36px 0 8px; }
+    p, li { color: var(--text); }
+    a { color: var(--accent); }
+    code { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 14px; overflow-wrap: anywhere; }
+    .lead { color: var(--muted); font-size: 18px; }
+    .button {
+      display: inline-block;
+      background: var(--accent-dark);
+      color: var(--accent);
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      padding: 12px 22px;
+      font-weight: 600;
+      text-decoration: none;
+      margin: 8px 0;
+    }
+    .button:hover { background: var(--accent); color: var(--background); }
+    .note { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; color: var(--muted); font-size: 14px; }
+    .note p { color: var(--muted); margin: 6px 0; }
+    footer { border-top: 1px solid var(--border); padding-top: 20px; padding-bottom: 40px; color: var(--muted); font-size: 14px; }
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <img src="{{ '/assets/icon.png' | relative_url }}" alt="">
+    <a class="brand" href="{{ '/' | relative_url }}">PS Focus</a>
+    <nav>
+      <a href="{{ '/privacy/' | relative_url }}">Privacy</a>
+      <a href="{{ '/terms/' | relative_url }}">Terms</a>
+    </nav>
+  </header>
+  <main>
+    {{ content }}
+  </main>
+  <footer>
+    Made by Giltyworks · <a href="mailto:giltyworks@gmail.com">giltyworks@gmail.com</a> ·
+    <a href="{{ '/privacy/' | relative_url }}">Privacy Policy</a> ·
+    <a href="{{ '/terms/' | relative_url }}">Terms of Use</a>
+  </footer>
+</body>
+</html>

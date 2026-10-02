@@ -1,0 +1,12 @@
+title: PS Focus
+description: A free Windows app that tracks the time you spend drawing in Photoshop, Krita, and Clip Studio Paint
+# Must match the repository name, so links work at https://giltyworks.github.io/ps-focus/
+baseurl: /ps-focus
+url: https://giltyworks.github.io
+defaults:
+  - scope:
+      path: ""
+    values:
+      layout: default
+exclude:
+  - README.md
