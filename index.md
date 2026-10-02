@@ -8,6 +8,18 @@ permalink: /
 
 <a class="button" href="https://github.com/giltyworks/ps-focus/releases/latest">Download for Windows</a>
 
+<div class="shots">
+  <figure>
+    <img src="{{ '/assets/screenshot-calendar.png' | relative_url }}" width="342" height="787" alt="PS Focus showing today's time in Photoshop, a calendar of September with most days marked as sessions, and stats such as weekly total and averages">
+    <figcaption>Today's time, the month's sessions, and your averages</figcaption>
+  </figure>
+  <figure>
+    <img src="{{ '/assets/screenshot-graph.png' | relative_url }}" width="342" height="482" alt="PS Focus showing a line graph of hours drawn each day over the past 30 days">
+    <figcaption>Hours per day over the past month</figcaption>
+  </figure>
+</div>
+<p class="caption">Screenshots of the app itself, shown with sample data.</p>
+
 <div class="note" markdown="1">
 Free · Windows 10 and 11 (64-bit) · no administrator rights needed
 
