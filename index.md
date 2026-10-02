@@ -34,6 +34,15 @@ Windows may show a "Windows protected your PC" screen because PS Focus is not ye
 - **Stays out of the way.** It starts with Windows, sits in the tray, and needs no account.
 - **Backs itself up.** Your history is saved on your PC with automatic backup copies. Connecting Google is optional and stores a backup in a private app folder in your own Google Drive.
 
+## Who makes this
+
+I'm gilty_works. I'm studying to be a professional artist, and I built PS Focus to gamify tracking how much I draw. You can see my work here:
+
+- [ArtStation](https://www.artstation.com/gilty_works)
+- [Instagram](https://www.instagram.com/gilty_works/)
+- [YouTube](https://www.youtube.com/@gilty_works)
+- [Threads](https://www.threads.com/@gilty_works)
+
 ## What it never records
 
 PS Focus stores only how many seconds you worked, per application and hour. It does not record document names, window titles, keystrokes, screenshots, or file contents, and it has no advertising or analytics. See the [Privacy Policy]({{ '/privacy/' | relative_url }}) for the details.
