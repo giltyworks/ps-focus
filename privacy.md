@@ -16,7 +16,7 @@ PS Focus is a free Windows app made by Giltyworks that records how long you spen
 - **Settings.** These include your preferences, the optional display name you type for your Google account, and a random identifier that tells your installations apart when merging backups.
 - **Feedback waiting to be sent.** This holds feedback you submit, until it is delivered.
 
-This information is stored in your Windows user folder at `%APPDATA%\PS Focus`. Backup copies of the activity database are stored in `Documents\PS Focus Backups` and, when OneDrive is set up, in `OneDrive\PS Focus Backups`. Backup copies keep up to 48 hours of snapshots. If you use OneDrive, Microsoft syncs that folder under your own OneDrive account and terms.
+This information is stored in your Windows user folder at `%APPDATA%\PS Focus`. Backup copies of the activity database are stored in `Documents\PS Focus Backups` and, when OneDrive is set up, in `OneDrive\PS Focus Backups`. Each backup folder keeps a limited number of recent snapshots, and older ones are deleted automatically. If you use OneDrive, Microsoft syncs that folder under your own OneDrive account and terms.
 
 ## Google sign-in (optional)
 
