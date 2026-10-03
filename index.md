@@ -47,16 +47,19 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 </div>
 </div>
 
-## Who makes this
-
-I'm gilty_works, an artist in training. I built PS Focus to gamify how much I draw. See my work:
-
-<ul class="links">
-  <li><a href="https://www.artstation.com/gilty_works">ArtStation</a></li>
-  <li><a href="https://www.instagram.com/gilty_works/">Instagram</a></li>
-  <li><a href="https://www.youtube.com/@gilty_works">YouTube</a></li>
-  <li><a href="https://www.threads.com/@gilty_works">Threads</a></li>
-</ul>
+<section class="maker" aria-label="Who makes PS Focus">
+  <img class="avatar" src="{{ '/assets/avatar.jpg' | relative_url }}" width="96" height="96" alt="gilty_works">
+  <div>
+    <h2>gilty_works</h2>
+    <p>Artist in training. I built PS Focus to gamify how much I draw.</p>
+    <ul class="socials">
+      <li><a href="https://www.artstation.com/gilty_works" title="ArtStation">{% include icon-artstation.svg %}</a></li>
+      <li><a href="https://www.instagram.com/gilty_works/" title="Instagram">{% include icon-instagram.svg %}</a></li>
+      <li><a href="https://www.youtube.com/@gilty_works" title="YouTube">{% include icon-youtube.svg %}</a></li>
+      <li><a href="https://www.threads.com/@gilty_works" title="Threads">{% include icon-threads.svg %}</a></li>
+    </ul>
+  </div>
+</section>
 
 <div class="cards" markdown="1">
 <section markdown="1">
