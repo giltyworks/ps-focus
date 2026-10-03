@@ -6,7 +6,7 @@ body_class: home
 <div class="hero" markdown="1">
 <div class="hero-intro" markdown="1">
 
-# Know how much you actually draw
+# Every second counts
 
 <p class="lead">A free Windows app that counts your time in Photoshop, Krita, and Clip Studio Paint, and turns it into charts, a calendar, and a level that grows with your hours.</p>
 
