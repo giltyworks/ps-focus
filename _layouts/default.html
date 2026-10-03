@@ -15,6 +15,8 @@
       --muted: #8d9a98;
       --accent: #79d6bd;
       --accent-dark: #284e45;
+      --blue: #3d5ce6;
+      --blue-light: #5875ee;
     }
     * { box-sizing: border-box; }
     body {
@@ -40,18 +42,19 @@
     a { color: var(--accent); }
     code { background: var(--panel); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 14px; overflow-wrap: anywhere; }
     .lead { color: var(--muted); font-size: 18px; }
+    /* The download button is the royal blue the app uses for its calendar days and checkboxes */
     .button {
       display: inline-block;
-      background: var(--accent-dark);
-      color: var(--accent);
-      border: 1px solid var(--accent);
+      background: var(--blue);
+      color: #ffffff;
+      border: 1px solid var(--blue);
       border-radius: 8px;
       padding: 12px 22px;
       font-weight: 600;
       text-decoration: none;
       margin: 8px 0;
     }
-    .button:hover { background: var(--accent); color: var(--background); }
+    .button:hover { background: var(--blue-light); border-color: var(--blue-light); }
     .shots { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin: 24px 0 8px; }
     .shots figure { margin: 0; flex: 0 1 342px; }
     .shots img { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; }
@@ -60,6 +63,7 @@
     .note p { color: var(--muted); margin: 6px 0; }
     footer { border-top: 1px solid var(--border); padding-top: 20px; padding-bottom: 40px; color: var(--muted); font-size: 14px; }
     footer a { color: var(--muted); }
+    footer .disclaimer { margin: 8px 0 0; font-size: 12px; }
     /* The homepage is laid out compactly over a wider column: the introduction, the notes and the features
        on the left, the app screenshots beside them, and the short sections as a row of cards. The privacy and
        terms pages keep the narrower column, as long lines of text are harder to read */
@@ -69,6 +73,9 @@
     .home h1 { margin: 8px 0 10px; }
     .home h2 { font-size: 18px; margin: 24px 0 4px; }
     .home .lead { margin: 0 0 8px; }
+    /* What the app does, said large and plainly straight under the headline, then a quieter line of detail */
+    .home .what { font-size: 23px; line-height: 1.35; font-weight: 600; color: var(--text); margin: 4px 0 6px; }
+    .home .what-sub { color: var(--muted); font-size: 16px; margin: 0 0 10px; }
     .home ul { margin: 6px 0; padding-left: 22px; }
     .home p { margin: 6px 0; }
     .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); grid-template-areas: "intro shots" "note shots" "features shots"; column-gap: 28px; align-items: start; }
@@ -118,6 +125,7 @@
     Made by Giltyworks · <a href="mailto:giltyworks@gmail.com">giltyworks@gmail.com</a> ·
     <a href="{{ '/privacy/' | relative_url }}">Privacy Policy</a> ·
     <a href="{{ '/terms/' | relative_url }}">Terms of Use</a>
+    <p class="disclaimer">PS Focus is not affiliated with Adobe, the Krita Foundation, or Celsys. Photoshop, Krita, and Clip Studio Paint are trademarks of their respective owners.</p>
   </footer>
 </body>
 </html>

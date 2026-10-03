@@ -8,7 +8,8 @@ body_class: home
 
 # Every second counts.
 
-<p class="lead">A free Windows app that counts your time in Photoshop, Krita, and Clip Studio Paint, and turns it into charts, a calendar, and a level that grows with your hours.</p>
+<p class="what">Automatically tracks your time in Photoshop, Krita, and Clip Studio Paint.</p>
+<p class="what-sub">Free for Windows. Your hours become charts, a calendar, and a level.</p>
 
 <a class="button" href="https://github.com/giltyworks/ps-focus/releases/latest">Download for Windows</a>
 
