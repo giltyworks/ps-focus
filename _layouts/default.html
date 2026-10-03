@@ -77,7 +77,8 @@
     .home .what { font-size: 22px; line-height: 1.35; font-weight: 400; color: #c9d1cf; margin: 0 0 6px; }
     /* The headline is the largest text and the line under it lighter, so the two read in order. It is sized
        to stay on one line in the hero's column, shrinking on narrow screens */
-    .home h1 { font-size: clamp(28px, 8vw, 38px); margin-bottom: 14px; }
+    .home h1 { font-size: clamp(24px, 3.2vw, 38px); margin-bottom: 14px; }
+    @media (max-width: 760px) { .home h1 { font-size: clamp(26px, 8vw, 38px); } }
     .home .what-sub { color: var(--muted); font-size: 16px; margin: 0 0 10px; }
     .home ul { margin: 6px 0; padding-left: 22px; }
     /* In the feature list each point's name stays white and its description is a softer grey */
