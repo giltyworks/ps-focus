@@ -15,7 +15,7 @@ body_class: home
 </div>
 
 <div class="note" markdown="1">
-Free · Windows 10 and 11 (64-bit) · no administrator rights needed
+Free · Windows 10 and 11 (64-bit)
 
 Windows may say "Windows protected your PC" because the app isn't code-signed yet: choose **More info**, then **Run anyway**. Each release lists a SHA-256 checksum for checking your download.
 </div>
