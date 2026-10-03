@@ -74,7 +74,10 @@
     .home h2 { font-size: 18px; margin: 24px 0 4px; }
     .home .lead { margin: 0 0 8px; }
     /* What the app does, said large and plainly straight under the headline, then a quieter line of detail */
-    .home .what { font-size: 23px; line-height: 1.35; font-weight: 600; color: var(--text); margin: 4px 0 6px; }
+    .home .what { font-size: 22px; line-height: 1.35; font-weight: 400; color: #c9d1cf; margin: 0 0 6px; }
+    /* The headline is the largest text and the line under it lighter, so the two read in order. It is sized
+       to stay on one line in the hero's column, shrinking on narrow screens */
+    .home h1 { font-size: clamp(28px, 8vw, 38px); margin-bottom: 14px; }
     .home .what-sub { color: var(--muted); font-size: 16px; margin: 0 0 10px; }
     .home ul { margin: 6px 0; padding-left: 22px; }
     /* In the feature list each point's name stays white and its description is a softer grey */
