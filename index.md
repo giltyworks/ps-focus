@@ -10,7 +10,7 @@ permalink: /
 
 <div class="shots">
   <figure>
-    <img src="{{ '/assets/screenshot-calendar.png' | relative_url }}" width="342" height="787" alt="PS Focus showing today's time in Photoshop, a calendar of September with most days marked as sessions, and stats such as weekly total and averages">
+    <img src="{{ '/assets/screenshot-calendar.png' | relative_url }}" width="342" height="694" alt="PS Focus showing today's time in Photoshop, a calendar of September with most days marked as sessions, and stats such as weekly total and averages">
     <figcaption>Today's time, the month's sessions, and your averages</figcaption>
   </figure>
   <figure>
