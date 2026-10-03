@@ -56,9 +56,41 @@
     .note p { color: var(--muted); margin: 6px 0; }
     footer { border-top: 1px solid var(--border); padding-top: 20px; padding-bottom: 40px; color: var(--muted); font-size: 14px; }
     footer a { color: var(--muted); }
+    /* The homepage is laid out compactly over a wider column: the introduction, the notes and the features
+       on the left, the app screenshots beside them, and the short sections as a row of cards. The privacy and
+       terms pages keep the narrower column, as long lines of text are harder to read */
+    .home header, .home main, .home footer { max-width: 960px; }
+    .home { line-height: 1.55; }
+    .home header { padding-top: 16px; padding-bottom: 12px; }
+    .home h1 { margin: 8px 0 10px; }
+    .home h2 { font-size: 18px; margin: 24px 0 4px; }
+    .home .lead { margin: 0 0 8px; }
+    .home ul { margin: 6px 0; padding-left: 22px; }
+    .home p { margin: 6px 0; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); grid-template-areas: "intro shots" "note shots" "features shots"; column-gap: 28px; align-items: start; }
+    .hero-intro { grid-area: intro; }
+    .hero .note { grid-area: note; }
+    .hero-features { grid-area: features; }
+    .hero-shots { grid-area: shots; }
+    .hero .shots { margin: 4px 0 0; flex-wrap: nowrap; }
+    .hero .shots figure { flex: 1 1 0; }
+    .links { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 18px; padding: 0; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 20px; }
+    .cards section { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; }
+    .cards h2 { margin: 0 0 4px; font-size: 16px; }
+    .cards p { font-size: 15px; }
+    /* On a narrow screen everything is one column, with the screenshots straight after the download button,
+       and on a phone the screenshots stack so they stay large enough to read */
+    @media (max-width: 760px) {
+      .hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "intro" "shots" "note" "features"; }
+    }
+    @media (max-width: 560px) {
+      .hero .shots { flex-wrap: wrap; }
+      .hero .shots figure { flex: 1 1 100%; }
+    }
   </style>
 </head>
-<body>
+<body{% if page.body_class %} class="{{ page.body_class }}"{% endif %}>
   <header>
     <img src="{{ '/assets/icon.png' | relative_url }}" alt="">
     <a class="brand" href="{{ '/' | relative_url }}">PS Focus</a>
