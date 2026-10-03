@@ -27,8 +27,10 @@
     header { display: flex; align-items: center; gap: 12px; padding-top: 24px; padding-bottom: 24px; }
     header img { width: 40px; height: 40px; }
     header a.brand { color: var(--text); font-weight: 500; font-size: 18px; text-decoration: none; margin-right: auto; }
-    /* PS is drawn heavier than Focus */
-    header a.brand b { font-weight: 800; }
+    /* PS is set in a rounded typeface, to match the logo's rounded stroke, and a little heavier than Focus.
+       The font file holds only P and S and is served from this site, so visitors' browsers contact no one else */
+    @font-face { font-family: "PS Rounded"; font-weight: 800; src: url("{{ '/assets/fonts/mplus-rounded-ps.woff2' | relative_url }}") format("woff2"); }
+    header a.brand b { font-family: "PS Rounded", "Segoe UI", sans-serif; font-weight: 800; }
     nav a { color: var(--muted); text-decoration: none; margin-left: 16px; font-size: 14px; }
     nav a:hover { color: var(--accent); }
     main { padding-bottom: 48px; }
