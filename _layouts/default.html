@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% if page.title %}{{ page.title }} · {% endif %}{{ site.title }}</title>
   <meta name="description" content="{{ site.description }}">
-  <link rel="icon" href="{{ '/assets/icon.png' | relative_url }}">
+  <link rel="icon" href="{{ '/assets/logo.png' | relative_url }}">
   <style>
     :root {
       --background: #000000;
@@ -100,7 +100,7 @@
 </head>
 <body{% if page.body_class %} class="{{ page.body_class }}"{% endif %}>
   <header>
-    <img src="{{ '/assets/icon.png' | relative_url }}" alt="">
+    <img src="{{ '/assets/logo.png' | relative_url }}" alt="">
     <a class="brand" href="{{ '/' | relative_url }}">PS Focus</a>
     <nav>
       <a href="{{ '/privacy/' | relative_url }}">Privacy</a>
