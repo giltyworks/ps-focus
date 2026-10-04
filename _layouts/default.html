@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{% if page.title %}{{ page.title }} · {% endif %}{{ site.title }}</title>
   <meta name="description" content="{{ site.description }}">
-  <link rel="icon" href="{{ '/assets/logo.png' | relative_url }}">
+  <link rel="icon" href="{{ '/assets/logo-v2.png' | relative_url }}">
   <style>
     :root {
       --background: #000000;
@@ -59,6 +59,8 @@
     .shots figure { margin: 0; flex: 0 1 342px; }
     .shots img { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; }
     .shots figcaption, .caption { color: var(--muted); font-size: 14px; margin: 8px 0 0; }
+    .wide-shot { margin: 20px 0 0; }
+    .wide-shot img { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; }
     .note { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; color: var(--muted); font-size: 14px; }
     .note p { color: var(--muted); margin: 6px 0; }
     footer { border-top: 1px solid var(--border); padding-top: 20px; padding-bottom: 40px; color: var(--muted); font-size: 14px; }
@@ -118,7 +120,7 @@
 </head>
 <body{% if page.body_class %} class="{{ page.body_class }}"{% endif %}>
   <header>
-    <img src="{{ '/assets/logo.png' | relative_url }}" alt="">
+    <img src="{{ '/assets/logo-v2.png' | relative_url }}" alt="">
     <a class="brand" href="{{ '/' | relative_url }}"><b>PS</b> Focus</a>
     <nav>
       <a href="{{ '/privacy/' | relative_url }}">Privacy</a>
