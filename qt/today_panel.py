@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QWidget
 
 from app_config import TODAY_PANEL_WIDTH
 
-from .theme import Fonts, color, line_height
+from .theme import Fonts, ascent, color, line_height
 
 # The same measurements as the Tk panel, see main.py: space inside the panel above its first row and below its
 # last, and at each side of its text; above and below the big figure's digits; between the last two rows
@@ -41,7 +41,7 @@ class TodayPanel(QWidget):
     def __init__(self, application: str, fonts: Fonts, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.application = application
-        metric_ascent = QFontMetrics(fonts.metric).ascent()
+        metric_ascent = ascent(fonts.metric)
         digit_height = round(metric_ascent * 0.66)
         heights = (
             line_height(fonts.two_week),
@@ -101,5 +101,5 @@ class TodayPanel(QWidget):
             metrics = QFontMetrics(item.font)
             width = metrics.horizontalAdvance(item.text)
             x = item.x - width if item.right_aligned else item.x
-            painter.drawText(QPoint(x, item.top + metrics.ascent()), item.text)
+            painter.drawText(QPoint(x, item.top + ascent(item.font)), item.text)
         painter.end()

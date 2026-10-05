@@ -11,10 +11,13 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QCloseEvent, QIcon, QPalette
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
-from app_config import APP_NAME, MODULE_GAP, TODAY_PANEL_WIDTH, WINDOW_MARGIN, resource_path
+from app_config import APP_NAME, COMPACT_BOTTOM_SPACE, MODULE_GAP, TODAY_PANEL_WIDTH, WINDOW_MARGIN, resource_path
 from windows_startup import set_title_bar_colors_for_handle
 
 from .theme import color
+
+# Space between the header and the module checkboxes under it
+HEADER_GAP = 2
 
 
 def visible_frame(window_handle: int) -> wintypes.RECT | None:
@@ -50,6 +53,10 @@ class MainWindow(QWidget):
         # Asking for the window's handle makes it now, so the title bar is dark from the first frame shown
         set_title_bar_colors_for_handle(int(self.winId()))
 
+    def set_top(self, header: QWidget, controls: QWidget) -> None:
+        """The header, and the module checkboxes under it, which head the window"""
+        self.header, self.controls = header, controls
+
     def show_blocks(self, blocks: list[QWidget]) -> None:
         """Show these blocks one under another in this order, each with a gap above it, and hide any others"""
         for block in self.blocks:
@@ -57,10 +64,15 @@ class MainWindow(QWidget):
                 block.hide()
         while self.column.count():
             self.column.takeAt(0)
+        self.column.addWidget(self.header)
+        self.column.addSpacing(HEADER_GAP)
+        self.column.addWidget(self.controls)
         for block in blocks:
             self.column.addSpacing(MODULE_GAP)
             self.column.addWidget(block)
             block.show()
+        # Without blocks, the space the Tk window kept under the checkboxes
+        self.column.addSpacing(0 if blocks else COMPACT_BOTTOM_SPACE)
         self.column.addStretch(1)
         self.blocks = blocks
         self.column.activate()

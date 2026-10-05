@@ -17,22 +17,27 @@ import app_config
 from app_config import (
     APP_NAME,
     DEFAULT_SETTINGS,
+    FEEDBACK_UNLOCK_SECONDS,
     IDLE_TIMEOUT_SECONDS,
     MAX_TICK_CREDIT_SECONDS,
     PROGRAM_PANEL_SETTINGS,
+    SESSION_MINIMUM_SECONDS,
     format_duration,
     load_settings,
     resource_path,
+    user_level,
 )
 from tracker import ActivityStore, foreground_application, user_is_active
 from windows_startup import SingleInstance
 
+from .header import Header, ModuleControls
 from .theme import Fonts
 from .today_panel import TodayPanel
 from .window import MainWindow
 
 # Every block that can be put in order: the program panels and the modules, as in the Tk ui_modules
-BLOCK_NAMES = tuple(PROGRAM_PANEL_SETTINGS) + ("graph", "calendar", "stats")
+MODULE_NAMES = ("graph", "calendar", "stats")
+BLOCK_NAMES = tuple(PROGRAM_PANEL_SETTINGS) + MODULE_NAMES
 # Longest the app may take to close after Exit before it is ended regardless
 EXIT_TIMEOUT_SECONDS = 10
 
@@ -50,7 +55,13 @@ class PSFocusQt:
         self.store = ActivityStore(app_config.DATABASE_PATH, app_config.BACKUP_DIRECTORIES)
         self.fonts = Fonts()
         self.active = False
+        self.level_revealed = bool(self.settings.get("feedback_submitted"))
+        self.feedback_unlocked = False
         self.window = MainWindow(on_close=self.window_hidden)
+        self.header = Header(self.fonts)
+        self.module_ticked = {name: bool(self.settings.get(f"show_{name}", True)) for name in MODULE_NAMES}
+        self.module_controls = ModuleControls(self.fonts, self.module_ticked, self._module_toggled)
+        self.window.set_top(self.header, self.module_controls)
         # Made without a parent, so a panel stays out of sight until the window's column takes it in
         self.panels = {name: TodayPanel(name, self.fonts) for name in PROGRAM_PANEL_SETTINGS}
         self._arrange_blocks()
@@ -81,6 +92,11 @@ class PSFocusQt:
     def _arrange_blocks(self) -> None:
         shown = [self.panels[name] for name in self.block_order if name in self.panels and self.settings.get(PROGRAM_PANEL_SETTINGS[name])]
         self.window.show_blocks(shown)
+
+    def _module_toggled(self, name: str) -> None:
+        # The modules themselves come in later stages of the rebuild; until then only the choice is kept
+        self.settings[f"show_{name}"] = self.module_ticked[name]
+        self._save_settings()
 
     def _save_settings(self) -> None:
         app_config.APP_DATA.mkdir(parents=True, exist_ok=True)
@@ -166,11 +182,14 @@ class PSFocusQt:
         if self.active:
             self._reveal_panel_on_first_use(foreground_app)
         today = date.today()
+        total_today_seconds = lifetime_seconds = 0
         for name, panel in self.panels.items():
             today_seconds = self.store.total_for_day(today, name)
             two_weeks_seconds = self.store.total_for_range(today - timedelta(days=13), today, name)
             total_seconds = self.store.total_seconds(name)
             last_session = self.store.last_recorded_day(name)
+            total_today_seconds += today_seconds
+            lifetime_seconds += total_seconds
             panel.set_text("total", format_duration(today_seconds))
             panel.set_text("two_week", f"{two_weeks_seconds / 3600:.1f} hours past 2 weeks")
             panel.set_text("sessions", f"{self.store.lifetime_sessions(application=name)} SESSIONS")
@@ -183,6 +202,11 @@ class PSFocusQt:
                 "ACTIVE" if app_active else "PAUSED" if paused else "NOT ACTIVE",
                 "active_green" if app_active else "muted",
             )
+        self.header.set_progress_reached(total_today_seconds >= SESSION_MINIMUM_SECONDS)
+        self.header.set_level(user_level(lifetime_seconds), self.level_revealed)
+        self.feedback_unlocked = lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS
+        # The level opens the feedback form once feedback is unlocked, until the level is revealed
+        self.header.level_clickable = self.feedback_unlocked and not self.level_revealed
 
     def close(self) -> None:
         # Windows and the tray may both ask, so only the first request closes
