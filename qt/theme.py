@@ -7,7 +7,8 @@ import os
 from ctypes import wintypes
 from functools import lru_cache
 
-from PySide6.QtGui import QColor, QFont, QFontMetrics
+from PySide6.QtCore import QPoint
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter
 
 import app_config
 from app_config import COLORS
@@ -36,6 +37,10 @@ class Fonts:
         self.two_week = font(app_config.HEADING_FONT_SIZE)
         self.title = font(20, semibold=True)
         self.metric = font(app_config.METRIC_FONT_SIZE, semibold=True)
+        # The graph's total, its caption and hour labels, and the day labels under a month's graph
+        self.headline = font(16, semibold=True)
+        self.caption = font(8)
+        self.tiny = font(7)
 
 
 @lru_cache(maxsize=None)
@@ -90,3 +95,14 @@ def line_height(*fonts: QFont) -> int:
 def ascent(font_: QFont) -> int:
     """From the top of a line of text to its baseline, which text is drawn on"""
     return _metrics(font_)[0]
+
+
+def text_width(font_: QFont, text: str) -> int:
+    return QFontMetrics(font_).horizontalAdvance(text)
+
+
+def draw_text(painter: QPainter, x: int, top: int, text: str, text_color: QColor, font_: QFont) -> None:
+    """Draw text with the top left of its line at this point, as Tk places text anchored at its top left"""
+    painter.setFont(font_)
+    painter.setPen(text_color)
+    painter.drawText(QPoint(x, top + ascent(font_)), text)

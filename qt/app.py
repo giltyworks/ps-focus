@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 import app_config
 from app_config import (
     APP_NAME,
+    CHART_PERIODS,
     DEFAULT_SETTINGS,
     FEEDBACK_UNLOCK_SECONDS,
     IDLE_TIMEOUT_SECONDS,
@@ -30,6 +31,7 @@ from app_config import (
 from tracker import ActivityStore, foreground_application, user_is_active
 from windows_startup import SingleInstance
 
+from .chart import ChartModule
 from .header import Header, ModuleControls
 from .theme import Fonts
 from .today_panel import TodayPanel
@@ -64,6 +66,11 @@ class PSFocusQt:
         self.window.set_top(self.header, self.module_controls)
         # Made without a parent, so a panel stays out of sight until the window's column takes it in
         self.panels = {name: TodayPanel(name, self.fonts) for name in PROGRAM_PANEL_SETTINGS}
+        period = self.settings.get("period")
+        self.chart = ChartModule(self.fonts, self.store, period if period in CHART_PERIODS else "Day", self._period_chosen)
+        self.chart_drawn_day: date | None = None
+        # The modules built so far; the calendar and stats come in a later stage of the rebuild
+        self.modules = {"graph": self.chart}
         self._arrange_blocks()
         self._start_tray_icon()
         self.last_tick_time = time.monotonic()
@@ -90,12 +97,24 @@ class PSFocusQt:
         return order + [name for name in BLOCK_NAMES if name not in order]
 
     def _arrange_blocks(self) -> None:
-        shown = [self.panels[name] for name in self.block_order if name in self.panels and self.settings.get(PROGRAM_PANEL_SETTINGS[name])]
-        self.window.show_blocks(shown)
+        blocks = {**self.panels, **self.modules}
+        self.window.show_blocks([blocks[name] for name in self.block_order if name in blocks and self._block_shown(name)])
+
+    def _block_shown(self, name: str) -> bool:
+        """A module ticked in the checkboxes, or a program panel ticked in Settings"""
+        if name in self.module_ticked:
+            return self.module_ticked[name]
+        return bool(self.settings.get(PROGRAM_PANEL_SETTINGS[name]))
 
     def _module_toggled(self, name: str) -> None:
-        # The modules themselves come in later stages of the rebuild; until then only the choice is kept
         self.settings[f"show_{name}"] = self.module_ticked[name]
+        self._save_settings()
+        self._arrange_blocks()
+        if name == "graph" and self.module_ticked[name]:
+            self.chart.refresh()
+
+    def _period_chosen(self, period: str) -> None:
+        self.settings["period"] = period
         self._save_settings()
 
     def _save_settings(self) -> None:
@@ -204,6 +223,10 @@ class PSFocusQt:
             )
         self.header.set_progress_reached(total_today_seconds >= SESSION_MINIMUM_SECONDS)
         self.header.set_level(user_level(lifetime_seconds), self.level_revealed)
+        # The graph moves on with the time being counted, and with a new day
+        if self.module_ticked["graph"] and (self.active or self.chart_drawn_day != today):
+            self.chart.refresh()
+            self.chart_drawn_day = today
         self.feedback_unlocked = lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS
         # The level opens the feedback form once feedback is unlocked, until the level is revealed
         self.header.level_clickable = self.feedback_unlocked and not self.level_revealed
