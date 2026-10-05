@@ -3,6 +3,7 @@ import json
 import math
 import os
 import queue
+import re
 import tempfile
 import unittest
 import uuid
@@ -107,6 +108,22 @@ class FirstRunStartupTests(unittest.TestCase):
         set_startup.assert_called_once_with(True, True)
         self.assertTrue(saved["launch_on_startup"])
         self.assertTrue(saved["start_minimized"])
+
+    def test_installer_choice_not_to_start_with_windows_is_kept(self):
+        # The settings file the installer writes when its Start with Windows box is unticked
+        script = (Path(__file__).resolve().parent / "installer" / "PS Focus.iss").read_text(encoding="utf-8")
+        written = re.search(r"settings\.json'\), '([^']+)'", script).group(1)
+        self.app_data.mkdir(parents=True)
+        self.settings_path.write_text(written, encoding="utf-8")
+        with patch("app_config.SETTINGS_PATH", self.settings_path):
+            settings = load_settings()
+
+        self.assertFalse(settings["launch_on_startup"])
+        self.assertEqual({key: value for key, value in settings.items() if key != "launch_on_startup"},
+                         {key: value for key, value in DEFAULT_SETTINGS.items() if key != "launch_on_startup"})
+        with patch("windows_startup.sys.frozen", True, create=True), patch("windows_startup.set_startup") as set_startup:
+            refresh_startup_entry(settings)
+        set_startup.assert_not_called()
 
     def test_startup_setting_is_left_off_when_windows_refuses_the_entry(self):
         _, saved = self._apply(side_effect=OSError("registry unavailable"))

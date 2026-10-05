@@ -1,4 +1,5 @@
 import os
+import re
 import stat
 import tempfile
 import unittest
@@ -102,6 +103,13 @@ class UninstallTests(unittest.TestCase):
         self.assertTrue(command.casefold().startswith(f'"{uninstall.system_executable("cmd.exe")}"'.casefold()))
         self.assertEqual(schedule_self_delete.call_args.kwargs["env"][uninstall.SELF_DELETE_VARIABLE], str(running_app))
         self.assertEqual(schedule_self_delete.call_args.kwargs["cwd"], uninstall.system_directory())
+
+    def test_every_file_the_installer_adds_is_removed(self):
+        script = (Path(__file__).resolve().parent / "installer" / "PS Focus.iss").read_text(encoding="utf-8")
+        installed_names = re.findall(r'DestName: "([^"]+)"', script)
+        self.assertTrue(installed_names)
+        for name in installed_names:
+            self.assertIn(name, uninstall.INSTALLED_FILES)
 
     def test_installed_copy_removes_its_files_and_empty_folder(self):
         install_directory = self.root / "PS Focus"

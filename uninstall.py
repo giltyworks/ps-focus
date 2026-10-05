@@ -33,7 +33,7 @@ INSTALL_DIRECTORY_VARIABLE = "PSFOCUS_INSTALL_DIRECTORY"
 UNINSTALL_KEY_PATH = rf"Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}"
 # Files the installer places beside the app, under names that differ from the source files they are made from,
 # and the separate uninstaller that versions before 1.0.1 installed
-INSTALLED_FILES = ("Terms of Use.txt", "Privacy Policy.txt", "Third-Party Notices.txt", "Uninstall PS Focus.exe")
+INSTALLED_FILES = ("Terms of Use.txt", "Privacy Policy.txt", "License.txt", "Third-Party Notices.txt", "Uninstall PS Focus.exe")
 CSIDL_PROGRAMS = 0x0002
 CSIDL_DESKTOPDIRECTORY = 0x0010
 WINDOW_TITLE = f"Uninstall {APP_NAME}"

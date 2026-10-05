@@ -45,6 +45,9 @@ OutputBaseFilename=PS-Focus-Setup-{#AppVersion}
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
+; Offered only to a new installation; an existing one keeps the choice made in Settings. Left ticked, the app
+; registers itself the first time it runs; unticked, a starting settings file tells it not to (see IsNewInstallation)
+Name: "startwithwindows"; Description: "Start PS Focus with Windows"; Check: IsNewInstallation
 
 [Files]
 Source: "..\dist\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
@@ -113,4 +116,21 @@ begin
   end;
   // Then the launcher deletes the app's temporary files and ends too
   Sleep(1000);
+end;
+
+// No settings yet, under either the current or the pre-rename data folder: PS Focus has never run for this user
+function IsNewInstallation: Boolean;
+begin
+  Result := not FileExists(ExpandConstant('{userappdata}\PS Focus\settings.json')) and
+    not FileExists(ExpandConstant('{userappdata}\FocusTrace\settings.json'));
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  // The app fills in every other setting with its defaults when it reads this file
+  if (CurStep = ssPostInstall) and IsNewInstallation and not WizardIsTaskSelected('startwithwindows') then
+  begin
+    ForceDirectories(ExpandConstant('{userappdata}\PS Focus'));
+    SaveStringToFile(ExpandConstant('{userappdata}\PS Focus\settings.json'), '{"launch_on_startup": false}', False);
+  end;
 end;
