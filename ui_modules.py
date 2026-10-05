@@ -28,11 +28,6 @@ MODULE_CONTROL_GAP = 8
 CLIP_MARGIN_HEIGHT = COMPACT_BOTTOM_SPACE
 # Space above and below a module's title
 MODULE_TITLE_PADDING = 5
-# A module passed by a dragged one slides to its new place over this many steps, this many milliseconds apart;
-# switched off for now, the blocks jumping straight to their places
-SWAP_ANIMATION = False
-SWAP_ANIMATION_STEPS = 4
-SWAP_ANIMATION_STEP_MS = 12
 # The modules, and every block that can be dragged into order: the program panels and the modules
 MODULE_NAMES = ("graph", "calendar", "stats")
 BLOCK_NAMES = ("Photoshop", "Krita", "Clip Studio Paint") + MODULE_NAMES
@@ -238,8 +233,6 @@ class ModulesMixin:
 
     def _arrange_modules(self) -> None:
         """Pack the shown program panels and modules into the container in their order"""
-        # A slide still running is ended first, as its blocks are placed by hand, not packed
-        self._finish_slide()
         blocks = self._blocks()
         for block in blocks.values():
             block.pack_forget()
@@ -429,65 +422,8 @@ class ModulesMixin:
         self.block_order.insert(insert_index, source)
         self.settings["block_order"] = self.block_order.copy()
         self.module_order_changed = True
-        if SWAP_ANIMATION:
-            self._slide_modules_into_place(source)
-        else:
-            self._arrange_modules()
+        self._arrange_modules()
         return "break"
-
-    def _finish_slide(self) -> None:
-        """End a slide still running, putting the blocks straight into their places"""
-        slide = getattr(self, "module_slide", None)
-        if slide is None:
-            return
-        self.root.after_cancel(slide["after"])
-        self.module_slide = None
-        for block in slide["blocks"].values():
-            block.place_forget()
-        slide["container"].pack_propagate(True)
-        self._arrange_modules()
-
-    def _slide_modules_into_place(self, dragged: str) -> None:
-        """Lay the blocks out in their new order, sliding the ones the dragged block passed to their new places
-
-        Tk has no animation, so for the slide's few frames the blocks are placed by hand at points between where
-        they were and where they are going, and then packed again
-        """
-        self._finish_slide()
-        container = self.module_container
-        blocks = {name: unit for name, unit in self._units().items() if unit.winfo_ismapped() and unit.winfo_manager() == "pack" and unit.pack_info().get("in") == container}
-
-        def positions() -> dict[str, tuple[int, int]]:
-            return {name: (block.winfo_rootx() - container.winfo_rootx(), block.winfo_rooty() - container.winfo_rooty()) for name, block in blocks.items()}
-
-        start = positions()
-        self._arrange_modules()
-        self.root.update_idletasks()
-        end = positions()
-        moving = {name for name in blocks if name != dragged and start[name] != end[name]}
-        if not moving:
-            return
-        # The container keeps its size while its blocks are placed by hand rather than packed
-        container.configure(width=container.winfo_width(), height=container.winfo_height())
-        container.pack_propagate(False)
-        for name, block in blocks.items():
-            block.pack_forget()
-            x, y = start[name] if name in moving else end[name]
-            block.place(in_=container, x=x, y=y)
-
-        def step(number: int) -> None:
-            progress = number / SWAP_ANIMATION_STEPS
-            eased = 1 - (1 - progress) ** 3
-            for name in moving:
-                (x0, y0), (x1, y1) = start[name], end[name]
-                blocks[name].place_configure(x=round(x0 + (x1 - x0) * eased), y=round(y0 + (y1 - y0) * eased))
-            if number < SWAP_ANIMATION_STEPS:
-                self.module_slide["after"] = self.root.after(SWAP_ANIMATION_STEP_MS, step, number + 1)
-            else:
-                self.module_slide["after"] = self.root.after_idle(self._finish_slide)
-
-        self.module_slide = {"blocks": blocks, "container": container, "after": None}
-        step(1)
 
     def _mark_dragged(self, dragged: bool) -> None:
         """Outline the block being dragged in blue, and return it to normal after"""
