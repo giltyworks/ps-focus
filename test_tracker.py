@@ -15,7 +15,9 @@ def snapshot(moment: datetime) -> str:
 class WeekRankTests(unittest.TestCase):
     def setUp(self):
         self.temporary_directory = tempfile.TemporaryDirectory()
-        self.store = ActivityStore(Path(self.temporary_directory.name) / "activity.sqlite3")
+        # The full folder name: a runner's temp folder can be named in Windows' short form (RUNNER~1), which the app resolves
+        self.folder = Path(self.temporary_directory.name).resolve()
+        self.store = ActivityStore(self.folder / "activity.sqlite3")
 
     def tearDown(self):
         self.store.close()
@@ -133,7 +135,9 @@ class SnapshotRetentionTests(unittest.TestCase):
 class ActivityStoreTests(unittest.TestCase):
     def setUp(self):
         self.temporary_directory = tempfile.TemporaryDirectory()
-        self.store = ActivityStore(Path(self.temporary_directory.name) / "activity.sqlite3")
+        # The full folder name: a runner's temp folder can be named in Windows' short form (RUNNER~1), which the app resolves
+        self.folder = Path(self.temporary_directory.name).resolve()
+        self.store = ActivityStore(self.folder / "activity.sqlite3")
 
     def tearDown(self):
         self.store.close()
@@ -217,7 +221,7 @@ class ActivityStoreTests(unittest.TestCase):
         self.assertEqual(self.store.day_application_totals(date(2026, 9, 30)), [("Photoshop", 975, "14:00")])
 
     def test_legacy_activity_and_session_starts_migrate_to_photoshop(self):
-        database_path = Path(self.temporary_directory.name) / "legacy.sqlite3"
+        database_path = self.folder / "legacy.sqlite3"
         connection = sqlite3.connect(database_path)
         connection.execute("CREATE TABLE activity (day TEXT NOT NULL, slot INTEGER NOT NULL, seconds REAL NOT NULL DEFAULT 0, PRIMARY KEY (day, slot))")
         connection.execute("INSERT INTO activity VALUES ('2026-09-30', 9, 900)")
@@ -239,7 +243,7 @@ class ActivityStoreTests(unittest.TestCase):
             migrated_store.close()
 
     def test_failed_legacy_schema_migration_rolls_back_without_stranding_data(self):
-        database_path = Path(self.temporary_directory.name) / "invalid-legacy.sqlite3"
+        database_path = self.folder / "invalid-legacy.sqlite3"
         connection = sqlite3.connect(database_path)
         connection.execute("CREATE TABLE activity (day TEXT NOT NULL, slot INTEGER NOT NULL)")
         connection.execute("INSERT INTO activity VALUES ('2026-09-30', 9)")
@@ -258,10 +262,10 @@ class ActivityStoreTests(unittest.TestCase):
             connection.close()
 
     def test_corrupt_database_recovers_from_latest_local_backup(self):
-        database_path = Path(self.temporary_directory.name) / "recoverable.sqlite3"
+        database_path = self.folder / "recoverable.sqlite3"
         backup_directories = (
-            Path(self.temporary_directory.name) / "primary-backups",
-            Path(self.temporary_directory.name) / "secondary-backups",
+            self.folder / "primary-backups",
+            self.folder / "secondary-backups",
         )
         original_store = ActivityStore(database_path, backup_directories)
         try:
@@ -285,10 +289,10 @@ class ActivityStoreTests(unittest.TestCase):
 
     def test_snapshots_are_written_only_when_history_changed(self):
         backup_directories = (
-            Path(self.temporary_directory.name) / "idle-primary",
-            Path(self.temporary_directory.name) / "idle-secondary",
+            self.folder / "idle-primary",
+            self.folder / "idle-secondary",
         )
-        store = ActivityStore(Path(self.temporary_directory.name) / "idle.sqlite3", backup_directories)
+        store = ActivityStore(self.folder / "idle.sqlite3", backup_directories)
 
         def snapshots():
             return sorted(path for directory in backup_directories for path in directory.glob("activity-2*.sqlite3"))
@@ -316,8 +320,8 @@ class ActivityStoreTests(unittest.TestCase):
             store.close()
 
     def test_latest_valid_backup_skips_damaged_and_set_aside_databases(self):
-        backup_directory = Path(self.temporary_directory.name) / "ordered-backups"
-        store = ActivityStore(Path(self.temporary_directory.name) / "ordered.sqlite3", (backup_directory,))
+        backup_directory = self.folder / "ordered-backups"
+        store = ActivityStore(self.folder / "ordered.sqlite3", (backup_directory,))
         try:
             good_backup = store.create_local_backup()
         finally:
@@ -333,11 +337,11 @@ class ActivityStoreTests(unittest.TestCase):
             os.utime(path, (newer_time, newer_time))
 
         self.assertEqual(ActivityStore.latest_valid_backup((backup_directory,)), good_backup)
-        self.assertIsNone(ActivityStore.latest_valid_backup((Path(self.temporary_directory.name) / "missing",)))
+        self.assertIsNone(ActivityStore.latest_valid_backup((self.folder / "missing",)))
 
     def test_valid_backup_bytes_restore_database_and_quarantine_corrupt_file(self):
-        database_path = Path(self.temporary_directory.name) / "downloaded.sqlite3"
-        source_path = Path(self.temporary_directory.name) / "source.sqlite3"
+        database_path = self.folder / "downloaded.sqlite3"
+        source_path = self.folder / "source.sqlite3"
         source_store = ActivityStore(source_path)
         try:
             source_store.record_active_second(datetime(2026, 9, 30, 14, 0))
@@ -346,8 +350,8 @@ class ActivityStoreTests(unittest.TestCase):
             source_store.close()
         database_path.write_bytes(b"corrupt local database")
 
-        self.assertTrue(ActivityStore.restore_backup_bytes(database_path, backup_content, Path(self.temporary_directory.name) / "quarantine"))
-        self.assertTrue(list((Path(self.temporary_directory.name) / "quarantine").glob("activity-corrupt-*.sqlite3")))
+        self.assertTrue(ActivityStore.restore_backup_bytes(database_path, backup_content, self.folder / "quarantine"))
+        self.assertTrue(list((self.folder / "quarantine").glob("activity-corrupt-*.sqlite3")))
         restored_store = ActivityStore(database_path)
         try:
             self.assertEqual(restored_store.total_for_day(date(2026, 9, 30), "Photoshop"), 1)
@@ -355,7 +359,7 @@ class ActivityStoreTests(unittest.TestCase):
             restored_store.close()
 
     def test_merge_keeps_larger_totals_from_another_installation(self):
-        other_directory = Path(self.temporary_directory.name) / "other-installation"
+        other_directory = self.folder / "other-installation"
         other_store = ActivityStore(other_directory / "activity.sqlite3")
         try:
             other_store.record_active_second(datetime(2026, 9, 29, 8, 5), "Krita")
