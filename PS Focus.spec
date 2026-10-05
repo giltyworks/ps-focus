@@ -54,6 +54,9 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+# Windows 10 and later carry the C runtime themselves (Python 3.14 needs Windows 10). Build machines with the Windows
+# SDK installed would otherwise pack its copies, about 1 MB more for nothing
+a.binaries = [entry for entry in a.binaries if not (entry[0].lower().startswith('api-ms-win-') or entry[0].lower() == 'ucrtbase.dll')]
 pyz = PYZ(a.pure)
 
 exe = EXE(
