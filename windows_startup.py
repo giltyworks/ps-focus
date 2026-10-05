@@ -52,10 +52,13 @@ def set_title_bar_colors(window) -> None:
     get_ancestor = user32.GetAncestor
     get_ancestor.argtypes = [ctypes.c_void_p, ctypes.c_uint]
     get_ancestor.restype = ctypes.c_void_p
-    window_handle = get_ancestor(ctypes.c_void_p(window.winfo_id()), 2)
-    if not window_handle:
-        return
+    set_title_bar_colors_for_handle(get_ancestor(ctypes.c_void_p(window.winfo_id()), 2))
 
+
+def set_title_bar_colors_for_handle(window_handle: int | None) -> None:
+    """Colour the title bar of the top-level window with this handle, see set_title_bar_colors"""
+    if os.name != "nt" or not window_handle:
+        return
     dwmapi = ctypes.WinDLL("dwmapi", use_last_error=True)
     set_attribute = dwmapi.DwmSetWindowAttribute
     set_attribute.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint]

@@ -17,7 +17,9 @@ APP_PUBLISHER = "Giltyworks"
 APP_USER_MODEL_ID = "PSFocus.PSFocus"
 LEGACY_APP_NAME = "FocusTrace"
 APP_DATA_ROOT = Path(os.environ.get("APPDATA", Path.home()))
-APP_DATA = APP_DATA_ROOT / APP_NAME
+# A folder to keep everything in instead of the usual one, so a test copy of the app never touches the real history
+DATA_DIRECTORY_OVERRIDE = os.environ.get("PSFOCUS_DATA_DIR")
+APP_DATA = Path(DATA_DIRECTORY_OVERRIDE) if DATA_DIRECTORY_OVERRIDE else APP_DATA_ROOT / APP_NAME
 LEGACY_APP_DATA = APP_DATA_ROOT / LEGACY_APP_NAME
 SETTINGS_PATH = APP_DATA / "settings.json"
 DATABASE_PATH = APP_DATA / "activity.sqlite3"
@@ -25,7 +27,9 @@ _backup_directories = [
     APP_DATA / "backups",
     Path(os.environ.get("USERPROFILE", str(Path.home()))) / "Documents" / "PS Focus Backups",
 ]
-if os.environ.get("OneDrive"):
+if DATA_DIRECTORY_OVERRIDE:
+    _backup_directories = [APP_DATA / "backups"]
+elif os.environ.get("OneDrive"):
     _backup_directories.append(Path(os.environ["OneDrive"]) / "PS Focus Backups")
 BACKUP_DIRECTORIES = tuple(dict.fromkeys(path.resolve() for path in _backup_directories))
 BACKUP_INTERVAL_MS = 15 * 60 * 1000
