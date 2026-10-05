@@ -1,4 +1,4 @@
-"""The PS Focus window: the program panels and modules one under another"""
+"""The PS Focus window: the header and module checkboxes, and the program panels and modules"""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from typing import Callable
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QCloseEvent, QIcon, QPalette, QResizeEvent
-from PySide6.QtWidgets import QVBoxLayout, QWidget
+from PySide6.QtWidgets import QWidget
 
 from app_config import APP_NAME, COMPACT_BOTTOM_SPACE, MODULE_GAP, TODAY_PANEL_WIDTH, WINDOW_MARGIN, resource_path
 from windows_startup import set_title_bar_colors_for_handle
@@ -34,60 +34,19 @@ def visible_frame(window_handle: int) -> wintypes.RECT | None:
     return None
 
 
-class BlockViewport(QWidget):
-    """Shows the blocks one under another, each with a gap above it, and slides them up as the window gets shorter
-    so the program panel holding the header stays in view; see the Tk ModulesMixin._scroll_blocks"""
-
-    def __init__(self) -> None:
-        super().__init__()
-        self.container = QWidget(self)
-        self.blocks: list[QWidget] = []
-        self.offset = 0
-
-    def set_blocks(self, blocks: list[QWidget]) -> None:
-        for block in self.blocks:
-            if block not in blocks:
-                block.hide()
-        self.blocks = blocks
-        self.lay_out()
-        for block in blocks:
-            block.show()
-
-    def lay_out(self) -> None:
-        """Put the blocks in place for their order and heights"""
-        top = 0
-        for block in self.blocks:
-            if block.parent() is not self.container:
-                block.setParent(self.container)
-            top += MODULE_GAP
-            block.move(0, top)
-            top += block.height()
-        self.container.resize(TODAY_PANEL_WIDTH, top)
-
-    def content_height(self) -> int:
-        return self.container.height()
-
-    def span(self, block: QWidget | None) -> tuple[int, int]:
-        """Where a block starts and ends among the blocks, or nothing for none"""
-        if block is None or block not in self.blocks:
-            return 0, 0
-        return block.y(), block.y() + block.height()
-
-    def slide(self, room: int, anchor: QWidget | None) -> None:
-        """Shrinking first hides the blocks after the anchor panel behind the window's bottom edge; once the edge
-        reaches that panel the blocks slide up instead, hiding those before it under the header"""
-        start, end = self.span(anchor)
-        offset = min(max(0, end - room), max(0, start - MODULE_GAP))
-        # Most resizes leave the blocks where they are; moving them only when they must keeps resizing smooth
-        if offset != self.offset or self.container.y() != -offset:
-            self.offset = offset
-            self.container.move(0, -offset)
-
-
 class MainWindow(QWidget):
-    def __init__(self, on_close: Callable[[], None]) -> None:
+    """The header and module checkboxes over the blocks, which slide as the window gets smaller so the program panel
+    holding the header, the anchor, stays in view; see the Tk ModulesMixin._scroll_blocks
+
+    In portrait the blocks stand one under another below the header, each with a gap above it, and the window can be
+    dragged shorter. In landscape they stand side by side, the header and checkboxes on top of the anchor panel, and
+    the window can be dragged narrower. Everything is placed by hand, as the header moves between the two
+    """
+
+    def __init__(self, on_close: Callable[[], None], on_resized_by_user: Callable[[int], None] | None = None) -> None:
         super().__init__()
         self.on_close = on_close
+        self.on_resized_by_user = on_resized_by_user
         self.setWindowTitle(APP_NAME)
         # Like the Tk window, there is nothing to maximize to: the window is as big as what it shows
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
@@ -96,12 +55,16 @@ class MainWindow(QWidget):
         palette.setColor(QPalette.ColorRole.Window, color("background"))
         self.setPalette(palette)
         self.setAutoFillBackground(True)
-        self.column = QVBoxLayout(self)
-        self.column.setContentsMargins(WINDOW_MARGIN, 0, WINDOW_MARGIN, 0)
-        self.column.setSpacing(0)
-        self.viewport = BlockViewport()
+        # The blocks are placed in the container, which slides within the viewport
+        self.viewport = QWidget(self)
+        self.container = QWidget(self.viewport)
+        self.blocks: list[QWidget] = []
         self.anchor: QWidget | None = None
         self.modules_shown = False
+        self.landscape = False
+        self.offset = 0
+        # The width the app last gave the window in landscape, to tell a width the user dragged to from it
+        self.requested_width = 0
         # Laid over the bottom of a window too short for its blocks, so they disappear behind a margin rather than
         # running right up to the edge, see the Tk ModulesMixin._update_clip_margin
         self.clip_margin = QWidget(self)
@@ -111,69 +74,155 @@ class MainWindow(QWidget):
         set_title_bar_colors_for_handle(int(self.winId()))
 
     def set_top(self, header: QWidget, controls: QWidget) -> None:
-        """The header, and the module checkboxes under it, which head the window"""
+        """The header, and the module checkboxes under it"""
         self.header, self.controls = header, controls
-        self.column.addWidget(header)
-        self.column.addSpacing(HEADER_GAP)
-        self.column.addWidget(controls)
-        self.column.addWidget(self.viewport, 1)
-        self.bottom_space = self.column.count()
-        self.column.addSpacing(0)
 
-    def show_blocks(self, blocks: list[QWidget], anchor: QWidget | None, modules_shown: bool) -> None:
-        """Show these blocks one under another in this order and hide any others. The anchor is the program panel
-        kept in view as the window gets shorter; modules_shown, whether a module is among the blocks"""
-        self.anchor, self.modules_shown = anchor, modules_shown
-        self.viewport.set_blocks(blocks)
-        # Without blocks, the space the Tk window kept under the checkboxes
-        spacer = self.column.itemAt(self.bottom_space).spacerItem()
-        spacer.changeSize(0, 0 if blocks else COMPACT_BOTTOM_SPACE)
-        self.viewport.setVisible(bool(blocks))
-        self.refit()
+    def show_blocks(
+        self, blocks: list[QWidget], anchor: QWidget | None, modules_shown: bool, landscape: bool = False, width: int | None = None
+    ) -> None:
+        """Show these blocks in this order and hide any others. The anchor is the program panel kept in view as the
+        window gets smaller; modules_shown, whether a module is among the blocks. In landscape the window is this
+        wide, or with none given as wide as every block"""
+        for block in self.blocks:
+            if block not in blocks:
+                block.hide()
+        self.blocks, self.anchor, self.modules_shown, self.landscape = blocks, anchor, modules_shown, landscape
+        self._lay_out()
+        for block in blocks:
+            block.show()
+        self.refit(width)
 
     def reorder_blocks(self, blocks: list[QWidget]) -> None:
         """Show the same blocks in a new order, the window keeping its size"""
-        self.viewport.set_blocks(blocks)
-        self._update_slide()
+        self.blocks = blocks
+        self._lay_out()
+        self._slide()
+
+    def _lay_out(self) -> None:
+        """Put the header, checkboxes and blocks in place for the layout, their order and their sizes"""
+        header, controls = self.header, self.controls
+        top_height = self.top_height()
+        if self.landscape:
+            for widget in (header, controls, *self.blocks):
+                if widget.parent() is not self.container:
+                    widget.setParent(self.container)
+            # The header and checkboxes stand first on their own when no program panel is shown to hold them
+            units: list[QWidget | None] = list(self.blocks) if self.anchor in self.blocks else [None, *self.blocks]
+            x = bottom = 0
+            for unit in units:
+                if unit is None or unit is self.anchor:
+                    header.move(x, 0)
+                    controls.move(x, header.height() + HEADER_GAP)
+                    bottom = max(bottom, top_height)
+                if unit is None:
+                    width = TODAY_PANEL_WIDTH
+                elif unit is self.anchor:
+                    unit.move(x, top_height + MODULE_GAP)
+                    width = unit.width()
+                    bottom = max(bottom, unit.y() + unit.height())
+                else:
+                    unit.move(x, 0)
+                    width = unit.width()
+                    bottom = max(bottom, unit.height())
+                x += width + MODULE_GAP
+            self.container.resize(max(1, x - MODULE_GAP), bottom)
+            self.viewport.move(WINDOW_MARGIN, 0)
+        else:
+            for widget in (header, controls):
+                if widget.parent() is not self:
+                    widget.setParent(self)
+            header.move(WINDOW_MARGIN, 0)
+            controls.move(WINDOW_MARGIN, header.height() + HEADER_GAP)
+            top = 0
+            for block in self.blocks:
+                if block.parent() is not self.container:
+                    block.setParent(self.container)
+                top += MODULE_GAP
+                block.move(0, top)
+                top += block.height()
+            self.container.resize(TODAY_PANEL_WIDTH, top)
+            self.viewport.move(WINDOW_MARGIN, top_height)
+        # Taken from one parent to another, a widget is hidden until shown again
+        header.show()
+        controls.show()
 
     def top_height(self) -> int:
         return self.header.height() + HEADER_GAP + self.controls.height()
 
-    def full_height(self) -> int:
-        """Height of the window showing every block whole"""
-        blocks = self.viewport.blocks
-        return self.top_height() + (self.viewport.content_height() if blocks else COMPACT_BOTTOM_SPACE)
+    def full_size(self) -> tuple[int, int]:
+        """Size of the window showing every block whole"""
+        if self.landscape:
+            return WINDOW_MARGIN + self.container.width(), self.container.height()
+        content = self.container.height() if self.blocks else COMPACT_BOTTOM_SPACE
+        return TODAY_PANEL_WIDTH + WINDOW_MARGIN * 2, self.top_height() + content
 
     def compact_height(self) -> int:
-        """Smallest height: the header and checkboxes, and the program panel holding the header, so it is never cut
-        off; the other blocks slide out of view around it"""
-        panel = MODULE_GAP + self.anchor.height() if self.anchor is not None and self.anchor in self.viewport.blocks else 0
+        """Smallest height in portrait: the header and checkboxes, and the program panel holding the header, so it
+        is never cut off; the other blocks slide out of view around it"""
+        panel = MODULE_GAP + self.anchor.height() if self.anchor is not None and self.anchor in self.blocks else 0
         return self.top_height() + COMPACT_BOTTOM_SPACE + panel
 
-    def refit(self) -> None:
-        """Lay the blocks out again and make the window as tall as all of them, after a block has come, gone, grown
-        or shrunk. It can then be dragged shorter, down to its compact height"""
-        self.viewport.lay_out()
-        full = self.full_height()
-        width = TODAY_PANEL_WIDTH + WINDOW_MARGIN * 2
-        self.setMinimumSize(width, min(self.compact_height(), full))
-        self.setMaximumSize(width, full)
-        self.resize(width, full)
-        self._update_slide()
+    def refit(self, width: int | None = None) -> None:
+        """Lay the blocks out again and size the window to all of them, after a block has come, gone, grown or
+        shrunk. In portrait it can then be dragged shorter, down to its compact height; in landscape narrower, down
+        to the width of a panel, and it is given this width if one is given and it is not wider than everything"""
+        self._lay_out()
+        full_width, full_height = self.full_size()
+        if self.landscape:
+            self.setMinimumSize(min(TODAY_PANEL_WIDTH, full_width), full_height)
+            self.setMaximumSize(full_width, full_height)
+            width = full_width if width is None else max(TODAY_PANEL_WIDTH, min(width, full_width))
+            self.requested_width = width
+            self._resize_on_screen(width, full_height)
+        else:
+            self.setMinimumSize(full_width, min(self.compact_height(), full_height))
+            self.setMaximumSize(full_width, full_height)
+            self._resize_on_screen(full_width, full_height)
+        self._slide()
 
-    def _update_slide(self) -> None:
-        if not self.viewport.blocks:
-            return
-        self.viewport.slide(self.height() - self.top_height() - COMPACT_BOTTOM_SPACE, self.anchor)
-        clipped = self.modules_shown and self.height() < self.full_height()
-        self.clip_margin.setVisible(clipped)
-        if clipped:
-            self.clip_margin.setGeometry(0, self.height() - COMPACT_BOTTOM_SPACE, self.width(), COMPACT_BOTTOM_SPACE)
-            self.clip_margin.raise_()
+    def _resize_on_screen(self, width: int, height: int) -> None:
+        """Resize keeping the window's left edge, and with it the header, in place; it then moves left as far as it
+        must to stay on its screen"""
+        old_width = self.width()
+        self.resize(width, height)
+        if self.isVisible() and width != old_width and self.screen() is not None:
+            work = self.screen().availableGeometry()
+            x = max(work.left(), min(self.x(), work.right() + 1 - self.frameGeometry().width()))
+            if x != self.x():
+                self.move(x, self.y())
+
+    def _slide(self) -> None:
+        """Shrinking first hides the blocks after the anchor panel behind the window's far edge; once the edge
+        reaches that panel the blocks slide instead, hiding those before it under the header or off the left"""
+        self.viewport.resize(max(1, self.width() - self.viewport.x()), max(1, self.height() - self.viewport.y()))
+        anchored = self.anchor is not None and self.anchor in self.blocks
+        if self.landscape:
+            start, end = (self.anchor.x(), self.anchor.x() + self.anchor.width()) if anchored else (0, 0)
+            offset = min(max(0, end - (self.width() - WINDOW_MARGIN)), start)
+            position = (-offset, 0)
+            self.clip_margin.hide()
+        else:
+            start, end = (self.anchor.y(), self.anchor.y() + self.anchor.height()) if anchored else (0, 0)
+            room = self.height() - self.top_height() - COMPACT_BOTTOM_SPACE
+            offset = min(max(0, end - room), max(0, start - MODULE_GAP))
+            position = (0, -offset)
+            clipped = self.modules_shown and self.height() < self.full_size()[1]
+            self.clip_margin.setVisible(clipped)
+            if clipped:
+                self.clip_margin.setGeometry(0, self.height() - COMPACT_BOTTOM_SPACE, self.width(), COMPACT_BOTTOM_SPACE)
+                self.clip_margin.raise_()
+        self.offset = offset
+        # Most resizes leave the blocks where they are; moving them only when they must keeps resizing smooth
+        if (self.container.x(), self.container.y()) != position:
+            self.container.move(*position)
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
-        self._update_slide()
+        self._slide()
+        # In landscape a width the app did not ask for is one the user dragged to, kept while blocks come and go
+        if self.landscape and self.width() != self.requested_width and self.on_resized_by_user is not None:
+            self.requested_width = self.width()
+            self.on_resized_by_user(self.width())
 
     def place_top_right(self) -> None:
         """Put the window in the top right corner of its screen's work area, its visible frame flush with the corner"""

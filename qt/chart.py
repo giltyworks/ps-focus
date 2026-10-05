@@ -12,11 +12,11 @@ from PySide6.QtGui import QColor, QLinearGradient, QMouseEvent, QPainter, QPaint
 from PySide6.QtWidgets import QWidget
 
 import app_config
-from app_config import CHART_FILL_OPACITY, CHART_PERIOD_CAPTIONS, CHART_PERIODS, EDGE_PADDING, MODULE_CANVAS_WIDTH, format_duration
+from app_config import CHART_FILL_OPACITY, CHART_PERIOD_CAPTIONS, EDGE_PADDING, MODULE_CANVAS_WIDTH, MODULE_MARGIN, format_duration
 from tracker import ActivityStore
 
 from .module import ModuleBlock, PaintedButton
-from .theme import Fonts, color, draw_anchored, draw_text, line_height, tk_round
+from .theme import Fonts, color, draw_anchored, draw_text, line_height, text_width, tk_round
 
 # The same measurements as the Tk graph, see ui_chart.py: the gap between period buttons; the space below the
 # buttons; the space above the plot kept for the total and its caption; the plot's margins at the left, right and
@@ -30,6 +30,15 @@ PLOT_BOTTOM_MARGIN = 26
 AXIS_LABEL_GAP = 8
 HEADLINE_AT = (EDGE_PADDING - 1, 2)
 CAPTION_AT = (EDGE_PADDING, 34)
+# The landscape layout's side strip, see ui_chart.py: how far the module's name sits from the top, the space
+# between the strip's rows, and the gaps either side of the column of period buttons; the space the chart keeps
+# above its plot there, for the top hour label alone; and the widest stacked total the strip makes room for
+SIDE_TITLE_TOP = 5
+SIDE_STRIP_GAP = 6
+SIDE_BUTTON_GAP = MODULE_MARGIN
+SIDE_CHART_GAP = MODULE_MARGIN
+CHART_TOP_SPACE = 14
+SIDE_HEADLINE_SAMPLE = "000h"
 PERIOD_LABELS = {"Day": "1D", "Week": "1W", "Month": "1M", "3 Months": "3M", "6 Months": "6M", "1 Year": "1Y"}
 
 
@@ -59,19 +68,60 @@ class ChartModule(ModuleBlock):
             name: PaintedButton(label, lambda value=name: self._set_period(value), fonts, 8, 6, width_in_digits=3) for name, label in PERIOD_LABELS.items()
         }
         self.buttons = list(self.period_buttons.values())
-        button_height = self.buttons[0].height
-        # Lined up against the right edge, as in the Tk graph
-        right = 1 + MODULE_CANVAS_WIDTH - EDGE_PADDING
-        for index, button in enumerate(reversed(self.buttons)):
-            button.left = right - button.width - index * (button.width + PERIOD_BUTTON_GAP)
-            button.top = self.content_top
-        self.chart_top = self.content_top + button_height + CONTROLS_GAP
-        self.set_content_height(button_height + CONTROLS_GAP + app_config.CHART_HEIGHT)
         self.month_text = ""
         self.plot: Plot | None = None
         self.hover_index: int | None = None
         # The chart without the readout, drawn when the data changes, so following the mouse only redraws the readout
         self.picture: QPixmap | None = None
+        self.set_layout(False)
+
+    def side_rows(self) -> tuple[int, int, int, int, int]:
+        """Where the landscape strip's rows start, inside the border: the month, the total, the caption and the
+        button column, and where the strip ends"""
+        fonts = self.fonts
+        month_top = SIDE_TITLE_TOP + line_height(fonts.bold) + SIDE_STRIP_GAP
+        headline_top = month_top + line_height(fonts.small) + 2
+        # Room for the three lines of the stacked total; a shorter total has its caption moved up under it
+        caption_top = headline_top + 3 * line_height(fonts.headline)
+        text_bottom = caption_top + line_height(fonts.caption) + SIDE_STRIP_GAP
+        buttons_top = SIDE_TITLE_TOP - 1
+        count, height = len(self.buttons), self.buttons[0].height
+        buttons_bottom = buttons_top + count * height + (count - 1) * PERIOD_BUTTON_GAP + SIDE_STRIP_GAP
+        return month_top, headline_top, caption_top, buttons_top, max(text_bottom, buttons_bottom)
+
+    def side_width(self) -> int:
+        """Width of the landscape strip: the name and total, then the column of period buttons"""
+        room = max(text_width(self.fonts.bold, self.title), text_width(self.fonts.headline, SIDE_HEADLINE_SAMPLE))
+        return MODULE_MARGIN + room + SIDE_BUTTON_GAP + self.buttons[0].width
+
+    def landscape_height(self) -> int:
+        """Height the graph needs in landscape, inside its border: its strip, or its chart, which without the total
+        above it is shorter by that space so that its plot stays the same size"""
+        return max(self.side_rows()[4], app_config.CHART_HEIGHT - CHART_TEXT_SPACE + CHART_TOP_SPACE)
+
+    def set_layout(self, landscape: bool, height: int = 0) -> None:
+        """Put the month and period buttons above the chart, or in landscape in a strip beside it together with the
+        total and its caption, the module's height then being this much inside its border"""
+        self.landscape = landscape
+        width = MODULE_CANVAS_WIDTH
+        if landscape:
+            side = self.side_width()
+            buttons_top = self.side_rows()[3]
+            for index, button in enumerate(self.buttons):
+                button.place(1 + side - button.width, 1 + buttons_top + index * (button.height + PERIOD_BUTTON_GAP))
+            self.chart_origin = QPoint(1 + side, 1)
+            self.chart_size = (width, height)
+            self.setFixedSize(2 + side + width, 2 + height)
+        else:
+            # Lined up against the right edge, as in the Tk graph
+            right = 1 + width - EDGE_PADDING
+            for index, button in enumerate(reversed(self.buttons)):
+                button.place(right - button.width - index * (button.width + PERIOD_BUTTON_GAP), self.content_top)
+            button_height = self.buttons[0].height
+            self.chart_origin = QPoint(1, self.content_top + button_height + CONTROLS_GAP)
+            self.chart_size = (width, app_config.CHART_HEIGHT)
+            self.set_content_height(button_height + CONTROLS_GAP + app_config.CHART_HEIGHT)
+        self.picture = None
 
     def _set_period(self, period: str) -> None:
         self.period = period
@@ -98,13 +148,19 @@ class ChartModule(ModuleBlock):
             last_index = min(count - 1, (today - start).days)
         for name, button in self.period_buttons.items():
             button.selected = name == self.period
-        width, height = MODULE_CANVAS_WIDTH, app_config.CHART_HEIGHT
+        width, height = self.chart_size
         max_hours = max(1, math.ceil(max(max(values, default=0), 60) / 60))
         tick_step = max(1, math.ceil(max_hours / 4))
         max_hours = math.ceil(max_hours / tick_step) * tick_step
         tick_hours = range(0, max_hours + 1, tick_step)
-        left, right, top, bottom = PLOT_LEFT, width - PLOT_RIGHT_MARGIN, CHART_TEXT_SPACE, height - PLOT_BOTTOM_MARGIN
-        if not count:
+        if self.landscape:
+            # Beside the strip the plot starts just after its widest hour label
+            left = SIDE_CHART_GAP + max(text_width(self.fonts.caption, f"{hour}h") for hour in tick_hours) + AXIS_LABEL_GAP
+            top = CHART_TOP_SPACE
+        else:
+            left, top = PLOT_LEFT, CHART_TEXT_SPACE
+        right, bottom = width - PLOT_RIGHT_MARGIN, height - PLOT_BOTTOM_MARGIN
+        if right <= left or bottom <= top or not count:
             self.plot, self.picture = None, None
             self.update()
             return
@@ -178,16 +234,15 @@ class ChartModule(ModuleBlock):
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         self.paint_frame(painter)
-        button_height = self.buttons[0].height
-        draw_text(
-            painter, 1 + EDGE_PADDING, self.content_top + (button_height - line_height(self.fonts.small)) // 2,
-            self.month_text, color("muted"), self.fonts.small,
-        )
+        if self.landscape:
+            month_top = 1 + self.side_rows()[0]
+        else:
+            month_top = self.content_top + (self.buttons[0].height - line_height(self.fonts.small)) // 2
+        draw_text(painter, 1 + EDGE_PADDING, month_top, self.month_text, color("muted"), self.fonts.small)
         for button in self.buttons:
             button.paint(painter)
-        painter.translate(1, self.chart_top)
         if self.picture is not None:
-            painter.drawPixmap(0, 0, self.picture)
+            painter.drawPixmap(self.chart_origin, self.picture)
         self._paint_readout(painter)
         painter.end()
 
@@ -196,6 +251,8 @@ class ChartModule(ModuleBlock):
         plot = self.plot
         if plot is None:
             return
+        painter.save()
+        painter.translate(self.chart_origin)
         if self.hover_index is None:
             minutes, caption = plot.total, plot.caption
         else:
@@ -219,20 +276,34 @@ class ChartModule(ModuleBlock):
                 caption = f"{hour_start} to {hour_end}"
             else:
                 caption = (plot.start + timedelta(days=index)).strftime("%a %d %b").replace(" 0", " ")
-        draw_text(painter, *HEADLINE_AT, format_duration(round(minutes * 60)), color("text"), self.fonts.headline)
-        draw_text(painter, *CAPTION_AT, caption, color("muted"), self.fonts.caption)
+        painter.restore()
+        headline = format_duration(round(minutes * 60))
+        if self.landscape:
+            # In the strip the hours, minutes and seconds stand one under another, the caption just below
+            headline_top = 1 + self.side_rows()[1]
+            lines = headline.split(" ")
+            for index, line in enumerate(lines):
+                draw_text(painter, MODULE_MARGIN, headline_top + index * line_height(self.fonts.headline), line, color("text"), self.fonts.headline)
+            caption_top = headline_top + len(lines) * line_height(self.fonts.headline)
+            draw_text(painter, 1 + MODULE_MARGIN, caption_top, caption, color("muted"), self.fonts.caption)
+        else:
+            origin = self.chart_origin
+            draw_text(painter, origin.x() + HEADLINE_AT[0], origin.y() + HEADLINE_AT[1], headline, color("text"), self.fonts.headline)
+            draw_text(painter, origin.x() + CAPTION_AT[0], origin.y() + CAPTION_AT[1], caption, color("muted"), self.fonts.caption)
 
     def _chart_point(self, point: QPoint) -> QPoint | None:
         """The point on the chart under the mouse, or None off the chart"""
-        local = point - QPoint(1, self.chart_top)
-        if 0 <= local.x() < MODULE_CANVAS_WIDTH and 0 <= local.y() < app_config.CHART_HEIGHT:
+        local = point - self.chart_origin
+        width, height = self.chart_size
+        if 0 <= local.x() < width and 0 <= local.y() < height:
             return local
         return None
 
     def _set_hover(self, index: int | None) -> None:
         if index != self.hover_index:
             self.hover_index = index
-            self.update(1, self.chart_top, MODULE_CANVAS_WIDTH, app_config.CHART_HEIGHT)
+            # In landscape the readout is in the strip, so the whole module is repainted
+            self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         super().mouseMoveEvent(event)

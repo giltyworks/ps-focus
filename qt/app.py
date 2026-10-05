@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 import app_config
 from app_config import (
     APP_NAME,
+    MODULE_GAP,
     CHART_PERIODS,
     DEFAULT_SETTINGS,
     FEEDBACK_UNLOCK_SECONDS,
@@ -63,7 +64,12 @@ class PSFocusQt:
         self.active = False
         self.level_revealed = bool(self.settings.get("feedback_submitted"))
         self.feedback_unlocked = False
-        self.window = MainWindow(on_close=self.window_hidden)
+        self.landscape = bool(self.settings.get("landscape", False))
+        # In landscape, a width the user dragged the window narrower to, kept while blocks come and go until the
+        # window is dragged as wide as everything again
+        self.landscape_width: int | None = None
+        self.arranging = False
+        self.window = MainWindow(on_close=self.window_hidden, on_resized_by_user=self._window_width_chosen)
         self.header = Header(self.fonts)
         self.module_ticked = {name: bool(self.settings.get(f"show_{name}", True)) for name in MODULE_NAMES}
         self.module_controls = ModuleControls(self.fonts, self.module_ticked, self._module_toggled)
@@ -73,12 +79,14 @@ class PSFocusQt:
         period = self.settings.get("period")
         self.chart = ChartModule(self.fonts, self.store, period if period in CHART_PERIODS else "Day", self._period_chosen)
         self.chart_drawn_day: date | None = None
-        self.calendar = CalendarModule(self.fonts, self.store, self._open_day_overview, self._refresh_stats, self.window.refit)
-        self.stats = StatsModule(self.fonts, self.store, self.window.refit)
+        self.calendar = CalendarModule(self.fonts, self.store, self._open_day_overview, self._refresh_stats, self._block_resized)
+        self.stats = StatsModule(self.fonts, self.store, self._block_resized)
         self.modules = {"graph": self.chart, "calendar": self.calendar, "stats": self.stats}
         # The calendar and stats change slowly, so they are worked out again every so many seconds
         self.slow_refresh_ticks = 0
-        self.block_drag = BlockDrag({**self.panels, **self.modules}, lambda: self.block_order, self._blocks_reordered, self._save_settings)
+        self.block_drag = BlockDrag(
+            {**self.panels, **self.modules}, lambda: self.block_order, self._blocks_reordered, self._save_settings, lambda: self.landscape
+        )
         self._arrange_blocks()
         self._start_tray_icon()
         self.last_tick_time = time.monotonic()
@@ -105,7 +113,58 @@ class PSFocusQt:
         return order + [name for name in BLOCK_NAMES if name not in order]
 
     def _arrange_blocks(self) -> None:
-        self.window.show_blocks(self._shown_blocks(), self._anchor_panel(), any(self.module_ticked.values()))
+        """Show the shown blocks in their order, one under another or in landscape side by side, every column then
+        stretched to the same height"""
+        self.arranging = True
+        try:
+            anchor = self._anchor_panel()
+            # The stats' lines set how tall they need to be, which the height in landscape follows
+            self._refresh_stats()
+            if self.landscape:
+                height = self._landscape_height(anchor)
+                today_height = next(iter(self.panels.values())).natural_height - 2
+                for panel in self.panels.values():
+                    # The panel under the header is shorter by the header's height, so its column ends level too
+                    panel.set_stretch(height - today_height - (self._header_overhead() if panel is anchor else 0))
+            else:
+                height = 0
+                for panel in self.panels.values():
+                    panel.set_stretch(0)
+            for module in self.modules.values():
+                module.set_layout(self.landscape, height)
+            for name in ("graph", "calendar"):
+                if self.module_ticked[name]:
+                    self._refresh_module(name)
+            self.window.show_blocks(self._shown_blocks(), anchor, any(self.module_ticked.values()), self.landscape, self.landscape_width)
+        finally:
+            self.arranging = False
+
+    def _header_overhead(self) -> int:
+        """Height the header and module checkboxes add on top of the anchor panel in landscape"""
+        return self.window.top_height() + MODULE_GAP
+
+    def _landscape_height(self, anchor: TodayPanel | None) -> int:
+        """Height every column shares in landscape, inside the blocks' borders: what the tallest of them needs,
+        counting the header and checkboxes on top of the anchor panel, so every column ends level"""
+        today_height = next(iter(self.panels.values())).natural_height - 2
+        overhead = self._header_overhead()
+        # With no anchor panel the header stands alone: its height, less a block's border of a pixel each side
+        column = today_height + overhead if anchor is not None else overhead - MODULE_GAP - 2
+        stats = self.stats.landscape_height() if self.module_ticked["stats"] else 0
+        return max(self.chart.landscape_height(), stats, today_height, column)
+
+    def _block_resized(self) -> None:
+        # A module growing or shrinking, such as the stats gaining a line, changes the size the window needs, and in
+        # landscape the height every column shares
+        if self.arranging:
+            return
+        if self.landscape:
+            self._arrange_blocks()
+        else:
+            self.window.refit()
+
+    def _window_width_chosen(self, width: int) -> None:
+        self.landscape_width = width if width < self.window.full_size()[0] else None
 
     def _shown_blocks(self) -> list:
         blocks = {**self.panels, **self.modules}

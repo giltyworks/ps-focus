@@ -107,6 +107,9 @@ class ModuleBlock(QWidget):
         painter.fillRect(self.rect(), color("panel"))
         painter.setPen(color(self.border_color))
         painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
+        self.paint_title(painter)
+
+    def paint_title(self, painter: QPainter) -> None:
         draw_text(painter, 1 + MODULE_MARGIN, 1 + MODULE_TITLE_PADDING, self.title, color("text"), self.fonts.bold)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:

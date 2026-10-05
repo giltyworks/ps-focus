@@ -43,6 +43,8 @@ class TodayPanel(QWidget):
         self.application = application
         # Blue while the panel is being dragged into a new place, see block_drag
         self.border_color = "border"
+        # Extra height in landscape, so the panel is as tall as the modules beside it; its text stays in the middle
+        self.stretch = 0
         metric_ascent = ascent(fonts.metric)
         digit_height = round(metric_ascent * 0.66)
         heights = (
@@ -83,6 +85,13 @@ class TodayPanel(QWidget):
             "last_session": text(3, True, "last session on --", muted, fonts.counter),
         }
 
+    def set_stretch(self, extra: int) -> None:
+        extra = max(0, extra)
+        if extra != self.stretch:
+            self.stretch = extra
+            self.setFixedSize(TODAY_PANEL_WIDTH, self.natural_height + extra)
+            self.update()
+
     def set_text(self, name: str, text: str, text_color: str | None = None) -> None:
         """Change one line of text, repainting only when something changed; most seconds change one line or none"""
         item = self.texts[name]
@@ -103,5 +112,5 @@ class TodayPanel(QWidget):
             metrics = QFontMetrics(item.font)
             width = metrics.horizontalAdvance(item.text)
             x = item.x - width if item.right_aligned else item.x
-            painter.drawText(QPoint(x, item.top + ascent(item.font)), item.text)
+            painter.drawText(QPoint(x, item.top + self.stretch // 2 + ascent(item.font)), item.text)
         painter.end()

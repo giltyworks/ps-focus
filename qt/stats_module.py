@@ -32,7 +32,25 @@ class StatsModule(ModuleBlock):
         self.on_height_changed = on_height_changed
         self.drawn_lines: list[StatLine] | None = None
         self.picture: QPixmap | None = None
+        # Height of the lines, and in landscape the height the modules share, inside the border
+        self.lines_height = 1
+        self.shared_height = 0
         self.set_content_height(1)
+
+    def landscape_height(self) -> int:
+        """Height the stats need in landscape, inside their border, with their name above the lines"""
+        return self.content_top - 1 + self.lines_height
+
+    def set_layout(self, landscape: bool, height: int = 0) -> None:
+        """In landscape the stats stretch to the height the modules share; in portrait they are as tall as their lines"""
+        self.shared_height = height if landscape else 0
+        self._fit()
+
+    def _fit(self) -> None:
+        old_height = self.height()
+        self.set_content_height(max(self.lines_height, self.shared_height - (self.content_top - 1)))
+        if self.height() != old_height:
+            self.on_height_changed()
 
     def refresh(self, calendar_view: str, calendar_month: date) -> None:
         """Work the figures out again, for the period the calendar shows, and draw them if they changed"""
@@ -83,10 +101,8 @@ class StatsModule(ModuleBlock):
                     draw_anchored(painter, right, middle, "e", line.note, QColor(line.note_color), note_font)
         painter.end()
         self.picture = picture
-        old_height = self.height()
-        self.set_content_height(height)
-        if self.height() != old_height:
-            self.on_height_changed()
+        self.lines_height = height
+        self._fit()
         self.update()
 
     def paintEvent(self, _event: QPaintEvent) -> None:

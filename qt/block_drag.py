@@ -17,13 +17,14 @@ DRAG_DISTANCE = 5
 class BlockDrag(QObject):
     def __init__(
         self, blocks: dict[str, QWidget], order: Callable[[], list[str]], on_reorder: Callable[[list[str]], None],
-        on_finished: Callable[[], None],
+        on_finished: Callable[[], None], landscape: Callable[[], bool] = lambda: False,
     ) -> None:
         super().__init__()
         self.blocks = blocks
         self.order = order
         self.on_reorder = on_reorder
         self.on_finished = on_finished
+        self.landscape = landscape
         self.candidate: str | None = None
         self.origin = QPoint()
         self.dragged: str | None = None
@@ -64,18 +65,24 @@ class BlockDrag(QObject):
             self._mark(True)
             QApplication.setOverrideCursor(Qt.CursorShape.PointingHandCursor)
         source = self.dragged
+        # Blocks pass one another by height when stacked, and by width side by side in landscape, where a column is
+        # taken whole, the header standing on the panel under it included
+        landscape = self.landscape()
         target, middle = None, 0
         for name, block in self.blocks.items():
             if name == source or not block.isVisible():
                 continue
             top_left = block.mapToGlobal(QPoint(0, 0))
-            if top_left.x() <= pointer.x() <= top_left.x() + block.width() and top_left.y() <= pointer.y() <= top_left.y() + block.height():
-                target, middle = name, top_left.y() + block.height() // 2
+            across = top_left.x() <= pointer.x() <= top_left.x() + block.width()
+            down = top_left.y() <= pointer.y() <= top_left.y() + block.height()
+            if across and (down or landscape):
+                target = name
+                middle = top_left.x() + block.width() // 2 if landscape else top_left.y() + block.height() // 2
                 break
         if target is not None:
             order = list(self.order())
             source_index, target_index = order.index(source), order.index(target)
-            insert_index = target_index + int(pointer.y() > middle)
+            insert_index = target_index + int((pointer.x() if landscape else pointer.y()) > middle)
             if source_index < insert_index:
                 insert_index -= 1
             if source_index != insert_index:
