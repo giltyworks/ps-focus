@@ -41,6 +41,8 @@ class TodayPanel(QWidget):
     def __init__(self, application: str, fonts: Fonts, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.application = application
+        # Blue while the panel is being dragged into a new place, see block_drag
+        self.border_color = "border"
         metric_ascent = ascent(fonts.metric)
         digit_height = round(metric_ascent * 0.66)
         heights = (
@@ -93,7 +95,7 @@ class TodayPanel(QWidget):
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.fillRect(self.rect(), color("panel"))
-        painter.setPen(color("border"))
+        painter.setPen(color(self.border_color))
         painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
         for item in self.texts.values():
             painter.setFont(item.font)

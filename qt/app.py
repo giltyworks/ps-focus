@@ -31,6 +31,7 @@ from app_config import (
 from tracker import ActivityStore, foreground_application, user_is_active
 from windows_startup import SingleInstance
 
+from .block_drag import BlockDrag
 from .calendar_module import CalendarModule
 from .chart import ChartModule
 from .day_overview import DayOverview
@@ -77,6 +78,7 @@ class PSFocusQt:
         self.modules = {"graph": self.chart, "calendar": self.calendar, "stats": self.stats}
         # The calendar and stats change slowly, so they are worked out again every so many seconds
         self.slow_refresh_ticks = 0
+        self.block_drag = BlockDrag({**self.panels, **self.modules}, lambda: self.block_order, self._blocks_reordered, self._save_settings)
         self._arrange_blocks()
         self._start_tray_icon()
         self.last_tick_time = time.monotonic()
@@ -103,8 +105,25 @@ class PSFocusQt:
         return order + [name for name in BLOCK_NAMES if name not in order]
 
     def _arrange_blocks(self) -> None:
+        self.window.show_blocks(self._shown_blocks(), self._anchor_panel(), any(self.module_ticked.values()))
+
+    def _shown_blocks(self) -> list:
         blocks = {**self.panels, **self.modules}
-        self.window.show_blocks([blocks[name] for name in self.block_order if name in blocks and self._block_shown(name)])
+        return [blocks[name] for name in self.block_order if self._block_shown(name)]
+
+    def _anchor_panel(self) -> TodayPanel | None:
+        """The program panel kept in view under the header as the window gets shorter: Photoshop's when it is
+        shown, otherwise the first shown, or none"""
+        shown = [name for name in self.block_order if name in self.panels and self._block_shown(name)]
+        if not shown:
+            return None
+        return self.panels["Photoshop" if "Photoshop" in shown else shown[0]]
+
+    def _blocks_reordered(self, order: list[str]) -> None:
+        # Kept when the drag ends, see BlockDrag
+        self.block_order = order
+        self.settings["block_order"] = order.copy()
+        self.window.reorder_blocks(self._shown_blocks())
 
     def _block_shown(self, name: str) -> bool:
         """A module ticked in the checkboxes, or a program panel ticked in Settings"""

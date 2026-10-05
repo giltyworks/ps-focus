@@ -97,13 +97,15 @@ class ModuleBlock(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         self.setMouseTracking(True)
         self.buttons: list[PaintedButton] = []
+        # Blue while the module is being dragged into a new place, see block_drag
+        self.border_color = "border"
 
     def set_content_height(self, height: int) -> None:
         self.setFixedSize(TODAY_PANEL_WIDTH, self.content_top + height + 1)
 
     def paint_frame(self, painter: QPainter) -> None:
         painter.fillRect(self.rect(), color("panel"))
-        painter.setPen(color("border"))
+        painter.setPen(color(self.border_color))
         painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
         draw_text(painter, 1 + MODULE_MARGIN, 1 + MODULE_TITLE_PADDING, self.title, color("text"), self.fonts.bold)
 
