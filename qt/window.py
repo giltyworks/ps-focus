@@ -75,6 +75,11 @@ class MainWindow(QWidget):
         self.column.addSpacing(0 if blocks else COMPACT_BOTTOM_SPACE)
         self.column.addStretch(1)
         self.blocks = blocks
+        self.refit()
+
+    def refit(self) -> None:
+        """Make the window as tall as what it shows, after a block has grown or shrunk"""
+        self.column.invalidate()
         self.column.activate()
         self.setFixedSize(TODAY_PANEL_WIDTH + WINDOW_MARGIN * 2, max(1, self.column.sizeHint().height()))
 

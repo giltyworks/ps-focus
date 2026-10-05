@@ -33,17 +33,28 @@ def draw_rounded_box(painter: QPainter, box: QRectF, radius: float, fill: QColor
 
 class PaintedButton:
     """A rounded button painted by the widget it sits in, as the Tk widgets.CanvasButton: its outline turns white
-    while it is pressed or marked as selected. The widget passes its mouse presses and releases on"""
+    while it is pressed or marked as selected. The widget passes its mouse presses and releases on. Its width is
+    that of this many digits, or with none given, of its text; its text is muted unless the button is selected"""
 
-    def __init__(self, text: str, command: Callable[[], None], fonts: Fonts, width_in_digits: int, padx: int, pady: int) -> None:
+    def __init__(
+        self, text: str, command: Callable[[], None], fonts: Fonts, padx: int, pady: int, width_in_digits: int = 0, text_color: str = "muted"
+    ) -> None:
         self.text = text
         self.command = command
         self.font = fonts.small
-        self.width = text_width(self.font, "0" * width_in_digits) + 2 * padx
+        self.text_color = text_color
+        self.width = text_width(self.font, "0" * width_in_digits if width_in_digits else text) + 2 * padx
         self.height = line_height(self.font) + 2 * pady
         self.left = self.top = 0
         self.selected = False
         self.pressed = False
+
+    def place(self, left: int, top: int) -> None:
+        self.left, self.top = left, top
+
+    @property
+    def right(self) -> int:
+        return self.left + self.width
 
     def contains(self, point: QPoint) -> bool:
         return self.left <= point.x() < self.left + self.width and self.top <= point.y() < self.top + self.height
@@ -58,7 +69,7 @@ class PaintedButton:
             self.left + (self.width - text_width(self.font, self.text)) // 2,
             self.top + (self.height - line_height(self.font)) // 2,
             self.text,
-            color("text") if self.selected else color("muted"),
+            color("text") if self.selected else color(self.text_color),
             self.font,
         )
 

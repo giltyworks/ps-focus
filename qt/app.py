@@ -31,8 +31,11 @@ from app_config import (
 from tracker import ActivityStore, foreground_application, user_is_active
 from windows_startup import SingleInstance
 
+from .calendar_module import CalendarModule
 from .chart import ChartModule
+from .day_overview import DayOverview
 from .header import Header, ModuleControls
+from .stats_module import StatsModule
 from .theme import Fonts
 from .today_panel import TodayPanel
 from .window import MainWindow
@@ -69,8 +72,11 @@ class PSFocusQt:
         period = self.settings.get("period")
         self.chart = ChartModule(self.fonts, self.store, period if period in CHART_PERIODS else "Day", self._period_chosen)
         self.chart_drawn_day: date | None = None
-        # The modules built so far; the calendar and stats come in a later stage of the rebuild
-        self.modules = {"graph": self.chart}
+        self.calendar = CalendarModule(self.fonts, self.store, self._open_day_overview, self._refresh_stats, self.window.refit)
+        self.stats = StatsModule(self.fonts, self.store, self.window.refit)
+        self.modules = {"graph": self.chart, "calendar": self.calendar, "stats": self.stats}
+        # The calendar and stats change slowly, so they are worked out again every so many seconds
+        self.slow_refresh_ticks = 0
         self._arrange_blocks()
         self._start_tray_icon()
         self.last_tick_time = time.monotonic()
@@ -110,8 +116,34 @@ class PSFocusQt:
         self.settings[f"show_{name}"] = self.module_ticked[name]
         self._save_settings()
         self._arrange_blocks()
-        if name == "graph" and self.module_ticked[name]:
+        if self.module_ticked[name]:
+            self._refresh_module(name)
+
+    def _refresh_module(self, name: str) -> None:
+        if name == "graph":
             self.chart.refresh()
+        elif name == "calendar":
+            self.calendar.refresh()
+        else:
+            self._refresh_stats()
+
+    def _refresh_stats(self) -> None:
+        if self.module_ticked["stats"]:
+            self.stats.refresh(self.calendar.view, self.calendar.month)
+
+    def _open_day_overview(self, session_day: date) -> None:
+        DayOverview(self.window, self.fonts, self.store, session_day, self._set_productivity_rating).show_centred_on(self.window)
+
+    def _set_productivity_rating(self, session_day: date, rating: int) -> None:
+        """Rate a day from 1 to 10; choosing the rating it already has clears it"""
+        if self.store.productivity_rating(session_day) == rating:
+            self.store.clear_productivity_rating(session_day)
+        else:
+            self.store.set_productivity_rating(session_day, rating)
+        if self.module_ticked["calendar"]:
+            self.calendar.refresh()
+        # The best start time depends on the ratings, so it follows a change straight away
+        self._refresh_stats()
 
     def _period_chosen(self, period: str) -> None:
         self.settings["period"] = period
@@ -227,6 +259,12 @@ class PSFocusQt:
         if self.module_ticked["graph"] and (self.active or self.chart_drawn_day != today):
             self.chart.refresh()
             self.chart_drawn_day = today
+        # As in the Tk app, the calendar and stats are brought up to date every 15 seconds
+        if self.slow_refresh_ticks % 15 == 0:
+            for name in ("calendar", "stats"):
+                if self.module_ticked[name]:
+                    self._refresh_module(name)
+        self.slow_refresh_ticks += 1
         self.feedback_unlocked = lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS
         # The level opens the feedback form once feedback is unlocked, until the level is revealed
         self.header.level_clickable = self.feedback_unlocked and not self.level_revealed

@@ -5,8 +5,7 @@ from __future__ import annotations
 import calendar
 import tkinter as tk
 import tkinter.font as tkfont
-from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from app_config import (
     COLORS,
@@ -15,17 +14,23 @@ from app_config import (
     MODULE_MARGIN,
     MODULE_CANVAS_WIDTH,
     MODULE_GAP,
-    MONTHLY_AVERAGE_DAYS,
-    ROLLING_AVERAGE_DAYS,
     SESSION_MINIMUM_SECONDS,
     format_duration,
+)
+from stat_lines import (
+    DAY_ABBREVIATIONS,
+    MEDAL_TIERS,
+    StatLine,
+    figure_lines,
+    format_clock,
+    no_sessions_text,
+    session_summary_lines,
 )
 from rendering import render_award_badge, render_crescent_icon, render_flame_icon, render_rounded_box, to_photo_image
 from ui_modules import MODULE_TITLE_PADDING
 from widgets import CONTROL_TAG, CanvasButton, drawing_surface, show_drawing
 
 
-DAY_ABBREVIATIONS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 # Font of the star and number showing a day's productivity rating, on the calendar and in Stats
 CALENDAR_RATING_FONT = ("Segoe UI Emoji", 8)
 # Pixel size of the gold award shown on the day that holds the longest-session record
@@ -79,56 +84,10 @@ SIDE_STRIP_RIGHT_MARGIN = MODULE_MARGIN
 STATS_MARGIN = EDGE_PADDING - 2
 # Space under the last line of the stats
 STATS_BOTTOM_PADDING = 5
-ROLLING_AVERAGES = (ROLLING_AVERAGE_DAYS, MONTHLY_AVERAGE_DAYS)
-# The medal shown beside this week's total, by how its total ranks among past weeks: the colour for a week
-# in the top 10, 25 or 50 percent. Drawn like the longest-session award, in the tier's colour
-MEDAL_TIERS = ((10, "gold"), (25, "silver"), (50, "bronze"))
 MEDAL_SIZE = 14
 MEDAL_GAP = 4
 # Space between a row's value and the narrow column of notes after it
 STAT_NOTE_GAP = 8
-
-
-def format_change(seconds: float) -> str:
-    """Describe how much a daily average moved against the period before, such as '+24m' or '-1h 05m'"""
-    if round(abs(seconds) / 60) == 0:
-        return "same"
-    return f"{'+' if seconds > 0 else '-'}{format_hours_minutes(abs(seconds))}"
-
-
-def format_hours_minutes(seconds: float) -> str:
-    """Format a duration without seconds, such as '14h 32m'"""
-    minutes = round(max(0, seconds) / 60)
-    return f"{minutes // 60}h {minutes % 60:02d}m" if minutes >= 60 else f"{minutes}m"
-
-
-def medal_for_rank(rank: int | None) -> str:
-    """Return the medal colour for a week ranked in the top `rank` percent of weeks, or '' for none"""
-    return next((name for limit, name in MEDAL_TIERS if rank is not None and rank <= limit), "")
-
-
-@dataclass(frozen=True)
-class StatLine:
-    """One row of the Stats module: what it is on the left, and its value in a column on the right
-
-    Values line up down the right so the eye can run down one column of figures. A row may also carry a medal
-    before its value, and a note in a narrow last column: how an average changed, or a day's rating
-    """
-
-    label: str
-    value: str = ""
-    label_color: str = COLORS["muted"]
-    value_color: str = COLORS["text"]
-    value_bold: bool = False
-    # A colour name from COLORS, see MEDAL_TIERS
-    medal: str = ""
-    note: str = ""
-    note_color: str = COLORS["muted"]
-    # The note is a rating, drawn like the rating on a calendar day
-    rating: bool = False
-    # Space above and below the row
-    above: int = 0
-    below: int = 1
 
 
 class CalendarMixin:
@@ -543,7 +502,7 @@ class CalendarMixin:
             starts = [started_at for _, _, started_at in breakdown if started_at]
             if starts:
                 # The session began when the first program of the day was picked up
-                summary += f" · started {datetime.strptime(min(starts), '%H:%M').strftime('%I:%M %p').lstrip('0')}"
+                summary += f" · started {format_clock(min(starts))}"
         if summary:
             tk.Label(
                 dialog,
@@ -562,8 +521,7 @@ class CalendarMixin:
                 tk.Label(row, text=application, bg=COLORS["panel"], fg=COLORS["text"], font=self.font_small).pack(side="left")
                 detail = format_duration(seconds)
                 if started_at:
-                    start_time = datetime.strptime(started_at, "%H:%M").strftime("%I:%M %p").lstrip("0")
-                    detail += f" · started {start_time}"
+                    detail += f" · started {format_clock(started_at)}"
                 tk.Label(row, text=detail, bg=COLORS["panel"], fg=COLORS["muted"], font=self.font_small).pack(side="right")
 
         tk.Label(
@@ -692,72 +650,13 @@ class CalendarMixin:
         return self.stat_rating_font if line.rating else self.font_small
 
     def _stat_figure_lines(self) -> list[StatLine]:
-        # These figures always run up to today, whichever period the calendar shows
-        today = date.today()
-        week_seconds = self.store.total_for_range(today - timedelta(days=today.weekday()), today)
-        rank = self.store.week_rank(today)
-        medal = medal_for_rank(rank)
-        lines = [StatLine("This week", format_hours_minutes(week_seconds), value_bold=True, medal=medal, below=0 if medal else 3)]
-        if medal:
-            lines.append(StatLine("", f"top {rank}% of your weeks", value_color=COLORS["muted"], below=3))
-        for days in ROLLING_AVERAGES:
-            average_seconds = self.store.rolling_daily_average(days, today)
-            change = average_seconds - self.store.rolling_daily_average(days, today - timedelta(days=days))
-            lines.append(
-                StatLine(
-                    f"{days}-day average",
-                    f"{format_hours_minutes(average_seconds)}/day",
-                    note=format_change(change),
-                    note_color=COLORS["active_green"] if round(change / 60) > 0 else COLORS["muted"],
-                )
-            )
-        best_weekday = self.store.best_weekday_average(today)
-        if best_weekday is None:
-            lines.append(StatLine("Best day", "--"))
-        else:
-            weekday, weekday_seconds = best_weekday
-            lines.append(StatLine("Best day", f"{DAY_ABBREVIATIONS[weekday]} ·{format_hours_minutes(weekday_seconds)}/day"))
-        longest = self.store.longest_session()
-        if longest is None:
-            lines.append(StatLine("Longest session", "--"))
-        else:
-            record_day, record_seconds = longest
-            lines.append(StatLine("Longest session", f"{record_day.day} {record_day.strftime('%b %Y')} · {format_hours_minutes(record_seconds)}"))
-        # Shown only once a day has been rated
-        best_start = self.store.best_start_time()
-        if best_start is not None:
-            started_at, rating = best_start
-            start_time = datetime.strptime(started_at, "%H:%M").strftime("%I:%M %p").lstrip("0")
-            lines.append(StatLine("Best start time", start_time, note=f"\U00002b50 {rating}", note_color=COLORS["gold"], rating=True))
-        return lines
+        return figure_lines(self.store, date.today())
 
     def _session_summary_lines(self) -> list[StatLine]:
-        # Unlike the figures above, the sessions counted are those in the period the calendar shows
-        year = self.calendar_month.year
-        if self.calendar_view == "Year":
-            start = date(year, 1, 1)
-            end = date(year, 12, 31)
-        else:
-            start = self.calendar_month
-            end = date(year + start.month // 12, start.month % 12 + 1, 1) - timedelta(days=1)
-
-        sessions = self.store.qualifying_sessions(start, end)
-        if not sessions:
-            return [StatLine(self._no_sessions_text(start, end), above=3)]
-        start_minutes = [int(started_at[:2]) * 60 + int(started_at[3:5]) for _, started_at, _ in sessions]
-        average_minutes = round(sum(start_minutes) / len(start_minutes))
-        average_start = (datetime.min + timedelta(minutes=average_minutes)).strftime("%I:%M %p").lstrip("0")
-        period_name = str(year) if self.calendar_view == "Year" else calendar.month_name[start.month]
-        count = f"{len(sessions)} session{'' if len(sessions) == 1 else 's'} in {period_name}"
-        return [StatLine(count, f"avg start {average_start}", value_color=COLORS["muted"], above=3)]
+        return session_summary_lines(self.store, self.calendar_view, self.calendar_month)
 
     def _no_sessions_text(self, start: date, end: date) -> str:
-        period_seconds = self.store.total_for_range(start, end)
-        if not period_seconds:
-            return "No sessions for this period"
-        # Time was tracked, but no single day reached the session minimum
-        period_name = str(start.year) if self.calendar_view == "Year" else calendar.month_name[start.month]
-        return f"{format_hours_minutes(period_seconds)} tracked in {period_name} · no day reached 15m"
+        return no_sessions_text(self.store, self.calendar_view, start, end)
 
     def _shift_calendar_month(self, offset: int) -> None:
         if self.calendar_view == "Year":

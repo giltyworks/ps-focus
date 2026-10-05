@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import ctypes
+import math
 import os
 from ctypes import wintypes
 from functools import lru_cache
 
-from PySide6.QtCore import QPoint
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter
+from PySide6.QtCore import QPoint, QPointF
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath
 
 import app_config
 from app_config import COLORS
@@ -18,10 +19,10 @@ def color(name: str) -> QColor:
     return QColor(COLORS[name])
 
 
-def font(size: int, semibold: bool = False) -> QFont:
-    result = QFont("Segoe UI")
+def font(size: int, semibold: bool = False, family: str = "Segoe UI", bold: bool = False) -> QFont:
+    result = QFont(family)
     result.setPointSize(size)
-    result.setWeight(QFont.Weight.DemiBold if semibold else QFont.Weight.Normal)
+    result.setWeight(QFont.Weight.Bold if bold else QFont.Weight.DemiBold if semibold else QFont.Weight.Normal)
     return result
 
 
@@ -41,6 +42,9 @@ class Fonts:
         self.headline = font(16, semibold=True)
         self.caption = font(8)
         self.tiny = font(7)
+        # A day's rating, on the calendar and in Stats, and the day overview's stars, bold for a thicker outline
+        self.rating = font(8, family="Segoe UI Emoji")
+        self.rating_star = font(16, family="Segoe UI Symbol", bold=True)
 
 
 @lru_cache(maxsize=None)
@@ -106,3 +110,39 @@ def draw_text(painter: QPainter, x: int, top: int, text: str, text_color: QColor
     painter.setFont(font_)
     painter.setPen(text_color)
     painter.drawText(QPoint(x, top + ascent(font_)), text)
+
+
+def tk_round(value: float) -> int:
+    """Rounded as Tk rounds canvas coordinates, halves upward"""
+    return math.floor(value + 0.5)
+
+
+def anchored_top_left(x: float, y: float, anchor: str, text: str, font_: QFont) -> tuple[int, int]:
+    """Where text placed at this point by one of Tk's anchors, such as "e" or "center", starts, worked out as Tk
+    works it out for canvas text"""
+    left, top = tk_round(x), tk_round(y)
+    width, height = text_width(font_, text), line_height(font_)
+    if anchor in ("n", "s", "center"):
+        left -= width // 2
+    elif "e" in anchor:
+        left -= width
+    if anchor in ("w", "e", "center"):
+        top -= height // 2
+    elif "s" in anchor:
+        top -= height
+    return left, top
+
+
+def draw_anchored(painter: QPainter, x: float, y: float, anchor: str, text: str, text_color: QColor, font_: QFont) -> None:
+    draw_text(painter, *anchored_top_left(x, y, anchor, text, font_), text, text_color, font_)
+
+
+def draw_outline_text(painter: QPainter, x: int, top: int, text: str, text_color: QColor, font_: QFont) -> None:
+    """Draw text as filled outlines in one colour. An emoji such as the rating's star drawn as text comes out in
+    its own colours; the Tk app shows it as a plain shape in the text's colour"""
+    path = QPainterPath()
+    path.addText(QPointF(x, top + ascent(font_)), font_, text)
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.fillPath(path, text_color)
+    painter.restore()

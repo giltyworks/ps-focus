@@ -16,7 +16,7 @@ import main
 from app_config import COLORS, DEFAULT_SETTINGS, FEEDBACK_UNLOCK_SECONDS, LEVEL_ANCHORS, LEVEL_CAP, LEVEL_HOURS, load_settings, user_level
 from main import PSFocusApp
 from rendering import render_award_badge, render_crescent_icon, render_flame_icon, render_level_badge, render_line_chart
-from ui_calendar import format_change, format_hours_minutes, medal_for_rank
+from stat_lines import format_change, format_hours_minutes, medal_for_rank
 from ui_celebration import FIREWORK_BURST_TIMES, FIREWORK_SPARKS
 from windows_startup import SingleInstance, SizeLimits, apply_first_run_startup, migrate_legacy_app_data, refresh_startup_entry
 

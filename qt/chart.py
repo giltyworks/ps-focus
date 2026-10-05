@@ -8,7 +8,7 @@ from datetime import date, datetime, timedelta
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QLinearGradient, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen, QPixmap, QPolygonF
+from PySide6.QtGui import QColor, QLinearGradient, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen, QPixmap, QPolygonF
 from PySide6.QtWidgets import QWidget
 
 import app_config
@@ -16,7 +16,7 @@ from app_config import CHART_FILL_OPACITY, CHART_PERIOD_CAPTIONS, CHART_PERIODS,
 from tracker import ActivityStore
 
 from .module import ModuleBlock, PaintedButton
-from .theme import Fonts, color, draw_text, line_height, text_width
+from .theme import Fonts, color, draw_anchored, draw_text, line_height, tk_round
 
 # The same measurements as the Tk graph, see ui_chart.py: the gap between period buttons; the space below the
 # buttons; the space above the plot kept for the total and its caption; the plot's margins at the left, right and
@@ -49,11 +49,6 @@ class Plot:
     caption: str
 
 
-def _tk_round(value: float) -> int:
-    """Rounded as Tk rounds canvas coordinates, halves upward"""
-    return math.floor(value + 0.5)
-
-
 class ChartModule(ModuleBlock):
     def __init__(self, fonts: Fonts, store: ActivityStore, period: str, on_period: Callable[[str], None]) -> None:
         super().__init__("Usage over time", fonts)
@@ -61,7 +56,7 @@ class ChartModule(ModuleBlock):
         self.period = period
         self.on_period = on_period
         self.period_buttons = {
-            name: PaintedButton(label, lambda value=name: self._set_period(value), fonts, 3, 8, 6) for name, label in PERIOD_LABELS.items()
+            name: PaintedButton(label, lambda value=name: self._set_period(value), fonts, 8, 6, width_in_digits=3) for name, label in PERIOD_LABELS.items()
         }
         self.buttons = list(self.period_buttons.values())
         button_height = self.buttons[0].height
@@ -129,25 +124,18 @@ class ChartModule(ModuleBlock):
         picture.fill(color("panel"))
         painter = QPainter(picture)
         self._paint_plot(painter, points, bottom, [(left, right, y) for y in gridlines])
-        axis_font, muted = self.fonts.caption, color("muted")
-        axis_height = line_height(axis_font)
+        muted = color("muted")
         for hour, y in zip(tick_hours, gridlines):
-            text = f"{hour}h"
-            # Anchored at the middle of its right side, as the Tk label
-            draw_text(painter, _tk_round(left - AXIS_LABEL_GAP) - text_width(axis_font, text), _tk_round(y) - axis_height // 2, text, muted, axis_font)
+            draw_anchored(painter, left - AXIS_LABEL_GAP, y, "e", f"{hour}h", muted, self.fonts.caption)
         label_font = self.fonts.tiny if self.period == "Month" else self.fonts.caption
         for index, label in enumerate(labels):
             if label:
-                self._centred_text(painter, left + index * step, bottom + 15, label, muted, label_font)
+                draw_anchored(painter, left + index * step, bottom + 15, "center", label, muted, label_font)
         if not any(values):
-            self._centred_text(painter, (left + right) / 2, top + plot_height / 2, "No activity recorded for this period", muted, self.fonts.normal)
+            draw_anchored(painter, (left + right) / 2, top + plot_height / 2, "center", "No activity recorded for this period", muted, self.fonts.normal)
         painter.end()
         self.picture = picture
         self.update()
-
-    @staticmethod
-    def _centred_text(painter: QPainter, x: float, y: float, text: str, text_color: QColor, font: QFont) -> None:
-        draw_text(painter, _tk_round(x) - text_width(font, text) // 2, _tk_round(y) - line_height(font) // 2, text, text_color, font)
 
     @staticmethod
     def _paint_plot(painter: QPainter, points: list[tuple[float, float]], baseline: float, gridlines: list[tuple[float, float, float]]) -> None:
@@ -217,8 +205,8 @@ class ChartModule(ModuleBlock):
             dashes = QPen(color("muted"), 1)
             dashes.setDashPattern([2, 3])
             painter.setPen(dashes)
-            column = _tk_round(x) + 0.5
-            painter.drawLine(QPointF(column, _tk_round(plot.top - 6)), QPointF(column, _tk_round(plot.bottom)))
+            column = tk_round(x) + 0.5
+            painter.drawLine(QPointF(column, tk_round(plot.top - 6)), QPointF(column, tk_round(plot.bottom)))
             painter.setRenderHint(QPainter.RenderHint.Antialiasing)
             painter.setPen(QPen(color("text"), 2))
             painter.setBrush(color("calendar_blue"))
