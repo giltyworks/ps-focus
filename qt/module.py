@@ -24,9 +24,9 @@ STRIP_GAP = 4
 
 
 def paint_title_strip(painter: QPainter, rect: QRect, hovered: bool, alpha: int = 255, line: bool = True) -> None:
-    """The strip a block's name sits on, as a panel's tab bar in Photoshop: a shade lighter than the panel, a touch
-    lighter again under the mouse, with a line under it. The whole strip is where the block is taken by"""
-    fill = color("border" if hovered else "panel_alt")
+    """The strip a block's name sits on, as a panel's tab bar in Photoshop: black, the app's background, a touch
+    lighter under the mouse, with a line under it. The whole strip is where the block is taken by"""
+    fill = color("calendar_blank" if hovered else "background")
     fill.setAlpha(alpha)
     painter.fillRect(rect, fill)
     if line:
@@ -35,9 +35,15 @@ def paint_title_strip(painter: QPainter, rect: QRect, hovered: bool, alpha: int 
 
 def paint_dock_icon(painter: QPainter, rect: QRect, hovered: bool) -> None:
     """The dock icon of a floating block, two arrows pointing back, as Photoshop's panels have: muted on the name
-    strip, brightening under the mouse"""
+    strip; under the mouse brighter, in a rounded outline as Photoshop's buttons show"""
     painter.save()
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    if hovered:
+        outline = color("muted")
+        outline.setAlpha(150)
+        painter.setPen(QPen(outline, 1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), 3, 3)
     pen = QPen(color("text" if hovered else "muted"), 1.4)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
