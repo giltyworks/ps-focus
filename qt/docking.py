@@ -1,5 +1,5 @@
-"""Floating modules: the graph, calendar and stats can be dragged out of the window by their title into windows of
-their own, which snap to each other and to the window, move together while they touch, and dock back in. The rules
+"""Floating blocks: the program panels and the graph, calendar and stats can be dragged out of the window by their
+title into windows of their own, which snap to each other and to the window, move together while they touch, and dock back in. The rules
 are those of the Tk version on the tk-floating-panels branch (ui_docking.py), with these changes the user asked for:
 anything not a control moves the window or panel pressed on, with all that touches it; a lone panel let go over the
 window, or just past its far end (below it, or right of it in landscape), docks there; while it would, the blocks
@@ -304,7 +304,7 @@ class Docking:
     def float_module(self, name: str, top_left: QPoint) -> None:
         if name in self.floating:
             return
-        block = self.app.modules[name]
+        block = self.app.blocks_by_name()[name]
         # Out of the window's blocks first, then into a window of its own
         self.floating[name] = None  # type: ignore[assignment]
         self.reparenting = True
@@ -384,7 +384,7 @@ class Docking:
                 self.app._refresh_module(key)
 
     def _panel_should_show(self, name: str) -> bool:
-        return self.app.module_ticked[name] and self._main_shown()
+        return self.app._block_wanted(name) and self._main_shown()
 
     def sync_visibility(self, hidden: bool = False) -> None:
         """Floating panels go to the tray with the window, and a module unticked hides its panel"""
@@ -428,7 +428,7 @@ class Docking:
         saved = self.app.settings.get("floating_modules")
         if isinstance(saved, dict):
             for name, place in saved.items():
-                if name not in self.app.modules or not (isinstance(place, list) and len(place) == 2 and all(type(v) is int for v in place)):
+                if name not in self.app.blocks_by_name() or not (isinstance(place, list) and len(place) == 2 and all(type(v) is int for v in place)):
                     continue
                 point = QPoint(*place)
                 if QGuiApplication.screenAt(point) is None:
@@ -617,7 +617,7 @@ class Docking:
             return
         self.preview_slot = preview_slot
         if preview_slot is not None:
-            block = self.app.modules[self.source]
+            block = self.app.blocks_by_name()[self.source]
             width = block.docked_width() if self.app.landscape else TODAY_PANEL_WIDTH
             # In landscape the app gives it the height every column shares
             self.preview.setFixedSize(width, panel.height())

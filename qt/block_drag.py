@@ -82,7 +82,7 @@ class BlockDrag(QObject):
         return False
 
     def _is_module(self, name: str | None) -> bool:
-        return name is not None and self.docking is not None and name in self.docking.app.modules
+        return name is not None and self.docking is not None and name in self.docking.app.blocks_by_name()
 
     def _pressed(self, widget: QWidget, event: QMouseEvent) -> bool:
         top = widget.window()

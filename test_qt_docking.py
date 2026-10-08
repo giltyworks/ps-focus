@@ -312,21 +312,55 @@ class QtDockingTests(unittest.TestCase):
         self._drag(header, dots, dots + QPoint(20, 10))
         self.assertEqual(self.app.window.pos(), position + QPoint(20, 10))
 
-    def test_program_panel_grip_reorders_but_never_floats(self):
-        krita_first = ["Krita"] + [name for name in self.app.block_order if name != "Krita"]
+    def test_program_panel_title_reorders_inside_the_window(self):
         self.app.settings["tracking_krita"] = True
         self.app._arrange_blocks()
         self.application.processEvents()
         photoshop = self.app.panels["Photoshop"]
-        grip = photoshop.mapToGlobal(photoshop.title_rect().center())
-        position = self.app.window.pos()
-        self._drag(photoshop, grip, grip + QPoint(0, 10), grip + QPoint(-600, 0))
-        self.assertEqual(self.app.window.pos(), position)
-        self.assertEqual(self.app.docking.floating, {})
+        title = photoshop.mapToGlobal(photoshop.title_rect().center())
         krita = self.app.panels["Krita"]
-        self._drag(photoshop, grip, grip + QPoint(0, 10), krita.mapToGlobal(QPoint(50, krita.height() - 3)))
+        self._drag(photoshop, title, title + QPoint(0, 10), krita.mapToGlobal(QPoint(50, krita.height() - 3)))
+        self.assertEqual(self.app.docking.floating, {})
         self.assertLess(self.app.block_order.index("Krita"), self.app.block_order.index("Photoshop"))
-        del krita_first
+
+    def test_program_panel_floats_and_docks_like_a_module(self):
+        self.app.settings["tracking_krita"] = True
+        self.app._arrange_blocks()
+        photoshop = self.app.panels["Photoshop"]
+        title = photoshop.mapToGlobal(photoshop.title_rect().center())
+        self._drag(photoshop, title, title + QPoint(0, 10), QPoint(300, 400))
+        self.assertTrue(self.app.docking.is_floating("Photoshop"))
+        self.assertTrue(photoshop.floating)
+        self.assertIsNotNone(photoshop.dock_rect())
+        self.assertNotIn(photoshop, self.app._shown_blocks())
+        # The next program panel holds the header now
+        self.assertIs(self.app._anchor_panel(), self.app.panels["Krita"])
+        # Its figures keep counting while it floats
+        self.app._track_and_refresh()
+        self.assertIn("SESSIONS", photoshop.texts["sessions"].text)
+        # Unticked in Settings it hides, ticked it shows
+        self.app.settings["tracking_enabled"] = False
+        self.app.docking.sync_visibility()
+        self.assertFalse(self.app.docking.floating["Photoshop"].isVisible())
+        self.app.settings["tracking_enabled"] = True
+        self.app.docking.sync_visibility()
+        self.assertTrue(self.app.docking.floating["Photoshop"].isVisible())
+        # The dock icon puts it back
+        icon = photoshop.mapToGlobal(photoshop.dock_rect().center())
+        self._mouse(photoshop, QEvent.Type.MouseButtonPress, icon)
+        self._mouse(photoshop, QEvent.Type.MouseButtonRelease, icon)
+        self.assertFalse(self.app.docking.is_floating("Photoshop"))
+        self.assertIs(self.app._anchor_panel(), photoshop)
+
+    def test_floating_program_panels_are_restored(self):
+        self.app.docking.float_module("Photoshop", QPoint(150, 300))
+        self.app.docking.save_positions()
+        self.saved_settings = dict(self.app.settings)
+        self.app.window_hidden()
+        restarted = self._start()
+        restarted.docking.restore()
+        self.assertTrue(restarted.docking.is_floating("Photoshop"))
+        self.assertEqual(restarted.docking.floating["Photoshop"].pos(), QPoint(150, 300))
 
     def test_a_lone_panel_over_the_window_makes_room_for_itself_and_docks_there(self):
         panel = self._float("stats", QPoint(200, 300))
@@ -478,7 +512,7 @@ class QtDockingTests(unittest.TestCase):
         calendar.update_cursor(calendar.title_rect().center())
         self.assertEqual(calendar.cursor().shape(), Qt.CursorShape.OpenHandCursor)
         photoshop = self.app.panels["Photoshop"]
-        photoshop._hover(True)
+        photoshop._hover("title")
         self.assertTrue(photoshop.title_hovered)
         self.assertEqual(photoshop.cursor().shape(), Qt.CursorShape.OpenHandCursor)
 

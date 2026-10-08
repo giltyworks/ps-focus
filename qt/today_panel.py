@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QWidget
 
 from app_config import TODAY_PANEL_WIDTH
 
-from .module import paint_title_strip
+from .module import DOCK_CONTROL_SIZE, paint_dock_icon, paint_title_strip
 from .theme import Fonts, ascent, color, line_height
 
 # The same measurements as the Tk panel, see main.py: space inside the panel above its first row and below its
@@ -45,6 +45,13 @@ class TodayPanel(QWidget):
     def __init__(self, application: str, fonts: Fonts, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.application = application
+        # Its name, which a window of its own takes when it floats, see docking
+        self.title = application
+        # Whether it is in a window of its own; how solid its background is there, lower when see-through; and which
+        # of its name strip and dock icon the mouse is over
+        self.floating = False
+        self.glass_alpha = 255
+        self.hovered_control: str | None = None
         # Blue while the panel is being dragged into a new place, see block_drag
         self.border_color = "border"
         # Extra height in landscape, so the panel is as tall as the modules beside it; its text stays in the middle
@@ -72,8 +79,8 @@ class TodayPanel(QWidget):
             return tops[row] + (heights[row] - line_height(font)) // 2
 
         self.natural_height = status_top + heights[3] + TODAY_PANEL_PADDING + 1
-        # The name strip, which the panel is taken by to put it in a new order; it brightens under the mouse
-        self.title_hovered = False
+        # The name strip, which the panel is taken by to put it in a new order or out of the window; it brightens
+        # under the mouse
         self.setMouseTracking(True)
         self.setFixedSize(TODAY_PANEL_WIDTH, self.natural_height)
         # The panel paints every pixel itself, so Qt need not clear it first
@@ -98,20 +105,54 @@ class TodayPanel(QWidget):
         """The strip along the top; in landscape, where the panel is stretched, its rows stay together under it"""
         return QRect(1, 1, TODAY_PANEL_WIDTH - 2, self.title_bottom - 1)
 
+    @property
+    def title_hovered(self) -> bool:
+        return self.hovered_control == "title"
+
+    def dock_rect(self) -> QRect | None:
+        """The dock icon, at the right of the name strip while the panel floats"""
+        if not self.floating:
+            return None
+        left = TODAY_PANEL_WIDTH - 1 - TODAY_PANEL_SIDE_PADDING - DOCK_CONTROL_SIZE
+        return QRect(left, 1 + (self.title_bottom - 1 - DOCK_CONTROL_SIZE) // 2, DOCK_CONTROL_SIZE, DOCK_CONTROL_SIZE)
+
     def control_at(self, point: QPoint) -> str | None:
+        dock = self.dock_rect()
+        if dock is not None and dock.contains(point):
+            return "dock"
         return "title" if self.title_rect().contains(point) else None
 
-    def _hover(self, hovered: bool) -> None:
-        if hovered != self.title_hovered:
-            self.title_hovered = hovered
-            self.setCursor(Qt.CursorShape.OpenHandCursor if hovered else Qt.CursorShape.ArrowCursor)
+    def interactive_at(self, point: QPoint) -> bool:
+        return self.control_at(point) == "dock"
+
+    def _hover(self, control: str | None) -> None:
+        if control != self.hovered_control:
+            self.hovered_control = control
+            shape = {"dock": Qt.CursorShape.PointingHandCursor, "title": Qt.CursorShape.OpenHandCursor}.get(control, Qt.CursorShape.ArrowCursor)
+            self.setCursor(shape)
             self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        self._hover(self.title_rect().contains(event.position().toPoint()))
+        self._hover(self.control_at(event.position().toPoint()))
 
     def leaveEvent(self, _event) -> None:
-        self._hover(False)
+        self._hover(None)
+
+    # What a floating block does, as the modules do
+
+    def set_layout(self, _landscape: bool, _height: int = 0) -> None:
+        """In a window of its own it is as tall as its rows, the landscape stretch gone"""
+        self.set_stretch(0)
+
+    def docked_width(self) -> int:
+        return TODAY_PANEL_WIDTH
+
+    def set_glass(self, alpha: int) -> None:
+        """Make the background this solid, from 255 down; its text stays solid"""
+        if alpha != self.glass_alpha:
+            self.glass_alpha = alpha
+            self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, alpha == 255)
+            self.update()
 
     def set_stretch(self, extra: int) -> None:
         extra = max(0, extra)
@@ -131,10 +172,10 @@ class TodayPanel(QWidget):
 
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
-        painter.fillRect(self.rect(), color("panel"))
-        name = self.texts["name"]
-        tab = 2 * TODAY_PANEL_SIDE_PADDING + QFontMetrics(name.font).horizontalAdvance(name.text)
-        paint_title_strip(painter, self.title_rect(), tab, self.title_hovered)
+        background = color("panel")
+        background.setAlpha(self.glass_alpha)
+        painter.fillRect(self.rect(), background)
+        paint_title_strip(painter, self.title_rect(), self.title_hovered, self.glass_alpha)
         painter.setPen(color(self.border_color))
         painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
         for name, item in self.texts.items():
@@ -143,7 +184,13 @@ class TodayPanel(QWidget):
             metrics = QFontMetrics(item.font)
             width = metrics.horizontalAdvance(item.text)
             x = item.x - width if item.right_aligned else item.x
+            if name == "two_week" and self.floating:
+                # Floating, the dock icon takes the strip's right end
+                x -= DOCK_CONTROL_SIZE + 6
             # The name row keeps to its strip; the rows under it sit in the middle of what is left
             shift = 0 if item.top < self.title_bottom else self.stretch // 2
             painter.drawText(QPoint(x, item.top + shift + ascent(item.font)), item.text)
+        dock = self.dock_rect()
+        if dock is not None:
+            paint_dock_icon(painter, dock, self.hovered_control == "dock")
         painter.end()

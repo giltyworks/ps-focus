@@ -261,6 +261,9 @@ class PSFocusQt:
         self.settings[key] = value
         self._save_settings()
         self.settings_page.update()
+        if key in PROGRAM_PANEL_SETTINGS.values():
+            # A floating program panel shows or hides at once; one in the window does on leaving Settings
+            self.docking.sync_visibility()
 
     def _transparency_chosen(self, value: int, done: bool) -> None:
         """The panels follow the slider as it moves; the setting is saved once it is let go"""
@@ -306,7 +309,9 @@ class PSFocusQt:
             if self.landscape:
                 height = self._landscape_height(anchor)
                 today_height = next(iter(self.panels.values())).natural_height - 2
-                for panel in self.panels.values():
+                for name, panel in self.panels.items():
+                    if self.docking.is_floating(name):
+                        continue
                     # The panel under the header is shorter by the header's height, so its column ends level too
                     panel.set_stretch(height - today_height - (self._header_overhead() if panel is anchor else 0))
             else:
@@ -382,11 +387,15 @@ class PSFocusQt:
         self.settings["block_order"] = order.copy()
         self.window.reorder_blocks(self._shown_blocks())
 
-    def _block_shown(self, name: str) -> bool:
-        """A module ticked in the checkboxes and not floating, or a program panel ticked in Settings"""
+    def _block_wanted(self, name: str) -> bool:
+        """A module ticked in the checkboxes, or a program panel ticked in Settings, in the window or floating"""
         if name in self.module_ticked:
-            return self.module_ticked[name] and not self.docking.is_floating(name)
+            return self.module_ticked[name]
         return bool(self.settings.get(PROGRAM_PANEL_SETTINGS[name]))
+
+    def _block_shown(self, name: str) -> bool:
+        """Wanted, and in the window rather than floating"""
+        return self._block_wanted(name) and not self.docking.is_floating(name)
 
     def _module_toggled(self, name: str) -> None:
         self.settings[f"show_{name}"] = self.module_ticked[name]
@@ -397,6 +406,9 @@ class PSFocusQt:
             self._refresh_module(name)
 
     def _refresh_module(self, name: str) -> None:
+        # A program panel is brought up to date every second anyway
+        if name in self.panels:
+            return
         if name == "graph":
             self.chart.refresh()
         elif name == "calendar":
