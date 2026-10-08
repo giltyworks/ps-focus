@@ -74,8 +74,14 @@ def main() -> int:
     for leftover in list(INSTALLER_FOLDER.glob("PS-Focus-Setup-*.exe")) + list(INSTALLER_FOLDER.glob("PS-Focus-*-SHA256SUMS.txt")):
         if leftover not in (installer, checksums):
             leftover.unlink(missing_ok=True)
-    # The build folder is only a cache, and it holds a copy of the sign-in client configuration
-    shutil.rmtree(ROOT / "build", ignore_errors=True)
+    # The build folder is only a cache, and it holds a copy of the sign-in client configuration. The Qt packages
+    # downloaded for their licence notices stay, see tools/write_qt_notices.py
+    for item in (ROOT / "build").iterdir():
+        if item.name != "qt-preview":
+            shutil.rmtree(item, ignore_errors=True) if item.is_dir() else item.unlink(missing_ok=True)
+    for item in (ROOT / "build" / "qt-preview").glob("*"):
+        if item.name != "wheels":
+            shutil.rmtree(item, ignore_errors=True) if item.is_dir() else item.unlink(missing_ok=True)
     print(f"Release {APP_VERSION} is ready in dist/installer")
     return 0
 
