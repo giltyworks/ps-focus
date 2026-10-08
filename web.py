@@ -149,9 +149,10 @@ def _send_once(session, method: str, url: str, headers: dict[str, str], body: by
                 raise _failure("No response came")
             status = wintypes.DWORD(0)
             size = wintypes.DWORD(ctypes.sizeof(status))
-            _winhttp.WinHttpQueryHeaders(
+            if not _winhttp.WinHttpQueryHeaders(
                 request, WINHTTP_QUERY_STATUS_CODE | WINHTTP_QUERY_FLAG_NUMBER, None, ctypes.byref(status), ctypes.byref(size), None
-            )
+            ) or not status.value:
+                raise _failure("The response had no status")
             reason = _query_text(request, WINHTTP_QUERY_STATUS_TEXT)
             response_headers = _parse_headers(_query_text(request, WINHTTP_QUERY_RAW_HEADERS_CRLF))
             chunks = []

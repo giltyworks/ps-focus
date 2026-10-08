@@ -182,6 +182,11 @@ class GoogleSync:
             if app.store.merge_backup_bytes(content) is None:
                 raise ValueError("Google Drive backup was invalid; local history was kept")
         else:
+            # A day overview reads the database it was opened with, which is about to be replaced
+            from .day_overview import DayOverview
+
+            for overview in app.window.findChildren(DayOverview):
+                overview.close()
             app.store.close()
             try:
                 restored = ActivityStore.restore_backup_bytes(app_config.DATABASE_PATH, content, app_config.BACKUP_DIRECTORIES[0])

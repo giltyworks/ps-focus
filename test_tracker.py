@@ -681,6 +681,22 @@ class JournalTests(unittest.TestCase):
         names = {item.name for item in path.parent.iterdir()}
         self.assertFalse([name for name in names if name.endswith(("-wal", "-shm", ".tmp"))])
 
+    def test_restoring_moves_the_old_log_aside_with_the_old_database(self):
+        self.store.record_active_second()
+        content = self.store.create_local_backups(force=True)[0].read_bytes()
+        self.store.close()
+        database = self.folder / "activity.sqlite3"
+        wal = database.with_name(database.name + "-wal")
+        wal.write_bytes(b"a log left by a crash")
+        database.with_name(database.name + "-shm").write_bytes(b"shared memory")
+        self.assertTrue(ActivityStore.restore_backup_bytes(database, content, self.folder / "backups"))
+        self.assertFalse(wal.exists())
+        self.assertFalse(database.with_name(database.name + "-shm").exists())
+        moved = [path.name for path in (self.folder / "backups").glob("activity-corrupt-*-wal")]
+        self.assertEqual(len(moved), 1)
+        self.store = ActivityStore(database, [self.folder / "backups"])
+        self.assertEqual(self.store.connection.execute("PRAGMA quick_check").fetchone(), ("ok",))
+
 
 if __name__ == "__main__":
     unittest.main()

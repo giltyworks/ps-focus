@@ -44,7 +44,8 @@ def smoke_test(executable: Path) -> None:
     module, switch layouts and Settings, and close. It leaves Windows startup and any running PS Focus alone"""
     for platform in ("windows", "offscreen"):
         with tempfile.TemporaryDirectory(prefix="smoke-", dir=ROOT / "build") as folder:
-            environment = {**os.environ, "APPDATA": folder, "QT_QPA_PLATFORM": platform}
+            # Its data folder, backups included, is the temporary one: never the real Documents or OneDrive backups
+            environment = {**os.environ, "APPDATA": folder, "PSFOCUS_DATA_DIR": folder, "QT_QPA_PLATFORM": platform}
             subprocess.run([str(executable), "--smoke-test"], cwd=ROOT, env=environment, check=True, timeout=60)
 
 

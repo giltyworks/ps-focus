@@ -80,8 +80,9 @@ class CalendarModule(ModuleBlock):
         self.line_height = small + 2 * LINE_PADDING
         self.cell_height = CALENDAR_DAY_NUMBER_INSET + small + line_height(fonts.rating) + CALENDAR_RATING_INSET
         self.drawn_state: tuple | None = None
-        # The day under the mouse, whose square is drawn a shade lighter
+        # The day under the mouse, whose square is drawn a shade lighter; and what the calendar was last drawn from
         self.hovered_day: date | None = None
+        self.drawn_with: tuple | None = None
         self.picture: QPixmap | None = None
         self.day_boxes: list[DayBox] = []
         self.set_layout(False)
@@ -174,6 +175,8 @@ class CalendarModule(ModuleBlock):
         if state == self.drawn_state and not force:
             return
         self.drawn_state = state
+        # Kept for drawing again as the mouse moves from day to day, without reading the database again
+        self.drawn_with = (title, days, today, *streaks)
         self._draw(title, days, today, *streaks)
 
     def _draw(self, title: str, days: tuple, today: date, week_streak: int, rest_day_streak: int) -> None:
@@ -405,8 +408,13 @@ class CalendarModule(ModuleBlock):
         return self.surface("border" if day == self.hovered_day else "calendar_cell")
 
     def _hover_day(self, day: date | None) -> None:
-        if day != self.hovered_day:
-            self.hovered_day = day
+        if day == self.hovered_day:
+            return
+        self.hovered_day = day
+        if self.drawn_with is not None and self.drawn_state is not None:
+            self.drawn_state = self.drawn_state[:-1] + (day,)
+            self._draw(*self.drawn_with)
+        else:
             self.refresh()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:

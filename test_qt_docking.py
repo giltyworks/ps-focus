@@ -4,6 +4,7 @@ and keeping their places between runs. Runs on Qt's offscreen platform with temp
 from __future__ import annotations
 
 import os
+from datetime import date
 import tempfile
 import unittest
 from pathlib import Path
@@ -548,6 +549,33 @@ class QtDockingTests(unittest.TestCase):
         self.assertEqual((self.app.chart.glass_alpha, self.app.calendar.glass_alpha), (255, 255))
         self.assertLess(self.app.window.windowOpacity(), 1.0)
         self.assertEqual(self.app.stats.glass_alpha, faded)
+
+    def test_window_positions_are_saved_without_a_google_upload(self):
+        self.app.google_sync = unittest.mock.Mock()
+        self.app.window.move(120, 0)
+        self.app.docking.save_positions()
+        self.app.google_sync.settings_changed.assert_not_called()
+        self.assertEqual(self.app.settings["main_window_position"], [120, 0])
+        self.app._period_chosen("Week")
+        self.app.google_sync.settings_changed.assert_called_once()
+
+    def test_floating_modules_keep_up_while_settings_is_open(self):
+        self._float("graph", QPoint(100, 1300))
+        self.app._toggle_settings()
+        self.app.active = True
+        with patch.object(self.app.chart, "refresh") as refresh, patch("qt.app.foreground_application", return_value="Photoshop"),                 patch("qt.app.user_is_active", return_value=True):
+            self.app._track_and_refresh()
+        refresh.assert_called()
+        self.app._toggle_settings()
+
+    def test_hovering_calendar_days_does_not_read_the_database(self):
+        calendar = self.app.calendar
+        calendar.refresh(force=True)
+        with patch.object(self.app.store, "month_totals") as month_totals, patch.object(self.app.store, "calendar_streaks") as streaks:
+            calendar._hover_day(date.today().replace(day=1))
+            calendar._hover_day(None)
+        month_totals.assert_not_called()
+        streaks.assert_not_called()
 
 
 if __name__ == "__main__":

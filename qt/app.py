@@ -424,12 +424,13 @@ class PSFocusQt:
         self.settings["period"] = period
         self._save_settings()
 
-    def _save_settings(self) -> None:
+    def _save_settings(self, upload: bool = True) -> None:
+        """Save the settings, and back them up to Google Drive when connected unless told not to"""
         app_config.APP_DATA.mkdir(parents=True, exist_ok=True)
         temporary = app_config.SETTINGS_PATH.with_suffix(".tmp")
         temporary.write_text(json.dumps(self.settings, indent=2), encoding="utf-8")
         temporary.replace(app_config.SETTINGS_PATH)
-        if hasattr(self, "google_sync"):
+        if upload and hasattr(self, "google_sync"):
             self.google_sync.settings_changed()
 
     def _chosen_panels(self) -> list[str]:
@@ -548,7 +549,10 @@ class PSFocusQt:
         self.update_glass()
         self._celebrate_level_up(level)
         self._set_feedback_unlocked(lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS)
-        # Tracking continues in the tray and Settings; expensive module rendering waits for Overview.
+        # Tracking continues in the tray and Settings; drawing the modules out of sight waits for them to show.
+        # Floating ones stay in view with Settings open, so they keep up
+        if self.window.isVisible() and not self.window.isMinimized() and self.settings_shown:
+            self._refresh_floating_modules(today)
         if self.settings_shown or not self.window.isVisible() or self.window.isMinimized():
             self.modules_were_hidden = True
             return
@@ -564,6 +568,17 @@ class PSFocusQt:
         if not refreshed_on_restore and self.slow_refresh_ticks % 15 == 0:
             for name in ("calendar", "stats"):
                 if self.module_ticked[name]:
+                    self._refresh_module(name)
+        self.slow_refresh_ticks += 1
+
+    def _refresh_floating_modules(self, today: date) -> None:
+        """While Settings is open: the floating graph moves on with the time counted, the rest every 15 seconds"""
+        if self.docking.is_floating("graph") and self.module_ticked["graph"] and (self.active or self.chart_drawn_day != today):
+            self.chart.refresh()
+            self.chart_drawn_day = today
+        if self.slow_refresh_ticks % 15 == 0:
+            for name in ("calendar", "stats"):
+                if self.docking.is_floating(name) and self.module_ticked[name]:
                     self._refresh_module(name)
         self.slow_refresh_ticks += 1
 

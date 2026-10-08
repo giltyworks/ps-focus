@@ -236,6 +236,11 @@ class ActivityStore:
             quarantine_directory.mkdir(parents=True, exist_ok=True)
             corrupted_path = quarantine_directory / f"activity-corrupt-{datetime.now():%Y%m%d-%H%M%S-%f}.sqlite3"
             os.replace(database_path, corrupted_path)
+            # Its write-ahead log goes with it, so it stays whole, and is never read into the restored copy
+            wal = database_path.with_name(database_path.name + "-wal")
+            if wal.exists():
+                os.replace(wal, corrupted_path.with_name(corrupted_path.name + "-wal"))
+        database_path.with_name(database_path.name + "-shm").unlink(missing_ok=True)
         os.replace(temporary_path, database_path)
         return True
 

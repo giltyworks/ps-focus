@@ -21,7 +21,7 @@ from PySide6.QtWidgets import QWidget
 from app_config import TODAY_PANEL_WIDTH
 
 from .theme import color
-from .window import visible_frame
+from .window import frame_insets
 
 Rect = tuple[int, int, int, int]
 # How near an edge has to come before it snaps to another
@@ -281,11 +281,11 @@ class Docking:
     def main_bounds(self) -> Rect:
         """The main window's frame as drawn, without Windows' invisible resize border"""
         frame = self.window.frameGeometry()
-        visible = visible_frame(int(self.window.winId())) if self.window.isVisible() else None
-        if visible is not None:
-            ratio = self.window.devicePixelRatio()
-            return (round(visible.left / ratio), round(visible.top / ratio), round(visible.right / ratio), round(visible.bottom / ratio))
-        return (frame.left(), frame.top(), frame.left() + frame.width(), frame.top() + frame.height())
+        left, top, right, bottom = frame_insets(self.window) if self.window.isVisible() else (0, 0, 0, 0)
+        return (
+            frame.left() + round(left), frame.top() + round(top),
+            frame.left() + frame.width() - round(right), frame.top() + frame.height() - round(bottom),
+        )
 
     def visible_panels(self, leave_out: set[str] = frozenset()) -> dict[str, Rect]:
         return {name: panel.bounds() for name, panel in self.floating.items() if panel is not None and panel.isVisible() and name not in leave_out}
@@ -433,7 +433,8 @@ class Docking:
             settings["floating_modules"] = panels
             changed = True
         if changed:
-            self.app._save_settings()
+            # Where windows stand on this PC means nothing on another, so it is not worth an upload
+            self.app._save_settings(upload=False)
 
     def restore(self) -> None:
         """Put the window where it was left, or with no saved place in the top right corner; then float the modules

@@ -2,8 +2,7 @@
 
 - A block's title, its name row, puts the block in a new order: pressed and moved a few pixels, the block is outlined
   in blue and passes the block under the pointer as the pointer crosses that block's middle, as in the Tk
-  ModulesMixin. A module dragged by its title out of the window floats in a window of its own, see docking; a program
-  panel stays in the window.
+  ModulesMixin. A block dragged by its title out of the window floats in a window of its own, see docking.
 - Anywhere else that is not a button, link or checkbox moves the window, or the floating panel pressed on, together
   with every panel touching it.
 
@@ -82,6 +81,8 @@ class BlockDrag(QObject):
         return False
 
     def _is_module(self, name: str | None) -> bool:
+        """Whether Docking handles this block's drags: every block can float. Without Docking, as in the layout
+        tests, a title only puts its block in order"""
         return name is not None and self.docking is not None and name in self.docking.app.blocks_by_name()
 
     def _pressed(self, widget: QWidget, event: QMouseEvent) -> bool:

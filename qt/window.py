@@ -20,6 +20,29 @@ from .theme import color
 HEADER_GAP = 2
 
 
+def frame_insets(window: QWidget) -> tuple[float, float, float, float]:
+    """How far the frame Windows draws lies inside the window's frame as Qt gives it, left, top, right and bottom, in
+    Qt's units; negative where it lies outside, as Windows draws a pixel of outline beyond it. Windows' outer
+    rectangle adds an invisible resize border at the sides and bottom, which Qt leaves out of its frame. Measured in
+    the screen's own pixels and only the differences scaled, it holds on every screen however far from the first"""
+    if os.name != "nt":
+        return (0, 0, 0, 0)
+    handle = int(window.winId())
+    visible = visible_frame(handle)
+    outer = wintypes.RECT()
+    if visible is None or not ctypes.windll.user32.GetWindowRect(wintypes.HWND(handle), ctypes.byref(outer)):
+        return (0, 0, 0, 0)
+    ratio = window.devicePixelRatio()
+    frame = window.frameGeometry()
+    # The invisible border Qt leaves out, at each side and at the bottom; Qt's frame starts at the outer top
+    side = ((outer.right - outer.left) - frame.width() * ratio) / 2
+    bottom = (outer.bottom - outer.top) - frame.height() * ratio
+    return (
+        (visible.left - outer.left - side) / ratio, (visible.top - outer.top) / ratio,
+        (outer.right - visible.right - side) / ratio, (outer.bottom - visible.bottom - bottom) / ratio,
+    )
+
+
 def visible_frame(window_handle: int) -> wintypes.RECT | None:
     """The window's frame as drawn on screen, without the invisible resize border Windows pads it with"""
     if os.name != "nt":
@@ -290,13 +313,9 @@ class MainWindow(QWidget):
         work = self.screen().availableGeometry()
         frame = self.frameGeometry()
         self.move(work.right() + 1 - frame.width(), work.top())
-        visible = visible_frame(int(self.winId()))
-        if visible is not None:
-            # Windows reports the handle's sizes in physical pixels; Qt places windows in its own units
-            ratio = self.devicePixelRatio()
-            shift_x = round((work.right() + 1) - visible.right / ratio)
-            shift_y = round(work.top() - visible.top / ratio)
-            self.move(self.x() + shift_x, self.y() + shift_y)
+        _left, top, right, _bottom = frame_insets(self)
+        # The invisible border may run past the screen's edge; the drawn frame meets the corner
+        self.move(self.x() + round(right), self.y() - round(top))
 
     def closeEvent(self, event: QCloseEvent) -> None:
         # The window's X hides the app to the tray, where it keeps counting
