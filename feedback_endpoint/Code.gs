@@ -10,7 +10,7 @@ const MAX_ENTRIES_PER_REQUEST = 20;
 const MAX_MESSAGE_LENGTH = 4000;
 // Update check: when publishing a build, set its version and the page people download it from.
 // The app shows "update available" only when this version is newer than its own and the link is https.
-const LATEST_VERSION = '1.0.6';
+const LATEST_VERSION = '1.1.0';
 const DOWNLOAD_URL = 'https://github.com/giltyworks/ps-focus/releases/latest';
 // Caps what can accumulate between digests so repeated requests cannot exhaust script storage
 const MAX_STORED_ENTRIES = 100;
