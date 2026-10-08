@@ -35,16 +35,14 @@ def paint_title_strip(painter: QPainter, rect: QRect, hovered: bool, alpha: int 
 
 def paint_dock_icon(painter: QPainter, rect: QRect, hovered: bool) -> None:
     """The dock icon of a floating block, two arrows pointing back, as Photoshop's panels have: muted on the name
-    strip; under the mouse brighter, in a rounded outline as Photoshop's buttons show"""
+    strip; under the mouse a faint rounded box shows behind it, as Photoshop's buttons do"""
     painter.save()
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     if hovered:
-        outline = color("muted")
-        outline.setAlpha(150)
-        painter.setPen(QPen(outline, 1))
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRoundedRect(QRectF(rect).adjusted(0.5, 0.5, -0.5, -0.5), 3, 3)
-    pen = QPen(color("text" if hovered else "muted"), 1.4)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(color("border"))
+        painter.drawRoundedRect(QRectF(rect), 3, 3)
+    pen = QPen(color("muted"), 1.4)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     painter.setPen(pen)
