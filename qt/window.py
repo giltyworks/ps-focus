@@ -7,8 +7,8 @@ import os
 from ctypes import wintypes
 from typing import Callable
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QCloseEvent, QIcon, QPalette, QResizeEvent
+from PySide6.QtCore import QEvent, Qt
+from PySide6.QtGui import QCloseEvent, QIcon, QMoveEvent, QPalette, QResizeEvent
 from PySide6.QtWidgets import QWidget
 
 from app_config import APP_NAME, COMPACT_BOTTOM_SPACE, MODULE_GAP, TODAY_PANEL_WIDTH, WINDOW_MARGIN, resource_path
@@ -47,6 +47,9 @@ class MainWindow(QWidget):
         super().__init__()
         self.on_close = on_close
         self.on_resized_by_user = on_resized_by_user
+        # Told when the window moves, and when it is minimized or brought back, for the floating modules
+        self.on_moved: Callable[[], None] | None = None
+        self.on_state_changed: Callable[[], None] | None = None
         self.setWindowTitle(APP_NAME)
         # Like the Tk window, there is nothing to maximize to: the window is as big as what it shows
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
@@ -249,6 +252,16 @@ class MainWindow(QWidget):
         if self.settings_page is None and self.landscape and self.width() != self.requested_width and self.on_resized_by_user is not None:
             self.requested_width = self.width()
             self.on_resized_by_user(self.width())
+
+    def moveEvent(self, event: QMoveEvent) -> None:
+        super().moveEvent(event)
+        if self.on_moved is not None:
+            self.on_moved()
+
+    def changeEvent(self, event: QEvent) -> None:
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.WindowStateChange and self.on_state_changed is not None:
+            self.on_state_changed()
 
     def place_top_right(self) -> None:
         """Put the window in the top right corner of its screen's work area, its visible frame flush with the corner"""

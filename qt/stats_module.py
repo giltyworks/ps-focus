@@ -113,4 +113,5 @@ class StatsModule(ModuleBlock):
         self.paint_frame(painter)
         if self.picture is not None:
             painter.drawPixmap(1, self.content_top, self.picture)
+        self.paint_dock_controls(painter)
         painter.end()

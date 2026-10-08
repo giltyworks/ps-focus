@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Callable
 
-from PySide6.QtCore import QPoint, QRectF, Qt
+from PySide6.QtCore import QPoint, QRect, QRectF, Qt
 from PySide6.QtGui import QColor, QMouseEvent, QPainter
 from PySide6.QtWidgets import QWidget
 
@@ -17,6 +17,11 @@ from .theme import Fonts, color, draw_text, line_height, text_width
 MODULE_TITLE_PADDING = 5
 # The corners of a rounded button, as widgets.BUTTON_CORNER_RADIUS
 BUTTON_CORNER_RADIUS = 6
+# The grip a module is dragged out of the window by, and the dock icon beside it while it floats: the square each
+# takes at the right of the name row, and the space between them; in landscape the grip follows the name this far on
+DOCK_CONTROL_SIZE = 18
+DOCK_CONTROL_GAP = 4
+GRIP_AFTER_TITLE = 6
 
 
 def draw_rounded_box(painter: QPainter, box: QRectF, radius: float, fill: QColor, outline: QColor, outline_width: int = 1) -> None:
@@ -111,6 +116,9 @@ class ModuleBlock(QWidget):
         self.buttons: list[PaintedButton] = []
         # Blue while the module is being dragged into a new place, see block_drag
         self.border_color = "border"
+        # Whether it is in a window of its own, see docking; and which of its grip and dock icon the mouse is over
+        self.floating = False
+        self.hovered_control: str | None = None
 
     def set_content_height(self, height: int) -> None:
         self.setFixedSize(TODAY_PANEL_WIDTH, self.content_top + height + 1)
@@ -124,6 +132,57 @@ class ModuleBlock(QWidget):
     def paint_title(self, painter: QPainter) -> None:
         draw_text(painter, 1 + MODULE_MARGIN, 1 + MODULE_TITLE_PADDING, self.title, color("text"), self.fonts.bold)
 
+    def grip_rect(self) -> QRect:
+        """The grip: at the right of the name row, or in landscape's side strip just after the name"""
+        top = 1 + MODULE_TITLE_PADDING + (line_height(self.fonts.bold) - DOCK_CONTROL_SIZE) // 2
+        if getattr(self, "landscape", False) and not self.floating:
+            left = 1 + MODULE_MARGIN + text_width(self.fonts.bold, self.title) + GRIP_AFTER_TITLE
+        else:
+            left = self.width() - 1 - MODULE_MARGIN - DOCK_CONTROL_SIZE
+        return QRect(left, top, DOCK_CONTROL_SIZE, DOCK_CONTROL_SIZE)
+
+    def dock_rect(self) -> QRect | None:
+        """The dock icon, shown left of the grip while the module floats"""
+        if not self.floating:
+            return None
+        return self.grip_rect().translated(-DOCK_CONTROL_SIZE - DOCK_CONTROL_GAP, 0)
+
+    def control_at(self, point: QPoint) -> str | None:
+        dock = self.dock_rect()
+        if dock is not None and dock.contains(point):
+            return "dock"
+        return "grip" if self.grip_rect().contains(point) else None
+
+    def paint_dock_controls(self, painter: QPainter) -> None:
+        """Three short diagonal lines for the grip; for the dock icon, a window with a rail and an arrow into it, as
+        the Tk version drew them. Muted while the mouse is over them, otherwise the border's colour"""
+        painter.save()
+        grip = self.grip_rect()
+        painter.setPen(color("muted" if self.hovered_control == "grip" else "border"))
+        for inset in (0, 4, 8):
+            painter.drawLine(grip.x() + 5 + inset, grip.y() + 14, grip.x() + 14, grip.y() + 5 + inset)
+        dock = self.dock_rect()
+        if dock is not None:
+            painter.setPen(color("muted" if self.hovered_control == "dock" else "border"))
+            x, y = dock.x(), dock.y()
+            painter.drawRect(x + 2, y + 3, 13, 11)
+            painter.drawLine(x + 6, y + 3, x + 6, y + 14)
+            painter.drawLine(x + 14, y + 9, x + 8, y + 9)
+            painter.drawLine(x + 10, y + 6, x + 7, y + 9)
+            painter.drawLine(x + 7, y + 9, x + 10, y + 12)
+        painter.restore()
+
+    def hover_controls(self, point: QPoint | None) -> bool:
+        """Note which control the mouse is over, repainting when that changes; return whether it is over one"""
+        control = None if point is None else self.control_at(point)
+        if control != self.hovered_control:
+            self.hovered_control = control
+            self.update()
+        return control is not None
+
+    def leaveEvent(self, _event) -> None:
+        self.hover_controls(None)
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
         if event.button() == Qt.MouseButton.LeftButton and any([button.press(point) for button in self.buttons]):
@@ -136,5 +195,5 @@ class ModuleBlock(QWidget):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
-        over_button = any(button.contains(point) for button in self.buttons)
+        over_button = any(button.contains(point) for button in self.buttons) | self.hover_controls(point)
         self.setCursor(Qt.CursorShape.PointingHandCursor if over_button else Qt.CursorShape.ArrowCursor)

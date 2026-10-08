@@ -361,6 +361,7 @@ class CalendarModule(ModuleBlock):
                 self.paint_title(painter)
         for button in self.buttons:
             button.paint(painter)
+        self.paint_dock_controls(painter)
         painter.end()
 
     def _day_at(self, point: QPoint) -> date | None:
@@ -376,5 +377,5 @@ class CalendarModule(ModuleBlock):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
-        over = any(button.contains(point) for button in self.buttons) or self._day_at(point) is not None
+        over = any(button.contains(point) for button in self.buttons) | self.hover_controls(point) or self._day_at(point) is not None
         self.setCursor(Qt.CursorShape.PointingHandCursor if over else Qt.CursorShape.ArrowCursor)

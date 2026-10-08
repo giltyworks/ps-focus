@@ -44,6 +44,7 @@ from .calendar_module import CalendarModule
 from .celebration import Fireworks, play_celebration_sound
 from .chart import ChartModule
 from .day_overview import DayOverview
+from .docking import Docking
 from .feedback_dialog import FeedbackDialog
 from .header import Header, ModuleControls
 from .stats_module import StatsModule
@@ -108,10 +109,14 @@ class PSFocusQt:
         self.calendar = CalendarModule(self.fonts, self.store, self._open_day_overview, self._refresh_stats, self._block_resized)
         self.stats = StatsModule(self.fonts, self.store, self._block_resized)
         self.modules = {"graph": self.chart, "calendar": self.calendar, "stats": self.stats}
+        self.docking = Docking(self)
+        self.window.on_moved = self.docking.main_moved
+        self.window.on_state_changed = lambda: self.docking.sync_visibility()
         # The calendar and stats change slowly, so they are worked out again every so many seconds
         self.slow_refresh_ticks = 0
         self.block_drag = BlockDrag(
-            {**self.panels, **self.modules}, lambda: self.block_order, self._blocks_reordered, self._save_settings, lambda: self.landscape
+            {**self.panels, **self.modules}, lambda: self.block_order, self._blocks_reordered, self._save_settings, lambda: self.landscape,
+            self.docking,
         )
         self._arrange_blocks()
         self.settings_page = SettingsPage(self.fonts, self.settings, self._setting_toggled, self._set_orientation, self._settings_resized)
@@ -151,7 +156,8 @@ class PSFocusQt:
             self.window.showMinimized()
         else:
             self.window.show()
-        self.window.place_top_right()
+        # Where the window was left, and the modules floating then
+        self.docking.restore()
 
     def _read_block_order(self) -> list[str]:
         """The saved order of the program panels and modules, with any missing added at the end; see the Tk
@@ -213,9 +219,13 @@ class PSFocusQt:
         self.settings_page.update()
 
     def _set_orientation(self, landscape: bool) -> None:
-        if landscape == self.landscape:
-            return
+        """Choosing Portrait or Landscape, even the one already chosen, also docks every floating module and puts
+        the blocks back in their first order; which are shown stays as it was"""
+        self.docking.dock_all()
+        self.block_order = list(BLOCK_NAMES)
+        self.settings["block_order"] = self.block_order.copy()
         self.landscape = landscape
+        self.landscape_width = None
         self.settings["landscape"] = landscape
         self._save_settings()
         self.settings_page.update()
@@ -249,8 +259,10 @@ class PSFocusQt:
                 height = 0
                 for panel in self.panels.values():
                     panel.set_stretch(0)
-            for module in self.modules.values():
-                module.set_layout(self.landscape, height)
+            for name, module in self.modules.items():
+                # A floating module keeps the portrait layout, having no columns to share a height with
+                if not self.docking.is_floating(name):
+                    module.set_layout(self.landscape, height)
             for name in ("graph", "calendar"):
                 if self.module_ticked[name]:
                     self._refresh_module(name)
@@ -269,8 +281,9 @@ class PSFocusQt:
         overhead = self._header_overhead()
         # With no anchor panel the header stands alone: its height, less a block's border of a pixel each side
         column = today_height + overhead if anchor is not None else overhead - MODULE_GAP - 2
-        stats = self.stats.landscape_height() if self.module_ticked["stats"] else 0
-        return max(self.chart.landscape_height(), stats, today_height, column)
+        stats = self.stats.landscape_height() if self._block_shown("stats") else 0
+        graph = self.chart.landscape_height() if not self.docking.is_floating("graph") else 0
+        return max(graph, stats, today_height, column)
 
     def _block_resized(self) -> None:
         # A module growing or shrinking, such as the stats gaining a line, changes the size the window needs, and in
@@ -304,15 +317,16 @@ class PSFocusQt:
         self.window.reorder_blocks(self._shown_blocks())
 
     def _block_shown(self, name: str) -> bool:
-        """A module ticked in the checkboxes, or a program panel ticked in Settings"""
+        """A module ticked in the checkboxes and not floating, or a program panel ticked in Settings"""
         if name in self.module_ticked:
-            return self.module_ticked[name]
+            return self.module_ticked[name] and not self.docking.is_floating(name)
         return bool(self.settings.get(PROGRAM_PANEL_SETTINGS[name]))
 
     def _module_toggled(self, name: str) -> None:
         self.settings[f"show_{name}"] = self.module_ticked[name]
         self._save_settings()
         self._arrange_blocks()
+        self.docking.sync_visibility()
         if self.module_ticked[name]:
             self._refresh_module(name)
 
@@ -385,12 +399,15 @@ class PSFocusQt:
         self.tray_icon.show()
 
     def window_hidden(self) -> None:
+        self.docking.save_positions()
         self.window.hide()
+        self.docking.sync_visibility(hidden=True)
 
     def show_window(self) -> None:
         self.window.showNormal()
         self.window.raise_()
         self.window.activateWindow()
+        self.docking.sync_visibility()
         self._refresh_visible_modules()
 
     def _poll_signals(self) -> None:
@@ -600,6 +617,8 @@ class PSFocusQt:
         self.update_timer.stop()
         if self.fireworks is not None:
             self.fireworks.stop()
+        self.docking.save_positions()
+        self.docking.sync_visibility(hidden=True)
         self.window.hide()
         self.tray_icon.hide()
         try:

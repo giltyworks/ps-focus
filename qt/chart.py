@@ -253,6 +253,7 @@ class ChartModule(ModuleBlock):
         if self.picture is not None:
             painter.drawPixmap(self.chart_origin, self.picture)
         self._paint_readout(painter)
+        self.paint_dock_controls(painter)
         painter.end()
 
     def _paint_readout(self, painter: QPainter) -> None:
@@ -323,5 +324,6 @@ class ChartModule(ModuleBlock):
         index = round((local.x() - plot.left) / plot.step) if plot.step else 0
         self._set_hover(max(0, min(len(plot.points) - 1, index)))
 
-    def leaveEvent(self, _event) -> None:
+    def leaveEvent(self, event) -> None:
+        super().leaveEvent(event)
         self._set_hover(None)
