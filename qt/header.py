@@ -273,6 +273,13 @@ class Header(QWidget):
             painter.fillRect(x, y, 2, 1, dot_color)
             painter.fillRect(x, y + 1, 1, 1, dot_color)
 
+    def interactive_at(self, point: QPoint) -> bool:
+        """Whether a press here is a click on something, rather than the start of moving the window"""
+        return (
+            _inside(self.settings_area, point) or _inside(self.account_area, point) or _inside(self.version_area, point)
+            or (self.level_clickable and _inside(self.level_area, point))
+        )
+
     def mousePressEvent(self, event: QMouseEvent) -> None:
         if event.button() != Qt.MouseButton.LeftButton:
             return
@@ -340,6 +347,9 @@ class ModuleControls(QWidget):
             painter.drawText(QPoint(left, text_top + baseline), label)
             draw_checkbox(painter, center, self.ticked[name])
         painter.end()
+
+    def interactive_at(self, point: QPoint) -> bool:
+        return self._control_at(point) is not None
 
     def _control_at(self, point: QPoint) -> str | None:
         return next((name for name, (area, _left, _center) in self.areas.items() if area.contains(point)), None)

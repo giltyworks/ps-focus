@@ -116,7 +116,7 @@ class PSFocusQt:
         self.slow_refresh_ticks = 0
         self.block_drag = BlockDrag(
             {**self.panels, **self.modules}, lambda: self.block_order, self._blocks_reordered, self._save_settings, lambda: self.landscape,
-            self.docking,
+            self.docking, self._moves_window,
         )
         self._arrange_blocks()
         self.settings_page = SettingsPage(self.fonts, self.settings, self._setting_toggled, self._set_orientation, self._settings_resized)
@@ -297,6 +297,15 @@ class PSFocusQt:
 
     def _window_width_chosen(self, width: int) -> None:
         self.landscape_width = width if width < self.window.full_size()[0] else None
+
+    def blocks_by_name(self) -> dict:
+        return {**self.panels, **self.modules}
+
+    def _moves_window(self, widget) -> bool:
+        """Whether a press on this part of the window, not a block, moves it: the header and checkbox rows, the gaps
+        and margins; not the Settings page"""
+        window = self.window
+        return widget in (window, window.viewport, window.container, window.clip_margin, self.header, self.module_controls)
 
     def _shown_blocks(self) -> list:
         blocks = {**self.panels, **self.modules}

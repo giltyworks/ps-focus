@@ -215,7 +215,8 @@ class QtDockingTests(unittest.TestCase):
 
     def test_grip_drop_on_another_floating_panel_swaps_them(self):
         first = self._float("stats", QPoint(200, 600))
-        second = self._float("graph", QPoint(700, 600))
+        # Clear of the window's far end, where a panel let go would dock
+        second = self._float("graph", QPoint(200, 1300))
         first_position, second_position = first.pos(), second.pos()
         block = self.app.modules["stats"]
         grip = block.mapToGlobal(block.grip_rect().center())
@@ -275,6 +276,111 @@ class QtDockingTests(unittest.TestCase):
         self.assertEqual(restarted.window.pos(), QPoint(100, 10))
         self.assertTrue(restarted.docking.is_floating("stats"))
         self.assertEqual(restarted.docking.floating["stats"].pos(), QPoint(270, 388))
+
+
+    def _press_move(self, widget, start, *points):
+        """Press and move without letting go, to look at the drag midway"""
+        self._mouse(widget, QEvent.Type.MouseButtonPress, start)
+        for point in points:
+            self._mouse(widget, QEvent.Type.MouseMove, point)
+        self.application.processEvents()
+
+    def test_dragging_a_program_panel_moves_the_window_and_attached_panels(self):
+        panel = self._float("stats", QPoint(300, 400))
+        left, top, _right, _bottom = self.app.docking.main_bounds()
+        panel.move(left - panel.width(), top)
+        photoshop = self.app.panels["Photoshop"]
+        start = photoshop.mapToGlobal(QPoint(60, 40))
+        window_position, panel_position = self.app.window.pos(), panel.pos()
+        self._drag(photoshop, start, start + QPoint(-30, 25))
+        self.assertEqual(self.app.window.pos(), window_position + QPoint(-30, 25))
+        self.assertEqual(panel.pos(), panel_position + QPoint(-30, 25))
+
+    def test_header_moves_the_window_except_where_it_is_clicked(self):
+        header = self.app.header
+        position = self.app.window.pos()
+        empty = header.mapToGlobal(QPoint(header.width() - 60, header.height() // 2))
+        self.assertFalse(header.interactive_at(header.mapFromGlobal(empty)))
+        self._drag(header, empty, empty + QPoint(20, 10))
+        self.assertEqual(self.app.window.pos(), position + QPoint(20, 10))
+        dots = header.mapToGlobal(QPoint(header.settings_area[0] + 5, header.settings_area[1] + 5))
+        self._drag(header, dots, dots + QPoint(20, 10))
+        self.assertEqual(self.app.window.pos(), position + QPoint(20, 10))
+
+    def test_program_panel_grip_reorders_but_never_floats(self):
+        krita_first = ["Krita"] + [name for name in self.app.block_order if name != "Krita"]
+        self.app.settings["tracking_krita"] = True
+        self.app._arrange_blocks()
+        self.application.processEvents()
+        photoshop = self.app.panels["Photoshop"]
+        grip = photoshop.mapToGlobal(photoshop.grip_rect().center())
+        position = self.app.window.pos()
+        self._drag(photoshop, grip, grip + QPoint(0, 10), grip + QPoint(-600, 0))
+        self.assertEqual(self.app.window.pos(), position)
+        self.assertEqual(self.app.docking.floating, {})
+        krita = self.app.panels["Krita"]
+        self._drag(photoshop, grip, grip + QPoint(0, 10), krita.mapToGlobal(QPoint(50, krita.height() - 3)))
+        self.assertLess(self.app.block_order.index("Krita"), self.app.block_order.index("Photoshop"))
+        del krita_first
+
+    def test_a_lone_panel_dragged_over_the_window_shows_the_marker_and_docks_there(self):
+        panel = self._float("stats", QPoint(200, 300))
+        block = self.app.modules["stats"]
+        start = block.mapToGlobal(QPoint(40, 60))
+        photoshop = self.app.panels["Photoshop"]
+        over = photoshop.mapToGlobal(QPoint(100, 5))
+        self._press_move(block, start, start + QPoint(10, 0), over)
+        marker = self.app.docking.marker
+        self.assertTrue(marker.isVisible())
+        self.assertEqual(self.app.docking.dock_slot, self.app.docking._shown_names().index("Photoshop"))
+        # The bar lies in the gap just above the Photoshop panel
+        self.assertLess(marker.y(), photoshop.mapTo(self.app.window, QPoint(0, 0)).y())
+        self.assertLess(panel.windowOpacity(), 1)
+        self._mouse(block, QEvent.Type.MouseButtonRelease, over)
+        self.assertFalse(marker.isVisible())
+        self.assertFalse(self.app.docking.is_floating("stats"))
+        self.assertEqual(self.app.block_order.index("stats") + 1, self.app.block_order.index("Photoshop"))
+
+    def test_let_go_just_below_the_window_docks_at_the_end(self):
+        self._float("graph", QPoint(200, 300))
+        block = self.app.modules["graph"]
+        left, _top, _right, bottom = self.app.docking.main_bounds()
+        start = block.mapToGlobal(QPoint(40, 60))
+        offset = start - self.app.docking.floating["graph"].pos()
+        # The panel's top 15 pixels under the window's bottom edge, lined up with it
+        aim = QPoint(left, bottom + 15) + offset
+        self._press_move(block, start, start + QPoint(10, 0), aim)
+        self.assertEqual(self.app.docking.dock_slot, len(self.app.docking._shown_names()))
+        self._mouse(block, QEvent.Type.MouseButtonRelease, aim)
+        self.assertFalse(self.app.docking.is_floating("graph"))
+        self.assertEqual(self.app._shown_blocks()[-1], self.app.chart)
+
+    def test_in_landscape_let_go_just_right_of_the_window_docks_at_the_end(self):
+        self.app.landscape = True
+        self.app._arrange_blocks()
+        self.application.processEvents()
+        self._float("stats", QPoint(100, 1200))
+        block = self.app.modules["stats"]
+        _left, top, right, _bottom = self.app.docking.main_bounds()
+        start = block.mapToGlobal(QPoint(40, 60))
+        aim = QPoint(right + 10, top) + (start - self.app.docking.floating["stats"].pos())
+        self._drag(block, start, start + QPoint(10, 0), aim)
+        self.assertFalse(self.app.docking.is_floating("stats"))
+        self.assertEqual(self.app._shown_blocks()[-1], self.app.stats)
+
+    def test_a_group_of_panels_dragged_over_the_window_does_not_dock(self):
+        first = self._float("stats", QPoint(100, 50))
+        second = self._float("graph", QPoint(700, 50))
+        second.move(first.x() + first.width(), first.y())
+        block = self.app.modules["stats"]
+        start = block.mapToGlobal(QPoint(40, 60))
+        over = self.app.panels["Photoshop"].mapToGlobal(QPoint(100, 20))
+        self._press_move(block, start, start + QPoint(10, 0), over)
+        self.assertIsNone(self.app.docking.dock_slot)
+        self.assertFalse(self.app.docking.marker.isVisible())
+        self._mouse(block, QEvent.Type.MouseButtonRelease, over)
+        self.assertTrue(self.app.docking.is_floating("stats"))
+        self.assertTrue(self.app.docking.is_floating("graph"))
 
 
 if __name__ == "__main__":

@@ -24,6 +24,15 @@ DOCK_CONTROL_GAP = 4
 GRIP_AFTER_TITLE = 6
 
 
+def paint_grip(painter: QPainter, rect: QRect, hovered: bool) -> None:
+    """Three short diagonal lines, as the Tk version drew its grip: muted under the mouse, otherwise the border's colour"""
+    painter.save()
+    painter.setPen(color("muted" if hovered else "border"))
+    for inset in (0, 4, 8):
+        painter.drawLine(rect.x() + 5 + inset, rect.y() + 14, rect.x() + 14, rect.y() + 5 + inset)
+    painter.restore()
+
+
 def draw_rounded_box(painter: QPainter, box: QRectF, radius: float, fill: QColor, outline: QColor, outline_width: int = 1) -> None:
     """A flat rounded rectangle with an outline this many pixels wide"""
     painter.save()
@@ -156,11 +165,8 @@ class ModuleBlock(QWidget):
     def paint_dock_controls(self, painter: QPainter) -> None:
         """Three short diagonal lines for the grip; for the dock icon, a window with a rail and an arrow into it, as
         the Tk version drew them. Muted while the mouse is over them, otherwise the border's colour"""
+        paint_grip(painter, self.grip_rect(), self.hovered_control == "grip")
         painter.save()
-        grip = self.grip_rect()
-        painter.setPen(color("muted" if self.hovered_control == "grip" else "border"))
-        for inset in (0, 4, 8):
-            painter.drawLine(grip.x() + 5 + inset, grip.y() + 14, grip.x() + 14, grip.y() + 5 + inset)
         dock = self.dock_rect()
         if dock is not None:
             painter.setPen(color("muted" if self.hovered_control == "dock" else "border"))
@@ -171,6 +177,10 @@ class ModuleBlock(QWidget):
             painter.drawLine(x + 10, y + 6, x + 7, y + 9)
             painter.drawLine(x + 7, y + 9, x + 10, y + 12)
         painter.restore()
+
+    def interactive_at(self, point: QPoint) -> bool:
+        """Whether a press here is a click on something, rather than the start of moving the window"""
+        return any(button.contains(point) for button in self.buttons) or self.control_at(point) is not None
 
     def hover_controls(self, point: QPoint | None) -> bool:
         """Note which control the mouse is over, repainting when that changes; return whether it is over one"""

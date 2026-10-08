@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPaintEvent
+from PySide6.QtCore import QPoint, QRect, Qt
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QWidget
 
 from app_config import TODAY_PANEL_WIDTH
 
+from .module import DOCK_CONTROL_SIZE, paint_grip
 from .theme import Fonts, ascent, color, line_height
 
 # The same measurements as the Tk panel, see main.py: space inside the panel above its first row and below its
@@ -66,6 +67,10 @@ class TodayPanel(QWidget):
             return tops[row] + (heights[row] - line_height(font)) // 2
 
         self.natural_height = status_top + heights[3] + TODAY_PANEL_PADDING + 1
+        # The grip that puts the panel in a new order, at the right of the big figure's row, level with its digits
+        self.grip_top = digits_top + (digit_height - DOCK_CONTROL_SIZE) // 2
+        self.grip_hovered = False
+        self.setMouseTracking(True)
         self.setFixedSize(TODAY_PANEL_WIDTH, self.natural_height)
         # The panel paints every pixel itself, so Qt need not clear it first
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
@@ -84,6 +89,25 @@ class TodayPanel(QWidget):
             "status": text(3, False, "NOT ACTIVE", muted, fonts.bold),
             "last_session": text(3, True, "last session on --", muted, fonts.counter),
         }
+
+    def grip_rect(self) -> QRect:
+        left = TODAY_PANEL_WIDTH - 1 - TODAY_PANEL_SIDE_PADDING - DOCK_CONTROL_SIZE
+        return QRect(left, self.grip_top + self.stretch // 2, DOCK_CONTROL_SIZE, DOCK_CONTROL_SIZE)
+
+    def control_at(self, point: QPoint) -> str | None:
+        return "grip" if self.grip_rect().contains(point) else None
+
+    def _hover(self, hovered: bool) -> None:
+        if hovered != self.grip_hovered:
+            self.grip_hovered = hovered
+            self.setCursor(Qt.CursorShape.PointingHandCursor if hovered else Qt.CursorShape.ArrowCursor)
+            self.update()
+
+    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+        self._hover(self.grip_rect().contains(event.position().toPoint()))
+
+    def leaveEvent(self, _event) -> None:
+        self._hover(False)
 
     def set_stretch(self, extra: int) -> None:
         extra = max(0, extra)
@@ -113,4 +137,5 @@ class TodayPanel(QWidget):
             width = metrics.horizontalAdvance(item.text)
             x = item.x - width if item.right_aligned else item.x
             painter.drawText(QPoint(x, item.top + self.stretch // 2 + ascent(item.font)), item.text)
+        paint_grip(painter, self.grip_rect(), self.grip_hovered)
         painter.end()

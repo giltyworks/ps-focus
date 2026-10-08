@@ -20,6 +20,8 @@ def _block(height: int) -> "QWidget":
     block = QWidget()
     block.setFixedSize(TODAY_PANEL_WIDTH, height)
     block.border_color = "border"
+    # A test block is grip all over, so pressing anywhere on it puts it in a new order
+    block.control_at = lambda _point: "grip"
     return block
 
 
@@ -147,7 +149,8 @@ class QtLayoutTests(unittest.TestCase):
         self.assertIsNone(QApplication.overrideCursor())
         self.assertEqual(self.first.border_color, "border")
         self.assertIsNone(drag.candidate)
-        self.assertIsNone(drag.dragged)
+        self.assertIsNone(drag.mode)
+        self.assertFalse(drag.dragged)
         del drag
 
 

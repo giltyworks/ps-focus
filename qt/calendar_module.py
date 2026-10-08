@@ -15,7 +15,7 @@ from stat_lines import DAY_ABBREVIATIONS
 from tracker import ActivityStore
 
 from .icons import icon
-from .module import ModuleBlock, PaintedButton
+from .module import DOCK_CONTROL_SIZE, GRIP_AFTER_TITLE, ModuleBlock, PaintedButton
 from .theme import Fonts, anchored_top_left, color, draw_anchored, draw_outline_text, draw_text, line_height, text_width
 
 # The same measurements as the Tk calendar, see ui_calendar.py. The first and last years it can be stepped to
@@ -85,9 +85,11 @@ class CalendarModule(ModuleBlock):
         self.set_layout(False)
 
     def side_width(self) -> int:
-        """Width of the landscape strip: just enough for its widest line, the longest month name and year"""
+        """Width of the landscape strip: just enough for its widest line, the longest month name and year, or the name
+        with the grip after it"""
         fonts = self.fonts
         widest = max(
+            text_width(fonts.bold, self.title) + GRIP_AFTER_TITLE + DOCK_CONTROL_SIZE,
             text_width(fonts.two_week, "September 0000"),
             self.toggle.width,
             LEGEND_SQUARE_SIZE + 6 + text_width(fonts.small, "15 min+"),
@@ -367,6 +369,9 @@ class CalendarModule(ModuleBlock):
     def _day_at(self, point: QPoint) -> date | None:
         x, y = point.x() - self.origin.x(), point.y() - self.origin.y()
         return next((day for left, top, right, bottom, day in self.day_boxes if left <= x < right and top <= y < bottom), None)
+
+    def interactive_at(self, point: QPoint) -> bool:
+        return super().interactive_at(point) or self._day_at(point) is not None
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         super().mousePressEvent(event)

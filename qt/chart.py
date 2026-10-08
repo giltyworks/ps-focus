@@ -15,7 +15,7 @@ import app_config
 from app_config import CHART_FILL_OPACITY, CHART_PERIOD_CAPTIONS, EDGE_PADDING, MODULE_CANVAS_WIDTH, MODULE_MARGIN, format_duration
 from tracker import ActivityStore
 
-from .module import ModuleBlock, PaintedButton
+from .module import DOCK_CONTROL_SIZE, GRIP_AFTER_TITLE, ModuleBlock, PaintedButton
 from .theme import Fonts, color, draw_anchored, draw_text, line_height, text_width, tk_round
 
 # The same measurements as the Tk graph, see ui_chart.py: the gap between period buttons; the space below the
@@ -91,8 +91,10 @@ class ChartModule(ModuleBlock):
         return month_top, headline_top, caption_top, buttons_top, max(text_bottom, buttons_bottom)
 
     def side_width(self) -> int:
-        """Width of the landscape strip: the name and total, then the column of period buttons"""
-        room = max(text_width(self.fonts.bold, self.title), text_width(self.fonts.headline, SIDE_HEADLINE_SAMPLE))
+        """Width of the landscape strip: the name with the grip after it, and the total, then the column of period
+        buttons"""
+        name = text_width(self.fonts.bold, self.title) + GRIP_AFTER_TITLE + DOCK_CONTROL_SIZE
+        room = max(name, text_width(self.fonts.headline, SIDE_HEADLINE_SAMPLE))
         return MODULE_MARGIN + room + SIDE_BUTTON_GAP + self.buttons[0].width
 
     def landscape_height(self) -> int:
