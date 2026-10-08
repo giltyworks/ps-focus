@@ -39,7 +39,7 @@ class FeedbackOutboxTests(unittest.TestCase):
         self.outbox.add(5, "First")
         self.outbox.add(2, "Second")
 
-        with patch("feedback.urllib.request.urlopen", return_value=self._response(b'{"ok": true}')) as urlopen_mock:
+        with patch("feedback.urlopen", return_value=self._response(b'{"ok": true}')) as urlopen_mock:
             self.assertEqual(self.outbox.send_pending(), 2)
 
         urlopen_mock.assert_called_once()
@@ -56,7 +56,7 @@ class FeedbackOutboxTests(unittest.TestCase):
             {"return_value": self._response(b"<html>Sign in</html>")},
             {"return_value": self._response(b'{"ok": false}')},
         ):
-            with self.subTest(outcome=outcome), patch("feedback.urllib.request.urlopen", **outcome):
+            with self.subTest(outcome=outcome), patch("feedback.urlopen", **outcome):
                 with self.assertRaises(RuntimeError):
                     self.outbox.send_pending()
                 self.assertEqual(len(self.outbox.pending()), 1)
@@ -65,7 +65,7 @@ class FeedbackOutboxTests(unittest.TestCase):
         outbox = FeedbackOutbox(self.outbox_path, "")
         outbox.add(5, "Waiting")
 
-        with patch("feedback.urllib.request.urlopen") as urlopen_mock:
+        with patch("feedback.urlopen") as urlopen_mock:
             self.assertEqual(outbox.send_pending(), 0)
 
         urlopen_mock.assert_not_called()

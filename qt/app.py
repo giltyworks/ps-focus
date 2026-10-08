@@ -673,10 +673,10 @@ def main(preview: bool, smoke_test: bool = False) -> None:
         app.window.setWindowTitle("PS Focus Qt Preview")
         app.tray_icon.setToolTip("PS Focus Qt Preview")
     if smoke_test:
-        # Google requests use Python/OpenSSL rather than QtNetwork. Verify the
-        # trimmed package still loads TLS and Windows' trusted certificates.
-        import ssl
-        ssl.create_default_context()
+        # Web requests use Windows' WinHTTP rather than OpenSSL; check it loads and opens a session (no request is sent)
+        import web
+
+        web._winhttp.WinHttpCloseHandle(web._open_session())
         # Exercise the packed painter/assets/plugins, not just a default empty dashboard.
         application.processEvents()
         if app.window.windowIcon().pixmap(32, 32).isNull() or app.tray_icon.icon().pixmap(32, 32).isNull():

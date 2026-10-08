@@ -11,7 +11,7 @@ class UpdateCheckTests(unittest.TestCase):
         response = MagicMock()
         response.__enter__.return_value = response
         response.read.return_value = json.dumps(payload).encode("utf-8")
-        return patch("update_check.urllib.request.urlopen", return_value=response)
+        return patch("update_check.urlopen", return_value=response)
 
     def test_versions_compare_numerically(self):
         self.assertGreater(parse_version("1.10.0"), parse_version("1.9.9"))
@@ -58,10 +58,10 @@ class UpdateCheckTests(unittest.TestCase):
                 self.assertTrue(is_safe_download_url(url))
 
     def test_network_failures_are_reported_and_no_endpoint_means_no_check(self):
-        with patch("update_check.urllib.request.urlopen", side_effect=OSError("offline")):
+        with patch("update_check.urlopen", side_effect=OSError("offline")):
             with self.assertRaises(RuntimeError):
                 available_update("1.0.0", "https://endpoint.example")
-        with patch("update_check.urllib.request.urlopen") as urlopen:
+        with patch("update_check.urlopen") as urlopen:
             self.assertIsNone(available_update("1.0.0", ""))
         urlopen.assert_not_called()
 

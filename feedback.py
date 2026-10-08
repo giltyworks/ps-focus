@@ -10,6 +10,8 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+from web import urlopen
+
 # Web app URL of the deployed feedback_endpoint/Code.gs script; feedback stays queued locally while this is empty
 FEEDBACK_ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbwMRm9feeT_AHayJteW47y8_-AKgdXBEVb8P7G37XgdZcXHSrryCt_JUUbrqJBeRMO7ag/exec"
 MAX_MESSAGE_LENGTH = 4000
@@ -64,7 +66,7 @@ class FeedbackOutbox:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
+            with urlopen(request, timeout=20) as response:
                 result = json.loads(response.read().decode("utf-8"))
         except (OSError, ValueError) as error:
             raise RuntimeError(f"Feedback could not be delivered: {error}") from error

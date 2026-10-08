@@ -9,6 +9,7 @@ import urllib.parse
 import urllib.request
 
 from feedback import FEEDBACK_ENDPOINT_URL
+from web import urlopen
 
 # The feedback web app also answers version requests, so releases need no separate hosting
 UPDATE_CHECK_URL = FEEDBACK_ENDPOINT_URL
@@ -57,7 +58,7 @@ def available_update(current_version: str, endpoint_url: str = UPDATE_CHECK_URL)
         return None
     request = urllib.request.Request(endpoint_url, headers={"Accept": "application/json"})
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
+        with urlopen(request, timeout=20) as response:
             payload = json.loads(response.read(64 * 1024).decode("utf-8"))
     except (OSError, ValueError) as error:
         raise RuntimeError(f"Could not check for updates: {error}") from error

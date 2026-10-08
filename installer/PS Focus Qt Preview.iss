@@ -45,6 +45,10 @@ OutputBaseFilename=PS-Focus-Qt-Preview-Setup-{#AppVersion}
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 
+[InstallDelete]
+; The runtime folder is replaced whole, so files a newer build no longer needs do not linger from an older one
+Type: filesandordirs; Name: "{app}\_internal"
+
 [Files]
 Source: "{#AppExecutable}"; DestDir: "{app}"; DestName: "{#AppExe}"; Flags: ignoreversion
 #ifdef AppRuntimeDir

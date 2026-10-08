@@ -152,7 +152,7 @@ class GoogleAccountTests(unittest.TestCase):
         response.__enter__.return_value = response
         response.read.return_value = json.dumps({"email": "artist@example.com"}).encode("utf-8")
 
-        with patch("google_drive.urllib.request.urlopen", return_value=response) as urlopen_mock:
+        with patch("google_drive.urlopen", return_value=response) as urlopen_mock:
             self.assertEqual(self.sync.account_email(), "artist@example.com")
 
         self.assertEqual(urlopen_mock.call_args.args[0].full_url, USERINFO_API)
@@ -168,7 +168,7 @@ class GoogleAccountTests(unittest.TestCase):
         response = MagicMock()
         response.__enter__.return_value = response
 
-        with patch("google_drive.urllib.request.urlopen", return_value=response) as urlopen_mock:
+        with patch("google_drive.urlopen", return_value=response) as urlopen_mock:
             self.assertTrue(self.sync.sign_out())
 
         request = urlopen_mock.call_args.args[0]
@@ -179,7 +179,7 @@ class GoogleAccountTests(unittest.TestCase):
     def test_sign_out_removes_local_token_when_google_is_unreachable(self):
         self._save_token(USERINFO_SCOPE)
 
-        with patch("google_drive.urllib.request.urlopen", side_effect=OSError("offline")):
+        with patch("google_drive.urlopen", side_effect=OSError("offline")):
             self.assertFalse(self.sync.sign_out())
 
         self.assertFalse(self.sync.token_file.exists())
@@ -234,7 +234,7 @@ class GoogleAccountTests(unittest.TestCase):
 
         with patch.object(self.sync, "_api", return_value={"files": [{"id": "backup-id"}]}), patch.object(
             self.sync, "_access_token", return_value="test-token"
-        ), patch("google_drive.urllib.request.urlopen", return_value=response) as urlopen_mock:
+        ), patch("google_drive.urlopen", return_value=response) as urlopen_mock:
             self.assertEqual(self.sync.download_activity_backup(), content)
 
         request = urlopen_mock.call_args.args[0]

@@ -30,15 +30,21 @@ a = Analysis(
     excludes=['tkinter', 'PIL', 'pystray', 'PyQt5', 'PyQt6', 'PySide2', 'PySide6.QtNetwork', 'PySide6.QtOpenGL', 'PySide6.QtOpenGLWidgets', 'PySide6.QtSvg', 'PySide6.QtSvgWidgets',
               # Optional shutil/zipfile archive codecs: backups are SQLite copies,
               # and Shiboken's embedded signature ZIP uses standard zlib.
-              'bz2', '_bz2', 'lzma', '_lzma', 'compression.zstd', '_zstd'],
+              'bz2', '_bz2', 'lzma', '_lzma', 'compression.zstd', '_zstd',
+              # Web requests go through Windows' WinHTTP (web.py), so Python's OpenSSL is not needed; hashlib
+              # falls back to Python's built-in SHA-256 for sign-in.
+              'ssl', '_ssl', '_hashlib'],
     noarchive=False, optimize=0,
 )
 a.binaries = [entry for entry in a.binaries if not (entry[0].lower().startswith('api-ms-win-') or entry[0].lower() == 'ucrtbase.dll')]
-# This interface uses raster QPainter, PNG/ICO assets, English text and stdlib HTTPS.
+# This interface uses raster QPainter, PNG/ICO assets, English text and Windows' WinHTTP for HTTPS.
 # Qt's broad GUI hooks also collect optional graphics/network plugins that it never loads.
 def needed_qt_file(name):
     normalized = name.replace('\\', '/').lower()
     if normalized.endswith(('/opengl32sw.dll', '/qt6network.dll', '/qtnetwork.pyd', '/qt6svg.dll')):
+        return False
+    # OpenSSL, collected with Python; WinHTTP does HTTPS instead
+    if normalized.rsplit('/', 1)[-1].startswith(('libcrypto-', 'libssl-')):
         return False
     if '/translations/' in normalized:
         return False

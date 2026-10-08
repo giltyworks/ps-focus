@@ -19,6 +19,8 @@ import webbrowser
 from ctypes import wintypes
 from pathlib import Path
 
+from web import urlopen
+
 DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.appdata"
 USERINFO_SCOPE = "https://www.googleapis.com/auth/userinfo.email"
 SCOPE = f"{DRIVE_SCOPE} {USERINFO_SCOPE} openid"
@@ -133,7 +135,7 @@ class GoogleDriveSync:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
+            with urlopen(request, timeout=20) as response:
                 return json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as error:
             if form.get("grant_type") == "refresh_token" and error.code == 400:
@@ -246,7 +248,7 @@ class GoogleDriveSync:
             headers={"Authorization": f"Bearer {self._access_token()}"},
         )
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
+            with urlopen(request, timeout=20) as response:
                 profile = json.loads(response.read().decode("utf-8"))
         except urllib.error.HTTPError as error:
             if error.code in (401, 403):
@@ -277,7 +279,7 @@ class GoogleDriveSync:
                         headers={"Content-Type": "application/x-www-form-urlencoded"},
                         method="POST",
                     )
-                    with urllib.request.urlopen(request, timeout=10):
+                    with urlopen(request, timeout=10):
                         pass
             except OSError:
                 revocation_confirmed = False
@@ -293,7 +295,7 @@ class GoogleDriveSync:
             method=method,
         )
         try:
-            with urllib.request.urlopen(request, timeout=20) as response:
+            with urlopen(request, timeout=20) as response:
                 payload = response.read()
                 return json.loads(payload.decode("utf-8")) if payload else {}
         except urllib.error.HTTPError as error:
@@ -363,7 +365,7 @@ class GoogleDriveSync:
             headers={"Authorization": f"Bearer {self._access_token()}"},
         )
         try:
-            with urllib.request.urlopen(request, timeout=30) as response:
+            with urlopen(request, timeout=30) as response:
                 return response.read()
         except (urllib.error.HTTPError, urllib.error.URLError) as error:
             raise RuntimeError(f"Google Drive backup download failed: {error}") from error
