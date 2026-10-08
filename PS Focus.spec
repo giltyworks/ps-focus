@@ -1,4 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
+"""The release: PS Focus on Qt, built as a folder (the program and its _internal runtime) that the installer
+compresses on disk. Built by tools/build_release.py"""
 import json
 import os
 import sys
@@ -25,60 +27,62 @@ if oauth_json or credential_source.is_file():
 else:
     print('No Desktop OAuth configuration supplied; this build cannot provide Google sign-in.')
 
-
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    ['qt/__main__.py'],
+    pathex=[SPECPATH],
     binaries=[],
     datas=[
         ('assets/icons/PSFocus.ico', 'assets/icons'),
-        ('assets/icons/PSFocus_AppWindow_32.png', 'assets/icons'),
-        ('assets/icons/PSFocus_Master_1024.png', 'assets/icons'),
         ('assets/icons/PSFocus_Settings_64.png', 'assets/icons'),
-        ('assets/icons/PSFocus_Taskbar_48.png', 'assets/icons'),
         ('assets/sounds/celebration.wav', 'assets/sounds'),
     ] + oauth_datas,
-    hiddenimports=[],
-    hookspath=[],
-    hooksconfig={},
-    runtime_hooks=[],
-    # Parts of Pillow the app never uses: it only draws shapes and text and reads and writes PNG.
-    # The AVIF decoder alone is a fifth of the executable. Pillow skips image formats that are missing
+    hiddenimports=[], hookspath=[], hooksconfig={}, runtime_hooks=[],
     excludes=[
-        'PIL._avif', 'PIL.AvifImagePlugin',
-        'PIL._webp', 'PIL.WebPImagePlugin',
-        'PIL._imagingcms', 'PIL.ImageCms',
-        'PIL._imagingtk', 'PIL.ImageTk',
-        'PIL._imagingmath', 'PIL.ImageMath',
+        # The Tk app's toolkit and image and tray libraries
+        'tkinter', 'PIL', 'pystray',
+        'PyQt5', 'PyQt6', 'PySide2', 'PySide6.QtNetwork', 'PySide6.QtOpenGL', 'PySide6.QtOpenGLWidgets', 'PySide6.QtSvg', 'PySide6.QtSvgWidgets',
+        # Optional archive codecs: backups are SQLite copies, and Shiboken's embedded signature ZIP uses zlib
+        'bz2', '_bz2', 'lzma', '_lzma', 'compression.zstd', '_zstd',
+        # Web requests go through Windows' WinHTTP (web.py), so Python's OpenSSL is not needed; hashlib falls back
+        # to Python's built-in SHA-256 for sign-in
+        'ssl', '_ssl', '_hashlib',
     ],
-    noarchive=False,
-    optimize=0,
+    noarchive=False, optimize=0,
 )
 # Windows 10 and later carry the C runtime themselves (Python 3.14 needs Windows 10). Build machines with the Windows
 # SDK installed would otherwise pack its copies, about 1 MB more for nothing
 a.binaries = [entry for entry in a.binaries if not (entry[0].lower().startswith('api-ms-win-') or entry[0].lower() == 'ucrtbase.dll')]
-pyz = PYZ(a.pure)
 
+
+# The interface is painted with QPainter, uses PNG and ICO images, English text and Windows' WinHTTP. Qt's broad hooks
+# also collect graphics and network plugins it never loads, and Python brings OpenSSL
+def needed_file(name):
+    normalized = name.replace('\\', '/').lower()
+    if normalized.endswith(('/opengl32sw.dll', '/qt6network.dll', '/qtnetwork.pyd', '/qt6svg.dll')):
+        return False
+    if normalized.rsplit('/', 1)[-1].startswith(('libcrypto-', 'libssl-')):
+        return False
+    if '/translations/' in normalized:
+        return False
+    if '/plugins/' in normalized:
+        # The offscreen platform is kept for the build's own start-up check
+        return normalized.endswith((
+            '/platforms/qwindows.dll', '/platforms/qoffscreen.dll',
+            '/imageformats/qico.dll', '/styles/qmodernwindowsstyle.dll',
+        ))
+    return True
+
+
+a.binaries = [entry for entry in a.binaries if needed_file(entry[0])]
+a.datas = [entry for entry in a.datas if needed_file(entry[0])]
+pyz = PYZ(a.pure)
 exe = EXE(
-    pyz,
-    a.scripts,
-    a.binaries,
-    a.datas,
-    [],
-    name='PS Focus',
-    debug=False,
-    bootloader_ignore_signals=False,
-    strip=False,
+    pyz, a.scripts, [],
+    exclude_binaries=True,
+    name='PS Focus', debug=False, bootloader_ignore_signals=False,
     # UPX-packed executables are flagged by antivirus far more often, so builds are left uncompressed
-    upx=False,
-    upx_exclude=[],
-    runtime_tmpdir=None,
-    console=False,
-    disable_windowed_traceback=False,
-    argv_emulation=False,
-    target_arch=None,
-    codesign_identity=None,
-    entitlements_file=None,
-    icon=['assets/icons/PSFocus.ico'],
-    version=version_file,
+    strip=False, upx=False, upx_exclude=[], runtime_tmpdir=None,
+    console=False, disable_windowed_traceback=False,
+    icon=['assets/icons/PSFocus.ico'], version=version_file,
 )
+coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='PS Focus')

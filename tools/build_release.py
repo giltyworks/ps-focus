@@ -1,14 +1,14 @@
-"""Build every release file for the version in app_config: the app, the installer, and checksums
+"""Build every release file for the version in app_config: the Qt app, the installer, and checksums
 
 Run from the project folder with `py tools/build_release.py`. Each step must pass before the next one runs.
 """
 from __future__ import annotations
 
-import importlib.metadata
 import os
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -16,10 +16,10 @@ sys.path.insert(0, str(ROOT))
 
 from app_config import APP_VERSION  # noqa: E402
 
-# Bundled into the executables; each package's own licence files go into the notices
-BUNDLED_PACKAGES = ("pystray", "pillow", "six")
 NOTICES_PATH = ROOT / "build" / "release" / "Third-Party Notices.txt"
 INSTALLER_FOLDER = ROOT / "dist" / "installer"
+# The program folder PyInstaller makes: the program and its _internal runtime
+APP_FOLDER = ROOT / "dist" / "PS Focus"
 
 
 def run(*arguments: str) -> None:
@@ -39,39 +39,37 @@ def find_inno_setup() -> str:
     return found
 
 
-def write_third_party_notices() -> Path:
-    sections = [
-        "PS Focus includes the following third-party software. Each is provided under its own licence, reproduced below.\n"
-        "Source code for these components is available from https://pypi.org (packages) and https://www.python.org (Python and Tcl/Tk).\n"
-    ]
-    python_license = Path(sys.base_prefix) / "LICENSE.txt"
-    sections.append(f"===== Python {sys.version.split()[0]}, including Tcl/Tk and its other bundled libraries =====\n\n{python_license.read_text(encoding='utf-8', errors='replace')}")
-    for package in BUNDLED_PACKAGES:
-        distribution = importlib.metadata.distribution(package)
-        license_files = [file for file in distribution.files or [] if any(word in file.name.upper() for word in ("LICENSE", "COPYING", "NOTICE"))]
-        if not license_files:
-            raise SystemExit(f"No licence file found for bundled package {package}")
-        header = f"===== {distribution.metadata['Name']} {distribution.version} ====="
-        texts = [Path(distribution.locate_file(file)).read_text(encoding="utf-8", errors="replace") for file in license_files]
-        sections.append(header + "\n\n" + "\n\n".join(texts))
-    NOTICES_PATH.parent.mkdir(parents=True, exist_ok=True)
-    NOTICES_PATH.write_text("\n\n".join(sections), encoding="utf-8")
-    return NOTICES_PATH
+def smoke_test(executable: Path) -> None:
+    """Start the built app with throwaway data, on Windows' own display and an invisible one, and have it draw every
+    module, switch layouts and Settings, and close. It leaves Windows startup and any running PS Focus alone"""
+    for platform in ("windows", "offscreen"):
+        with tempfile.TemporaryDirectory(prefix="smoke-", dir=ROOT / "build") as folder:
+            environment = {**os.environ, "APPDATA": folder, "QT_QPA_PLATFORM": platform}
+            subprocess.run([str(executable), "--smoke-test"], cwd=ROOT, env=environment, check=True, timeout=60)
 
 
 def main() -> int:
     python = sys.executable
     run(python, "-m", "unittest", "discover")
-    run(python, "-m", "PyInstaller", "--noconfirm", "--log-level", "WARN", "PS Focus.spec")
-    run(python, "tools/check_credentials.py", "--archive", "dist/PS Focus.exe")
-    notices = write_third_party_notices()
-    run(find_inno_setup(), "/Q", f"/DAppVersion={APP_VERSION}", f"/DNoticesFile={notices}", r"installer\PS Focus.iss")
+    sys.path.insert(0, str(ROOT / "tools"))
+    from write_qt_notices import RELEASE_HEADER, write_notices
+
+    notices = write_notices(RELEASE_HEADER, NOTICES_PATH)
+    # The archive inside the program is compressed as far as zlib goes, rebuilt each time at that level
+    os.environ["PYINSTALLER_ZLIB_COMPRESSION_LEVEL"] = "9"
+    run(python, "-m", "PyInstaller", "--noconfirm", "--clean", "--log-level", "WARN", "PS Focus.spec")
+    executable = APP_FOLDER / "PS Focus.exe"
+    run(python, "tools/check_credentials.py", "--archive", str(executable), "--verify-qt-binaries")
+    run(python, "tools/check_credentials.py", "--directory", str(APP_FOLDER / "_internal"), "--verify-qt-binaries")
+    smoke_test(executable)
+    run(find_inno_setup(), "/Q", f"/DAppVersion={APP_VERSION}", f"/DNoticesFile={notices}", f"/DAppFolder={APP_FOLDER}", r"installer\PS Focus.iss")
     installer = INSTALLER_FOLDER / f"PS-Focus-Setup-{APP_VERSION}.exe"
     checksums = INSTALLER_FOLDER / f"PS-Focus-{APP_VERSION}-SHA256SUMS.txt"
     run(python, "tools/write_checksums.py", str(installer), "--output", str(checksums))
     # The installer is the one file that is published. The app it was packed from is removed, so a loose copy
     # is not started by mistake: a packaged copy points the Windows startup entry at itself. Installers of
     # earlier versions go too; published ones can be downloaded again from the release page
+    shutil.rmtree(APP_FOLDER, ignore_errors=True)
     (ROOT / "dist" / "PS Focus.exe").unlink(missing_ok=True)
     for leftover in list(INSTALLER_FOLDER.glob("PS-Focus-Setup-*.exe")) + list(INSTALLER_FOLDER.glob("PS-Focus-*-SHA256SUMS.txt")):
         if leftover not in (installer, checksums):

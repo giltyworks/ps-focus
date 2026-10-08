@@ -19,4 +19,4 @@ if preview:
 
 from qt.app import main  # noqa: E402
 
-main(preview)
+main(preview, smoke_test="--smoke-test" in sys.argv)

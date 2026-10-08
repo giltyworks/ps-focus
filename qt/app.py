@@ -678,13 +678,14 @@ def main(preview: bool, smoke_test: bool = False) -> None:
     else:
         set_app_user_model_id()
     instance = None
-    if not preview:
+    # The build's start-up check runs beside any PS Focus already open, and never touches Windows startup
+    if not preview and not smoke_test:
         instance = SingleInstance()
         if instance.already_running:
             if "--minimized" not in sys.argv:
                 instance.ask_running_copy_to_show()
             return
-    if not preview and getattr(sys, "frozen", False):
+    if not preview and not smoke_test and getattr(sys, "frozen", False):
         # As the Tk app did: settings, history and sign-in carried over from the app's earlier name; on a first run
         # the Windows startup entry the installer was asked for; otherwise the entry pointed at this copy
         migrate_legacy_app_data()

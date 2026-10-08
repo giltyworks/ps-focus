@@ -1,10 +1,15 @@
 ; PS Focus installer for Inno Setup 6. Build it with tools/build_release.py, which supplies these values
 ; and the files listed under [Files]. Installs for the current Windows user only, so no administrator rights are needed.
+; Since 1.1 the app is a folder, the program and its _internal runtime, compressed on disk once installed. It installs
+; over the single-file Tk versions before it, keeping their place, Installed apps entry, startup entry and data
 #ifndef AppVersion
   #error Pass /DAppVersion=x.y.z (tools/build_release.py does this)
 #endif
 #ifndef NoticesFile
   #error Pass /DNoticesFile=<path to the generated third-party notices>
+#endif
+#ifndef AppFolder
+  #error Pass /DAppFolder=<the program folder PyInstaller made>
 #endif
 
 #define AppName "PS Focus"
@@ -35,7 +40,10 @@ CloseApplications=force
 RestartApplications=no
 SetupIconFile=..\assets\icons\PSFocus.ico
 WizardStyle=modern
-Compression=lzma2
+; One solid block with a large dictionary keeps the download small
+Compression=lzma2/ultra64
+LZMANumBlockThreads=1
+LZMANumFastBytes=273
 SolidCompression=yes
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -50,7 +58,8 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 Name: "startwithwindows"; Description: "Start PS Focus with Windows"; Check: IsNewInstallation
 
 [Files]
-Source: "..\dist\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppFolder}\{#AppExe}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#AppFolder}\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
 Source: "..\TERMS.md"; DestDir: "{app}"; DestName: "Terms of Use.txt"; Flags: ignoreversion
 Source: "..\LICENSE"; DestDir: "{app}"; DestName: "License.txt"; Flags: ignoreversion
 Source: "..\PRIVACY.md"; DestDir: "{app}"; DestName: "Privacy Policy.txt"; Flags: ignoreversion
@@ -59,6 +68,8 @@ Source: "{#NoticesFile}"; DestDir: "{app}"; DestName: "Third-Party Notices.txt";
 [InstallDelete]
 ; Versions before 1.0.1 installed a separate uninstaller, which the app has since absorbed
 Type: files; Name: "{app}\Uninstall PS Focus.exe"
+; The runtime folder is replaced whole, so files a newer build no longer needs do not linger from an older one
+Type: filesandordirs; Name: "{app}\_internal"
 
 [Icons]
 Name: "{autoprograms}\{#AppName}"; Filename: "{app}\{#AppExe}"
@@ -126,7 +137,20 @@ begin
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
+var
+  ResultCode: Integer;
 begin
+  // The program files are compressed by Windows, which reads them back transparently; on a drive that cannot
+  // compress, the installation simply stays as it is
+  if CurStep = ssPostInstall then
+  begin
+    if not Exec(ExpandConstant('{sys}\compact.exe'),
+      '/C /I /Q /EXE:LZX /S:"' + ExpandConstant('{app}') + '" "' + ExpandConstant('{app}\*') + '"',
+      '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+      Log('Program compression could not start')
+    else
+      Log(Format('Program compression exit code: %d', [ResultCode]));
+  end;
   // The app fills in every other setting with its defaults when it reads this file
   if (CurStep = ssPostInstall) and IsNewInstallation and not WizardIsTaskSelected('startwithwindows') then
   begin

@@ -13,8 +13,17 @@ ROOT = Path(__file__).resolve().parent.parent
 PACKAGES = ('PySide6', 'PySide6_Essentials', 'shiboken6')
 
 
-def write_notices() -> Path:
-    sections = ['PS Focus Qt Preview - bundled software notices.\nThis preview is for testing; public release packaging remains pending.']
+PREVIEW_HEADER = 'PS Focus Qt Preview - bundled software notices.\nThis preview is for testing; public release packaging remains pending.'
+RELEASE_HEADER = (
+    'PS Focus includes the following third-party software. Each is provided under its own licence, reproduced below.\n'
+    'Qt and Qt for Python (PySide6, Shiboken) are used under the GNU Lesser General Public License version 3. Their '
+    'source code is available from https://download.qt.io and https://code.qt.io, and PySide6 from '
+    'https://pypi.org/project/PySide6. Python\'s source code is available from https://www.python.org.'
+)
+
+
+def write_notices(header: str = PREVIEW_HEADER, output: Path | None = None) -> Path:
+    sections = [header]
     sections.append((Path(sys.base_prefix) / 'LICENSE.txt').read_text(encoding='utf-8', errors='replace'))
     for package in PACKAGES:
         try:
@@ -36,7 +45,7 @@ def write_notices() -> Path:
         license_fields = '\n'.join(line for line in metadata.splitlines() if line.startswith(('License:', 'License-Expression:', 'License-File:', 'Project-URL:')))
         sections.append(f'===== {package} {PySide6.__version__} =====\n{license_fields}')
         sections.extend(f'----- {name} -----\n{text}' for name, text in documents)
-    output = ROOT / 'build/qt-preview/Third-Party Notices.txt'
+    output = output or ROOT / 'build/qt-preview/Third-Party Notices.txt'
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text('\n\n'.join(sections), encoding='utf-8')
     return output
