@@ -291,6 +291,9 @@ class MainWindow(QWidget):
 
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
+        # Floating panels keep the window's new edges, see Docking.main_moved
+        if self.on_moved is not None:
+            self.on_moved()
         self._slide()
         # In landscape a width the app did not ask for is one the user dragged to, kept while blocks come and go
         if (self.settings_page is None and self.landscape and not self.refitting and self.width() != self.requested_width

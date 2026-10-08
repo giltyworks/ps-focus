@@ -103,7 +103,8 @@ class GoogleSync:
         if isinstance(legacy_name, str) and not self.display_name():
             self._set_display_name(legacy_name[:NAME_MAX_LENGTH])
         self.app.settings["google_display_name"] = ""
-        self.app._save_settings()
+        # The sync that follows a sign-in uploads the settings anyway; an upload now would hold it up
+        self.app._save_settings(upload=False)
 
     def rename(self) -> None:
         """A double click on the connected account edits the name shown for it"""

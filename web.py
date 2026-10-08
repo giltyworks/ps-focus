@@ -163,7 +163,7 @@ def _send_once(session, method: str, url: str, headers: dict[str, str], body: by
                     raise _failure("The response could not be read")
                 if not read.value:
                     break
-                chunks.append(chunk.raw[:read.value])
+                chunks.append(ctypes.string_at(chunk, read.value))
             return Response(b"".join(chunks), status.value, reason, response_headers, url)
         finally:
             _winhttp.WinHttpCloseHandle(request)

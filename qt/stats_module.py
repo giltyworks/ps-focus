@@ -43,7 +43,9 @@ class StatsModule(ModuleBlock):
         return self.content_top - 1 + self.lines_height
 
     def glass_changed(self) -> None:
-        self.drawn_lines = None
+        # Drawn again from the lines worked out, in the new background
+        if self.drawn_lines:
+            self._draw(self.drawn_lines)
 
     def set_layout(self, landscape: bool, height: int = 0) -> None:
         """In landscape the stats stretch to the height the modules share; in portrait they are as tall as their lines"""

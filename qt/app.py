@@ -129,6 +129,8 @@ class PSFocusQt:
             {**self.panels, **self.modules}, lambda: self.block_order, self._blocks_reordered, self._save_settings, lambda: self.landscape,
             self.docking, self._moves_window,
         )
+        window = self.window
+        self.block_drag.watch(window, window.viewport, window.container, window.clip_margin, self.header, self.module_controls)
         self._arrange_blocks()
         self.settings_page = SettingsPage(self.fonts, self.settings, self._setting_toggled, self._set_orientation, self._settings_resized)
         self.settings_page.exit_button.command = self.close

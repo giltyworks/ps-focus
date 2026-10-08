@@ -99,7 +99,11 @@ class CalendarModule(ModuleBlock):
         return MODULE_MARGIN + widest + SIDE_STRIP_RIGHT_MARGIN
 
     def glass_changed(self) -> None:
-        self.drawn_state = None
+        # Drawn again from what was read, in the new background
+        if self.drawn_with is not None:
+            self._draw(*self.drawn_with)
+        else:
+            self.drawn_state = None
 
     def side_title_width(self) -> int:
         # The whole column, up to where the days start

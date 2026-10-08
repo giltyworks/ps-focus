@@ -272,14 +272,14 @@ class QtDockingTests(unittest.TestCase):
     def test_places_are_kept_between_runs(self):
         self._float("stats", QPoint(300, 400))
         # Inside the offscreen platform's 800 by 600 screen, so the place is not pulled back onto it
-        self.app.window.move(100, 0)
+        self.app.window.move(0, 0)
         self.application.processEvents()
         self.app.docking.save_positions()
         self.saved_settings = dict(self.app.settings)
         self.app.window_hidden()
         restarted = self._start()
         restarted.docking.restore()
-        self.assertEqual(restarted.window.pos(), QPoint(100, 0))
+        self.assertEqual(restarted.window.pos(), QPoint(0, 0))
         self.assertTrue(restarted.docking.is_floating("stats"))
         self.assertEqual(restarted.docking.floating["stats"].pos(), QPoint(270, 388))
 
@@ -576,6 +576,17 @@ class QtDockingTests(unittest.TestCase):
             calendar._hover_day(None)
         month_totals.assert_not_called()
         streaks.assert_not_called()
+
+    def test_resizing_the_window_leaves_snapped_panels_where_they_are(self):
+        panel = self._float("stats", QPoint(300, 400))
+        left, top, _right, bottom = self.app.docking.main_bounds()
+        panel.move(left, bottom)
+        self.app.docking.main_last_bounds = self.app.docking.main_bounds()
+        position = panel.pos()
+        # Dragged shorter from its top edge: the window's top moves, its size changes
+        self.app.window.setGeometry(self.app.window.geometry().adjusted(0, 40, 0, 0))
+        self.application.processEvents()
+        self.assertEqual(panel.pos(), position)
 
 
 if __name__ == "__main__":

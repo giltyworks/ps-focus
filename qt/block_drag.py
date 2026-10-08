@@ -6,8 +6,8 @@
 - Anywhere else that is not a button, link or checkbox moves the window, or the floating panel pressed on, together
   with every panel touching it.
 
-From a press until the button is let go every mouse event in the app is watched, since a module dragged out of the
-window changes to a window of its own under the pointer"""
+Once a drag starts the main window holds the mouse until it is let go, since a block dragged out of the window
+changes to a window of its own under the pointer"""
 
 from __future__ import annotations
 
@@ -47,7 +47,14 @@ class BlockDrag(QObject):
         self.order_changed = False
         # The widget holding the mouse while a drag lasts, see _moved
         self.grabber: QWidget | None = None
-        QApplication.instance().installEventFilter(self)
+        for block in blocks.values():
+            block.installEventFilter(self)
+
+    def watch(self, *widgets: QWidget) -> None:
+        """Also take presses on these parts of the window, which move it. Once a drag starts the main window holds
+        the mouse, so its moves and release come here whichever window the dragged block is in by then"""
+        for widget in widgets:
+            widget.installEventFilter(self)
 
     def _name_of(self, widget: QObject) -> str | None:
         return next((name for name, block in self.blocks.items() if block is widget), None)

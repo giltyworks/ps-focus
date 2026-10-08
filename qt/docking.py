@@ -313,6 +313,12 @@ class Docking:
             block.floating = True
             block.set_layout(False, 0)
             panel = FloatingPanel(self.window, name, block, self.update_glass)
+        except BaseException:
+            # Back in the window, rather than in neither
+            del self.floating[name]
+            block.floating = False
+            self.app._arrange_blocks()
+            raise
         finally:
             self.reparenting = False
         self.floating[name] = panel
@@ -405,7 +411,8 @@ class Docking:
                 block = self.floating[name].block
                 before = block.glass_alpha
                 block.set_glass(255 if solid else alpha)
-                if block.glass_alpha != before and self.floating[name].isVisible():
+                # The calendar and stats draw themselves again from what they read; the graph reads again
+                if block.glass_alpha != before and name == "graph" and self.floating[name].isVisible():
                     app._refresh_module(name)
 
     def _panel_should_show(self, name: str) -> bool:
@@ -470,6 +477,10 @@ class Docking:
         if self.window.isVisible():
             self.save_timer.start()
         if self.moving_main or not self.floating:
+            return
+        # Resized, by an edge being dragged or by blocks coming and going, the window has not moved as a whole:
+        # what is snapped to it stays where it is
+        if (current[2] - current[0], current[3] - current[1]) != (previous[2] - previous[0], previous[3] - previous[1]):
             return
         dx, dy = current[0] - previous[0], current[1] - previous[1]
         if not (dx or dy):

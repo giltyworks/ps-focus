@@ -43,8 +43,11 @@ def snapshots_to_delete(names: list[str], today: date) -> list[str]:
         if snapshot_days[name] >= first_day:
             newest_of_day.setdefault(snapshot_days[name], name)
     kept.update(newest_of_day.values())
-    set_aside = sorted((name for name in names if name.startswith("activity-corrupt-")), reverse=True)
-    return [name for name in newest_first if name not in kept] + set_aside[SET_ASIDE_FILES_KEPT:]
+    # A set-aside database and the log that went with it are kept or dropped together
+    set_aside = [name for name in names if name.startswith("activity-corrupt-")]
+    databases = sorted({name.removesuffix("-wal") for name in set_aside}, reverse=True)
+    dropped = set(databases[SET_ASIDE_FILES_KEPT:])
+    return [name for name in newest_first if name not in kept] + sorted(name for name in set_aside if name.removesuffix("-wal") in dropped)
 
 
 class ActivityStore:
@@ -232,14 +235,16 @@ class ActivityStore:
         if not cls.database_is_usable(temporary_path):
             temporary_path.unlink(missing_ok=True)
             return False
-        if database_path.exists():
+        corrupted_path = quarantine_directory / f"activity-corrupt-{datetime.now():%Y%m%d-%H%M%S-%f}.sqlite3"
+        wal = database_path.with_name(database_path.name + "-wal")
+        if database_path.exists() or wal.exists():
             quarantine_directory.mkdir(parents=True, exist_ok=True)
-            corrupted_path = quarantine_directory / f"activity-corrupt-{datetime.now():%Y%m%d-%H%M%S-%f}.sqlite3"
+        if database_path.exists():
             os.replace(database_path, corrupted_path)
-            # Its write-ahead log goes with it, so it stays whole, and is never read into the restored copy
-            wal = database_path.with_name(database_path.name + "-wal")
-            if wal.exists():
-                os.replace(wal, corrupted_path.with_name(corrupted_path.name + "-wal"))
+        # Its write-ahead log goes with it, even with the database itself gone, so it is never read into the
+        # restored copy
+        if wal.exists():
+            os.replace(wal, corrupted_path.with_name(corrupted_path.name + "-wal"))
         database_path.with_name(database_path.name + "-shm").unlink(missing_ok=True)
         os.replace(temporary_path, database_path)
         return True

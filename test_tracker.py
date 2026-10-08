@@ -676,7 +676,7 @@ class JournalTests(unittest.TestCase):
         self.store.record_active_second()
         path = self.store.create_local_backups(force=True)[0]
         # Bytes 18 and 19 of an SQLite file are 1 for the rollback journal, 2 for a write-ahead log
-        self.assertEqual(path.read_bytes()[18:20], b"")
+        self.assertEqual(path.read_bytes()[18:20], b"\x01\x01")
         self.assertTrue(ActivityStore.database_is_usable(path))
         names = {item.name for item in path.parent.iterdir()}
         self.assertFalse([name for name in names if name.endswith(("-wal", "-shm", ".tmp"))])
@@ -696,6 +696,31 @@ class JournalTests(unittest.TestCase):
         self.assertEqual(len(moved), 1)
         self.store = ActivityStore(database, [self.folder / "backups"])
         self.assertEqual(self.store.connection.execute("PRAGMA quick_check").fetchone(), ("ok",))
+
+    def test_set_aside_databases_are_pruned_with_their_logs(self):
+        from tracker import SET_ASIDE_FILES_KEPT, snapshots_to_delete
+
+        names = []
+        for index in range(SET_ASIDE_FILES_KEPT + 2):
+            base = f"activity-corrupt-2026100{index}-120000-000000.sqlite3"
+            names += [base, base + "-wal"]
+        dropped = snapshots_to_delete(names, date(2026, 10, 9))
+        kept = set(names) - set(dropped)
+        self.assertEqual(len(kept), 2 * SET_ASIDE_FILES_KEPT)
+        for name in kept:
+            self.assertIn(name.removesuffix("-wal"), kept)
+            self.assertIn(name.removesuffix("-wal") + "-wal", kept)
+
+    def test_a_stray_log_never_meets_a_restored_copy(self):
+        content = self.store.create_local_backups(force=True)[0].read_bytes()
+        self.store.close()
+        database = self.folder / "activity.sqlite3"
+        database.unlink()
+        wal = database.with_name(database.name + "-wal")
+        wal.write_bytes(b"a log whose database is gone")
+        self.assertTrue(ActivityStore.restore_backup_bytes(database, content, self.folder / "backups"))
+        self.assertFalse(wal.exists())
+        self.store = ActivityStore(database, [self.folder / "backups"])
 
 
 if __name__ == "__main__":
