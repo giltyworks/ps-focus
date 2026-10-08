@@ -53,7 +53,6 @@ from .celebration import Fireworks, play_celebration_sound
 from .chart import ChartModule
 from .day_overview import DayOverview
 from .docking import Docking
-from .drag_hint import DragHint
 from .feedback_dialog import FeedbackDialog
 from .header import Header, ModuleControls
 from .stats_module import StatsModule
@@ -130,8 +129,6 @@ class PSFocusQt:
             {**self.panels, **self.modules}, lambda: self.block_order, self._blocks_reordered, self._save_settings, lambda: self.landscape,
             self.docking, self._moves_window,
         )
-        self.drag_hint = DragHint(self.window, self.fonts, self._drag_hint_dismissed)
-        self.block_drag.on_title_drag = self.drag_hint.dismiss
         self._arrange_blocks()
         self.settings_page = SettingsPage(self.fonts, self.settings, self._setting_toggled, self._set_orientation, self._settings_resized)
         self.settings_page.exit_button.command = self.close
@@ -175,8 +172,6 @@ class PSFocusQt:
             self.window.show()
         # Where the window was left, and the modules floating then
         self.docking.restore()
-        # Once the window has settled, the tip about dragging by the title, if it has not been seen
-        QTimer.singleShot(1200, self._show_drag_hint)
 
     def _read_block_order(self) -> list[str]:
         """The saved order of the program panels and modules, with any missing added at the end; see the Tk
@@ -232,35 +227,16 @@ class PSFocusQt:
             self.main_opacity = opacity
             window.setWindowOpacity(opacity)
 
-    def _show_drag_hint(self) -> None:
-        """Point the tip at the first block's title, while the blocks are in view and the tip has not been seen"""
-        hint = self.drag_hint
-        blocks = self._shown_blocks()
-        if (self.settings.get("drag_hint_shown") or self.settings_shown or not blocks or self.closing
-                or not self.window.isVisible() or self.window.isMinimized()):
-            hint.hide()
-            return
-        block = blocks[0]
-        title = block.title_rect()
-        hint.point_at(block.mapTo(self.window, QPoint(title.left() + 8, title.bottom() + 1)))
-        hint.show()
-
-    def _drag_hint_dismissed(self) -> None:
-        self.settings["drag_hint_shown"] = True
-        self._save_settings()
-
     def _toggle_settings(self) -> None:
         self.settings_shown = not self.settings_shown
         self.update_glass()
         self.header.settings_shown = self.settings_shown
         self.header.update()
         if self.settings_shown:
-            self.drag_hint.hide()
             self.window.show_settings(self.settings_page)
         else:
             self._arrange_blocks()
             self._refresh_visible_modules()
-            self._show_drag_hint()
 
     def _setting_toggled(self, key: str) -> None:
         if key in self.settings_page.disabled_settings:
@@ -345,8 +321,6 @@ class PSFocusQt:
                 if self.module_ticked[name]:
                     self._refresh_module(name)
             self.window.show_blocks(self._shown_blocks(), anchor, any(self.module_ticked.values()), self.landscape, self.landscape_width)
-            if self.drag_hint.isVisible():
-                self._show_drag_hint()
         finally:
             self.arranging = False
 
@@ -498,7 +472,6 @@ class PSFocusQt:
         self.window.activateWindow()
         self.docking.sync_visibility()
         self._refresh_visible_modules()
-        self._show_drag_hint()
 
     def _poll_signals(self) -> None:
         self.google_sync.poll()

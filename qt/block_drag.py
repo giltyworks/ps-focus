@@ -48,8 +48,6 @@ class BlockDrag(QObject):
         self.order_changed = False
         # The widget holding the mouse while a drag lasts, see _moved
         self.grabber: QWidget | None = None
-        # Told when a block is first dragged by its title
-        self.on_title_drag: Callable[[], None] = lambda: None
         QApplication.instance().installEventFilter(self)
 
     def _name_of(self, widget: QObject) -> str | None:
@@ -130,7 +128,6 @@ class BlockDrag(QObject):
                 self.grabber = self.docking.window
                 self.grabber.grabMouse()
             if self.candidate is not None and (self.mode == "reorder" or self.docking.kind == "title"):
-                self.on_title_drag()
                 self._mark(True)
                 QApplication.setOverrideCursor(Qt.CursorShape.ClosedHandCursor)
         if self.mode == "move":

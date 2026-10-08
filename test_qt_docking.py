@@ -474,34 +474,6 @@ class QtDockingTests(unittest.TestCase):
         self.assertEqual(icon("moon", 16, "#000000").pixelColor(0, 0), QColor("#000000"))
         self.app.calendar.set_glass(255)
 
-    def test_first_run_tip_points_at_the_first_title_until_dismissed(self):
-        self.app.window.show()
-        self.app._show_drag_hint()
-        hint = self.app.drag_hint
-        self.assertTrue(hint.isVisible())
-        first = self.app._shown_blocks()[0]
-        title_bottom = first.mapTo(self.app.window, QPoint(0, first.title_rect().bottom())).y()
-        self.assertEqual(hint.y(), title_bottom + 1)
-        # Out of the way on the Settings page, back after it
-        self.app._toggle_settings()
-        self.assertFalse(hint.isVisible())
-        self.app._toggle_settings()
-        self.assertTrue(hint.isVisible())
-        hint.dismiss()
-        self.assertFalse(hint.isVisible())
-        self.assertTrue(self.app.settings["drag_hint_shown"])
-        self.app._show_drag_hint()
-        self.assertFalse(hint.isVisible())
-
-    def test_dragging_a_title_dismisses_the_tip(self):
-        self.app.window.show()
-        self.app._show_drag_hint()
-        calendar = self.app.modules["calendar"]
-        title = calendar.mapToGlobal(calendar.title_rect().center())
-        self._drag(calendar, title, title + QPoint(0, 10), title + QPoint(0, 12))
-        self.assertFalse(self.app.drag_hint.isVisible())
-        self.assertTrue(self.app.settings["drag_hint_shown"])
-
     def test_title_shows_an_open_hand_and_program_names_brighten(self):
         calendar = self.app.modules["calendar"]
         calendar.update_cursor(calendar.title_rect().center())

@@ -153,8 +153,6 @@ DEFAULT_SETTINGS = {
     "feedback_cooldown_until": "",
     # How see-through floating panels are while the mouse is elsewhere, from 0 (solid) to 100, see qt/docking.py
     "panel_transparency": 35,
-    # Whether the tip about dragging blocks by their title has been seen, see qt/drag_hint.py
-    "drag_hint_shown": False,
 }
 FEEDBACK_COOLDOWN = timedelta(minutes=30)
 FEEDBACK_UNLOCK_SECONDS = 2 * 60 * 60
