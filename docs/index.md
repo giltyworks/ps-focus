@@ -28,7 +28,8 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 - **Counts real work only.** Time counts while your art app is in front, and pauses after five idle minutes.
 - **Shows your habits.** Charts by day, week, month, and year, a calendar of sessions, streaks, and averages.
 - **Levels 1 to 99.** Your total hours set your level, with a small celebration at each new one.
-- **Fits your screen.** Tall beside your canvas, or a wide strip in landscape, with each panel on the side you like.
+- **Make it your own.** Drag panels by their title to rearrange them, or pull them out to float and snap beside the window, as in Photoshop. Tall beside your canvas, or a wide strip in landscape.
+- **Never in your way.** Optionally turns see-through while your mouse is elsewhere, and solid again when you point at it.
 - **Stays out of the way.** Starts with Windows, sits in the tray, and needs no account.
 - **Backs itself up.** Copies on your PC, plus an optional backup in your own Google Drive.
 
@@ -37,11 +38,11 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 <div class="hero-shots">
 <div class="shots">
   <figure>
-    <img src="{{ '/assets/screenshot-calendar.png' | relative_url }}" width="342" height="721" alt="PS Focus showing today's time in Photoshop, a calendar of September with most days marked as sessions, and stats such as weekly total and averages">
+    <img src="{{ '/assets/screenshot-calendar.png' | relative_url }}" width="322" height="754" alt="PS Focus showing today's time in Photoshop, a calendar of September with most days marked as sessions, and stats such as weekly total and averages">
     <figcaption>Today, the month's sessions, and your stats</figcaption>
   </figure>
   <figure>
-    <img src="{{ '/assets/screenshot-graph.png' | relative_url }}" width="342" height="482" alt="PS Focus showing a line graph of hours drawn each day over the past 30 days">
+    <img src="{{ '/assets/screenshot-graph.png' | relative_url }}" width="322" height="510" alt="PS Focus showing a line graph of hours drawn each day over the past 30 days">
     <figcaption>Hours per day, past month</figcaption>
   </figure>
 </div>
@@ -50,8 +51,13 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 </div>
 
 <figure class="wide-shot">
-  <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1655" height="232" alt="PS Focus in landscape: today's time in Photoshop, then the hours graph, the September calendar and the stats side by side in one wide, short window">
+  <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1575" height="237" alt="PS Focus in landscape: today's time in Photoshop, then the hours graph, the September calendar and the stats side by side in one wide, short window">
   <figcaption class="caption">Landscape: everything side by side in one short strip</figcaption>
+</figure>
+
+<figure class="wide-shot natural">
+  <img src="{{ '/assets/screenshot-floating.png' | relative_url }}" width="642" height="517" alt="PS Focus with the calendar and stats pulled out into floating panels, snapped one above the other beside the main window, which shows today's time and the hours graph">
+  <figcaption class="caption">Floating panels: pull any panel out by its title and it snaps into place</figcaption>
 </figure>
 
 <section class="maker" aria-label="Who makes PS Focus">

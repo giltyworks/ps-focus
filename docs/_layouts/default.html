@@ -61,6 +61,9 @@
     .shots figcaption, .caption { color: var(--muted); font-size: 14px; margin: 8px 0 0; }
     .wide-shot { margin: 20px 0 0; }
     .wide-shot img { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; }
+    /* A picture narrower than the page, shown at its own size and centred */
+    .wide-shot.natural img { width: auto; max-width: 100%; margin: 0 auto; }
+    .wide-shot.natural figcaption { text-align: center; }
     .note { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; color: var(--muted); font-size: 14px; }
     .note p { color: var(--muted); margin: 6px 0; }
     footer { border-top: 1px solid var(--border); padding-top: 20px; padding-bottom: 40px; color: var(--muted); font-size: 14px; }

@@ -60,12 +60,10 @@ def fit_text(text: str, font: QFont, width: int) -> str:
 
 
 def draw_checkbox(painter: QPainter, center: QPointF, checked: bool, hovered: bool = False) -> None:
-    """The rounded square of a checkbox, filled when ticked, with a two-pixel outline. Under the mouse its inside fills
-    a shade lighter, as a button's box shows"""
+    """The rounded square of a checkbox, filled when ticked, with a two-pixel outline. Under the mouse the inside of an
+    empty one fills a shade lighter, as a button's box shows; a ticked one stays as it is"""
     outline = color("calendar_blue") if checked else color("border")
-    fill = color("calendar_blue") if checked else color("panel")
-    if hovered:
-        fill = fill.lighter(125) if checked else color("border")
+    fill = color("calendar_blue") if checked else color("border" if hovered else "panel")
     half = CHECKBOX_BOX_SIZE / 2
     box = QRectF(center.x() - half, center.y() - half, CHECKBOX_BOX_SIZE, CHECKBOX_BOX_SIZE)
     painter.save()
