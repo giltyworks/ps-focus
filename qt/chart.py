@@ -15,7 +15,7 @@ import app_config
 from app_config import CHART_FILL_OPACITY, CHART_PERIOD_CAPTIONS, EDGE_PADDING, MODULE_CANVAS_WIDTH, MODULE_MARGIN, format_duration
 from tracker import ActivityStore
 
-from .module import ModuleBlock, PaintedButton
+from .module import STRIP_GAP, ModuleBlock, PaintedButton
 from .theme import Fonts, color, draw_anchored, draw_text, line_height, text_width, tk_round
 
 # The same measurements as the Tk graph, see ui_chart.py: the gap between period buttons; the space below the
@@ -82,7 +82,8 @@ class ChartModule(ModuleBlock):
         """Where the landscape strip's rows start, inside the border: the month, the total, the caption and the
         button column, and where the strip ends"""
         fonts = self.fonts
-        month_top = SIDE_TITLE_TOP + line_height(fonts.bold) + SIDE_STRIP_GAP
+        # Clear of the line under the name strip
+        month_top = SIDE_TITLE_TOP + line_height(fonts.bold) + SIDE_STRIP_GAP + STRIP_GAP
         headline_top = month_top + line_height(fonts.small) + 2
         # Room for the three lines of the stacked total; a shorter total has its caption moved up under it
         caption_top = headline_top + 3 * line_height(fonts.headline)

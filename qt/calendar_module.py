@@ -15,7 +15,7 @@ from stat_lines import DAY_ABBREVIATIONS
 from tracker import ActivityStore
 
 from .icons import icon
-from .module import ModuleBlock, PaintedButton
+from .module import STRIP_GAP, ModuleBlock, PaintedButton
 from .theme import Fonts, anchored_top_left, color, draw_anchored, draw_outline_text, draw_text, line_height, text_width
 
 # The same measurements as the Tk calendar, see ui_calendar.py. The first and last years it can be stepped to
@@ -114,7 +114,7 @@ class CalendarModule(ModuleBlock):
         if landscape:
             # The days start at the very top, the module's name being in the strip
             self.origin = QPoint(1, 1)
-            top = 1 + SIDE_TITLE_TOP + line_height(self.fonts.bold) + SIDE_STRIP_GAP + line_height(self.fonts.two_week) + SIDE_STRIP_GAP
+            top = 1 + SIDE_TITLE_TOP + line_height(self.fonts.bold) + SIDE_STRIP_GAP + STRIP_GAP + line_height(self.fonts.two_week) + SIDE_STRIP_GAP
             self.toggle.place(MODULE_MARGIN, top)
             top += self.toggle.height + 4
             self.side_previous_button.place(MODULE_MARGIN, top)
@@ -229,7 +229,8 @@ class CalendarModule(ModuleBlock):
         """The landscape strip under the module's name: the month or year, room for the buttons, the legend and the
         streaks, one under another. Return where the strip ends"""
         fonts, left, muted = self.fonts, MODULE_MARGIN, color("muted")
-        top = SIDE_TITLE_TOP + line_height(fonts.bold) + SIDE_STRIP_GAP
+        # Clear of the line under the name strip
+        top = SIDE_TITLE_TOP + line_height(fonts.bold) + SIDE_STRIP_GAP + STRIP_GAP
         draw_text(painter, left, top, title, color("text"), fonts.two_week)
         top += line_height(fonts.two_week) + SIDE_STRIP_GAP + self.toggle.height + 4 + self.side_previous_button.height + SIDE_STRIP_GAP
         square_top = top + (self.line_height - LEGEND_SQUARE_SIZE) // 2

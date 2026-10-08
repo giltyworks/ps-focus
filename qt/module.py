@@ -263,10 +263,8 @@ class ModuleBlock(QWidget):
         painter.restore()
 
     def paint_title(self, painter: QPainter) -> None:
-        """The name on its strip; in landscape's side strip the strip is just around the name, with no line, the
-        strip's own rows starting close under it"""
-        side = getattr(self, "landscape", False) and not self.floating
-        paint_title_strip(painter, self.title_rect(), self.hovered_control == "title", self.glass_alpha, line=not side)
+        """The name on its strip, with a line under it; in landscape the strip runs along the top of the side column"""
+        paint_title_strip(painter, self.title_rect(), self.hovered_control == "title", self.glass_alpha)
         draw_text(painter, 1 + MODULE_MARGIN, 1 + MODULE_TITLE_PADDING, self.title, color("text"), self.fonts.bold)
 
     def docked_width(self) -> int:
