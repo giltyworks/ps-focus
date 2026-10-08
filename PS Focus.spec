@@ -46,8 +46,9 @@ a = Analysis(
         # Web requests go through Windows' WinHTTP (web.py), so Python's OpenSSL is not needed; hashlib falls back
         # to Python's built-in SHA-256 for sign-in
         'ssl', '_ssl', '_hashlib',
-        # Never loaded: its addresses are plain ASCII and it does no decimal arithmetic
-        'unicodedata', 'decimal', '_decimal', '_pydecimal',
+        # Never loaded: it does no decimal arithmetic. (unicodedata stays: Windows host names go through the idna
+        # encoding, which needs it, when Google sign-in opens its local listener)
+        'decimal', '_decimal', '_pydecimal',
     ],
     # Python's documentation text left out of the bundled code; the app relies on neither docstrings nor asserts
     noarchive=False, optimize=2,

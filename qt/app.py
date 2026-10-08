@@ -753,6 +753,11 @@ def main(preview: bool, smoke_test: bool = False) -> None:
         import web
 
         web._winhttp.WinHttpCloseHandle(web._open_session())
+        # Google sign-in waits for its answer on a local listener, whose setting up needs Windows host names and so
+        # the idna encoding; anything left out of the build that it needs shows here, not at a user's sign-in
+        import http.server
+
+        http.server.HTTPServer(("127.0.0.1", 0), http.server.BaseHTTPRequestHandler).server_close()
         # Exercise the packed painter/assets/plugins, not just a default empty dashboard.
         application.processEvents()
         if app.window.windowIcon().pixmap(32, 32).isNull() or app.tray_icon.icon().pixmap(32, 32).isNull():
