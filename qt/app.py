@@ -271,7 +271,8 @@ class PSFocusQt:
 
     def _set_orientation(self, landscape: bool) -> None:
         """Choosing Portrait or Landscape, even the one already chosen, also docks every floating module and puts
-        the blocks back in their first order; which are shown stays as it was"""
+        the blocks back in their first order; which are shown stays as it was. Settings then closes, showing the
+        layout chosen"""
         self.docking.dock_all()
         self.block_order = list(BLOCK_NAMES)
         self.settings["block_order"] = self.block_order.copy()
@@ -280,6 +281,8 @@ class PSFocusQt:
         self.settings["landscape"] = landscape
         self._save_settings()
         self.settings_page.update()
+        if self.settings_shown:
+            self._toggle_settings()
 
     def _refresh_visible_modules(self) -> None:
         if self.settings_shown or not self.window.isVisible() or self.window.isMinimized():

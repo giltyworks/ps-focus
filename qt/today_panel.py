@@ -132,7 +132,9 @@ class TodayPanel(QWidget):
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.fillRect(self.rect(), color("panel"))
-        paint_title_strip(painter, self.title_rect(), self.title_hovered)
+        name = self.texts["name"]
+        tab = 2 * TODAY_PANEL_SIDE_PADDING + QFontMetrics(name.font).horizontalAdvance(name.text)
+        paint_title_strip(painter, self.title_rect(), tab, self.title_hovered)
         painter.setPen(color(self.border_color))
         painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
         for name, item in self.texts.items():

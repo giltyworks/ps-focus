@@ -56,15 +56,16 @@ class QtSettingsTests(unittest.TestCase):
         self.addCleanup(self.app.window.hide)
         self.application.processEvents()
 
-    def test_settings_returns_to_both_dashboard_layouts(self):
+    def test_choosing_an_orientation_closes_settings_on_that_layout(self):
         for landscape in (False, True):
             self.app._toggle_settings()
-            self.app._set_orientation(landscape)
             self.assertTrue(self.app.settings_page.isVisible())
             self.assertFalse(self.app.window.viewport.isVisible())
             self.assertFalse(self.app.module_controls.isVisible())
             self.assertEqual(self.app.window.minimumSize(), self.app.window.maximumSize())
-            self.app._toggle_settings()
+            self.app._set_orientation(landscape)
+            self.assertFalse(self.app.settings_shown)
+            self.assertFalse(self.app.header.settings_shown)
             self.assertEqual(self.app.window.landscape, landscape)
             self.assertTrue(self.app.window.viewport.isVisible())
             self.assertTrue(self.app.module_controls.isVisible())

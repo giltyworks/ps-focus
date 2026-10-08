@@ -23,14 +23,19 @@ DOCK_CONTROL_SIZE = 18
 STRIP_GAP = 4
 
 
-def paint_title_strip(painter: QPainter, rect: QRect, hovered: bool, alpha: int = 255, line: bool = True) -> None:
-    """The strip a block's name sits on, as a panel's tab bar in Photoshop: a shade lighter than the panel, a touch
-    lighter again under the mouse, with a line under it. The whole strip is where the block is taken by"""
-    fill = color("border" if hovered else "panel_alt")
-    fill.setAlpha(alpha)
-    painter.fillRect(rect, fill)
-    if line:
-        painter.fillRect(rect.left(), rect.bottom() + 1, rect.width(), 1, color("border"))
+def paint_title_strip(painter: QPainter, rect: QRect, tab_width: int, hovered: bool, alpha: int = 255) -> None:
+    """The strip along a block's top, as a panel's tab bar in Photoshop: the name on a tab of the block's own colour,
+    running into the block below it; the rest of the strip a shade darker, lightening a touch under the mouse, with a
+    line under it and at the tab's edge. The whole strip is where the block is taken by"""
+    bar = color("calendar_blank" if hovered else "background")
+    bar.setAlpha(alpha)
+    painter.fillRect(rect, bar)
+    tab = color("panel")
+    tab.setAlpha(alpha)
+    painter.fillRect(rect.left(), rect.top(), tab_width, rect.height() + 1, tab)
+    line = color("border")
+    painter.fillRect(rect.left() + tab_width, rect.top(), 1, rect.height() + 1, line)
+    painter.fillRect(rect.left() + tab_width, rect.bottom() + 1, rect.width() - tab_width, 1, line)
 
 
 def draw_rounded_box(painter: QPainter, box: QRectF, radius: float, fill: QColor, outline: QColor, outline_width: int = 1) -> None:
@@ -188,11 +193,12 @@ class ModuleBlock(QWidget):
         self.paint_title(painter)
 
     def paint_title(self, painter: QPainter) -> None:
-        """The name on its strip; in landscape's side strip the strip is just around the name, with no line, the
-        strip's own rows starting close under it"""
-        strip = self.title_rect()
+        """The name on its tab in the strip along the top; in landscape's side strip just the name, the strip's own
+        rows starting close under it"""
         side = getattr(self, "landscape", False) and not self.floating
-        paint_title_strip(painter, strip, self.hovered_control == "title", self.glass_alpha, line=not side)
+        if not side:
+            tab = 2 * MODULE_MARGIN + text_width(self.fonts.bold, self.title)
+            paint_title_strip(painter, self.title_rect(), tab, self.hovered_control == "title", self.glass_alpha)
         draw_text(painter, 1 + MODULE_MARGIN, 1 + MODULE_TITLE_PADDING, self.title, color("text"), self.fonts.bold)
 
     def docked_width(self) -> int:

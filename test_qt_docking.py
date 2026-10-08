@@ -252,7 +252,6 @@ class QtDockingTests(unittest.TestCase):
         self.app.block_order.reverse()
         self.app._toggle_settings()
         self.app._set_orientation(False)
-        self.app._toggle_settings()
         from qt.app import BLOCK_NAMES
 
         self.assertEqual(self.app.docking.floating, {})
