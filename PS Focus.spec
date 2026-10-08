@@ -46,8 +46,11 @@ a = Analysis(
         # Web requests go through Windows' WinHTTP (web.py), so Python's OpenSSL is not needed; hashlib falls back
         # to Python's built-in SHA-256 for sign-in
         'ssl', '_ssl', '_hashlib',
+        # Never loaded: its addresses are plain ASCII and it does no decimal arithmetic
+        'unicodedata', 'decimal', '_decimal', '_pydecimal',
     ],
-    noarchive=False, optimize=0,
+    # Python's documentation text left out of the bundled code; the app relies on neither docstrings nor asserts
+    noarchive=False, optimize=2,
 )
 # Windows 10 and later carry the C runtime themselves (Python 3.14 needs Windows 10). Build machines with the Windows
 # SDK installed would otherwise pack its copies, about 1 MB more for nothing

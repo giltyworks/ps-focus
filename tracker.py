@@ -60,6 +60,11 @@ class ActivityStore:
             self.recovered_from_backup = self._restore_latest_backup()
         self.connection = sqlite3.connect(database_path)
         try:
+            # A second is recorded every second. With a write-ahead log a commit is a short append rather than a
+            # journal file made, flushed to disk and deleted each time, about a hundredth of the work. A power cut
+            # can lose the last few seconds, never the database, which stays consistent
+            self.connection.execute("PRAGMA journal_mode=WAL")
+            self.connection.execute("PRAGMA synchronous=NORMAL")
             self._initialize_schema()
         except BaseException:
             self.connection.close()
@@ -311,6 +316,9 @@ class ActivityStore:
                 destination = sqlite3.connect(temporary_path)
                 try:
                     self.connection.backup(destination)
+                    # A backup is one plain file, whatever mode the live database is in: read, copied or uploaded, it
+                    # leaves no log files beside it, and every version of the app can open it
+                    destination.execute("PRAGMA journal_mode=DELETE")
                     destination.commit()
                 finally:
                     destination.close()

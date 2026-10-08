@@ -658,5 +658,29 @@ class ActivityStoreTests(unittest.TestCase):
         self.assertEqual(self.store.month_totals(2026, 9), {8: 901, 9: 900})
 
 
+
+class JournalTests(unittest.TestCase):
+    def setUp(self):
+        self.temporary_directory = tempfile.TemporaryDirectory()
+        self.folder = Path(self.temporary_directory.name).resolve()
+        self.store = ActivityStore(self.folder / "activity.sqlite3", [self.folder / "backups"])
+
+    def tearDown(self):
+        self.store.close()
+        self.temporary_directory.cleanup()
+
+    def test_the_live_database_keeps_a_write_ahead_log(self):
+        self.assertEqual(self.store.connection.execute("PRAGMA journal_mode").fetchone(), ("wal",))
+
+    def test_backups_are_plain_single_files(self):
+        self.store.record_active_second()
+        path = self.store.create_local_backups(force=True)[0]
+        # Bytes 18 and 19 of an SQLite file are 1 for the rollback journal, 2 for a write-ahead log
+        self.assertEqual(path.read_bytes()[18:20], b"")
+        self.assertTrue(ActivityStore.database_is_usable(path))
+        names = {item.name for item in path.parent.iterdir()}
+        self.assertFalse([name for name in names if name.endswith(("-wal", "-shm", ".tmp"))])
+
+
 if __name__ == "__main__":
     unittest.main()
