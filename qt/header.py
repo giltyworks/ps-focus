@@ -271,7 +271,8 @@ class Header(QWidget):
         self.settings_area = (SETTINGS_BUTTON_LEFT, top, SETTINGS_BUTTON_LEFT + HEADER_ICON_SIZE, top + HEADER_ICON_SIZE)
         if self.settings_hovered:
             paint_hover_box(painter, QRectF(SETTINGS_BUTTON_LEFT + 2, top + 4, HEADER_ICON_SIZE - 4, HEADER_ICON_SIZE - 8), color("border"))
-        dot_color = color("text")
+        # The same grey as the dock icon
+        dot_color = color("muted")
         y = top + HEADER_ICON_SIZE // 2
         for index in range(3):
             x = SETTINGS_BUTTON_LEFT + 8 + index * 5
