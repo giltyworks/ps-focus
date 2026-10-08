@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QWidget
 from app_config import COMPACT_BOTTOM_SPACE, EDGE_PADDING, PANEL_GAP, TODAY_PANEL_WIDTH
 
 from .header import draw_checkbox
-from .module import PaintedButton, draw_rounded_box
+from .module import PaintedButton, draw_rounded_box, paint_hover_box
 from .theme import Fonts, ascent, color, draw_text, line_height, text_width
 
 # The same measurements as the Tk page, see ui_settings.py
@@ -105,6 +105,8 @@ class SettingsPage(QWidget):
         self.on_transparency: Callable[[int, bool], None] = lambda _value, _done: None
         self.slider_left = self.slider_top = 0
         self.slider_dragging = False
+        # The checkbox the mouse is over, which then shows its box
+        self.hovered_checkbox: str | None = None
         self.disabled_settings: set[str] = set()
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         self.setMouseTracking(True)
@@ -283,6 +285,11 @@ class SettingsPage(QWidget):
         for top, height in self.boxes:
             painter.fillRect(0, top, TODAY_PANEL_WIDTH, height, color("border"))
             painter.fillRect(1, top + 1, TODAY_PANEL_WIDTH - 2, height - 2, color("panel"))
+        hovered = self.checkboxes.get(self.hovered_checkbox)
+        if hovered is not None:
+            # The same faint box as a button under the mouse, behind the checkbox and its name
+            left, top, right, bottom = hovered[0]
+            paint_hover_box(painter, QRectF(left, top, right - left, bottom - top).adjusted(-4, -2, 4, 2), color("border"))
         for text in self.texts:
             for index, line in enumerate(text.lines):
                 draw_text(painter, text.x, text.y + index * line_height(text.font), line, color(text.color), text.font)
@@ -388,12 +395,18 @@ class SettingsPage(QWidget):
             self.update()
 
     def leaveEvent(self, _event) -> None:
-        if PaintedButton.update_hover(self.buttons, None):
+        if PaintedButton.update_hover(self.buttons, None) or self.hovered_checkbox is not None:
+            self.hovered_checkbox = None
             self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
         if PaintedButton.update_hover(self.buttons, point):
+            self.update()
+        checkbox = self._checkbox_at(point)
+        checkbox = None if checkbox in self.disabled_settings else checkbox
+        if checkbox != self.hovered_checkbox:
+            self.hovered_checkbox = checkbox
             self.update()
         if self.slider_dragging:
             self._slide_to(point, False)

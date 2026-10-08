@@ -349,6 +349,8 @@ class ModuleControls(QWidget):
             self.areas[name] = (QRect(left, 0, right - left, row_height), left, center)
             right = left - MODULE_CONTROL_GAP
         self.setFixedSize(TODAY_PANEL_WIDTH, row_height)
+        # The module whose control the mouse is over, which then shows its box
+        self.hovered: str | None = None
 
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
@@ -358,7 +360,11 @@ class ModuleControls(QWidget):
         baseline = ascent(self.fonts.small)
         text_top = (self.height() - self.text_height) // 2
         for name, label in MODULE_LABELS:
-            _area, left, center = self.areas[name]
+            area, left, center = self.areas[name]
+            if name == self.hovered:
+                # The same faint box as a button under the mouse, behind the name and its checkbox
+                paint_hover_box(painter, QRectF(area).adjusted(-4, 0, 4, 0), color("border"))
+                painter.setPen(color("muted"))
             painter.drawText(QPoint(left, text_top + baseline), label)
             draw_checkbox(painter, center, self.ticked[name])
         painter.end()
@@ -380,6 +386,15 @@ class ModuleControls(QWidget):
         # A quick second click toggles again, as in the Tk row
         self.mousePressEvent(event)
 
+    def _hover(self, name: str | None) -> None:
+        if name != self.hovered:
+            self.hovered = name
+            self.update()
+
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        on_control = self._control_at(event.position().toPoint()) is not None
-        self.setCursor(Qt.CursorShape.PointingHandCursor if on_control else Qt.CursorShape.ArrowCursor)
+        name = self._control_at(event.position().toPoint())
+        self._hover(name)
+        self.setCursor(Qt.CursorShape.PointingHandCursor if name is not None else Qt.CursorShape.ArrowCursor)
+
+    def leaveEvent(self, _event) -> None:
+        self._hover(None)
