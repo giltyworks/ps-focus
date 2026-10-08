@@ -17,8 +17,9 @@ jobs:
         with:
           python-version: '3.14'
       # The same versions as the local release builds, so a build here matches one made at home
-      # Qt for the app; Pillow and pystray only for the tests that still cover the Tk version
-      - run: python -m pip install PySide6==6.11.2 pillow==12.3.0 pystray==0.19.5 six==1.17.0 pyinstaller==6.22.3 pyinstaller-hooks-contrib==2026.7
+      # Qt's essential modules only, all the app uses (the full PySide6 adds 5 MB of add-ons to the build); Pillow and
+      # pystray only for the tests that still cover the Tk version
+      - run: python -m pip install PySide6_Essentials==6.11.2 pillow==12.3.0 pystray==0.19.5 six==1.17.0 pyinstaller==6.22.3 pyinstaller-hooks-contrib==2026.7
       - name: Install Inno Setup if missing
         shell: pwsh
         run: |

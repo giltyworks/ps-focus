@@ -11,6 +11,8 @@ import PySide6
 
 ROOT = Path(__file__).resolve().parent.parent
 PACKAGES = ('PySide6', 'PySide6_Essentials', 'shiboken6')
+# The PySide6 package itself only gathers the others and its add-ons; a build with the essential modules alone has none
+OPTIONAL = {'PySide6'}
 
 
 PREVIEW_HEADER = 'PS Focus Qt Preview - bundled software notices.\nThis preview is for testing; public release packaging remains pending.'
@@ -35,6 +37,8 @@ def write_notices(header: str = PREVIEW_HEADER, output: Path | None = None) -> P
             metadata = distribution.read_text('METADATA') or ''
         except importlib.metadata.PackageNotFoundError:
             wheels = list((ROOT / 'build/qt-preview/wheels').glob(f'{package.lower()}-{PySide6.__version__}-*.whl'))
+            if not wheels and package in OPTIONAL:
+                continue
             if len(wheels) != 1:
                 raise RuntimeError(f'No notices found for {package}; download its matching wheel into build/qt-preview/wheels')
             with zipfile.ZipFile(wheels[0]) as archive:

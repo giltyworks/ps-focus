@@ -1,2 +1,2 @@
 # Qt replaces Tk/Pillow/pystray for this interface. Shared services use the standard library.
-PySide6==6.11.2
+PySide6_Essentials==6.11.2
