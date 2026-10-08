@@ -97,6 +97,9 @@ class ChartModule(ModuleBlock):
         room = max(name, text_width(self.fonts.headline, SIDE_HEADLINE_SAMPLE))
         return MODULE_MARGIN + room + SIDE_BUTTON_GAP + self.buttons[0].width
 
+    def docked_width(self) -> int:
+        return 2 + self.side_width() + MODULE_CANVAS_WIDTH
+
     def landscape_height(self) -> int:
         """Height the graph needs in landscape, inside its border: its strip, or its chart, which without the total
         above it is shorter by that space so that its plot stays the same size"""

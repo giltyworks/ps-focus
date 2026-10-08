@@ -323,23 +323,44 @@ class QtDockingTests(unittest.TestCase):
         self.assertLess(self.app.block_order.index("Krita"), self.app.block_order.index("Photoshop"))
         del krita_first
 
-    def test_a_lone_panel_dragged_over_the_window_shows_the_marker_and_docks_there(self):
+    def test_a_lone_panel_over_the_window_makes_room_for_itself_and_docks_there(self):
         panel = self._float("stats", QPoint(200, 300))
         block = self.app.modules["stats"]
         start = block.mapToGlobal(QPoint(40, 60))
         photoshop = self.app.panels["Photoshop"]
+        photoshop_top = photoshop.mapTo(self.app.window, QPoint(0, 0)).y()
         over = photoshop.mapToGlobal(QPoint(100, 5))
         self._press_move(block, start, start + QPoint(10, 0), over)
-        marker = self.app.docking.marker
-        self.assertTrue(marker.isVisible())
+        preview = self.app.docking.preview
+        self.assertTrue(preview.isVisible())
         self.assertEqual(self.app.docking.dock_slot, self.app.docking._shown_names().index("Photoshop"))
-        # The bar lies in the gap just above the Photoshop panel
-        self.assertLess(marker.y(), photoshop.mapTo(self.app.window, QPoint(0, 0)).y())
+        # The space is the module's own size, where the Photoshop panel was, which has moved down past it
+        self.assertEqual(preview.size(), panel.size())
+        self.assertEqual(preview.mapTo(self.app.window, QPoint(0, 0)).y(), photoshop_top)
+        self.assertGreater(photoshop.mapTo(self.app.window, QPoint(0, 0)).y(), photoshop_top + preview.height())
         self.assertLess(panel.windowOpacity(), 1)
-        self._mouse(block, QEvent.Type.MouseButtonRelease, over)
-        self.assertFalse(marker.isVisible())
+        # Moving within the space keeps it where it is
+        self._mouse(block, QEvent.Type.MouseMove, preview.mapToGlobal(QPoint(50, preview.height() // 2)))
+        self.assertEqual(self.app.docking.dock_slot, self.app.docking._shown_names().index("Photoshop"))
+        self._mouse(block, QEvent.Type.MouseButtonRelease, preview.mapToGlobal(QPoint(50, preview.height() // 2)))
+        self.assertFalse(preview.isVisible())
         self.assertFalse(self.app.docking.is_floating("stats"))
         self.assertEqual(self.app.block_order.index("stats") + 1, self.app.block_order.index("Photoshop"))
+        self.assertEqual(self.app.stats.mapTo(self.app.window, QPoint(0, 0)).y(), photoshop_top)
+
+    def test_moving_away_from_the_window_takes_the_space_back(self):
+        self._float("stats", QPoint(200, 300))
+        block = self.app.modules["stats"]
+        height = self.app.window.height()
+        start = block.mapToGlobal(QPoint(40, 60))
+        over = self.app.panels["Photoshop"].mapToGlobal(QPoint(100, 5))
+        self._press_move(block, start, start + QPoint(10, 0), over)
+        self.assertGreater(self.app.window.height(), height)
+        self._mouse(block, QEvent.Type.MouseMove, QPoint(100, 1300))
+        self.assertFalse(self.app.docking.preview.isVisible())
+        self.assertEqual(self.app.window.height(), height)
+        self._mouse(block, QEvent.Type.MouseButtonRelease, QPoint(100, 1300))
+        self.assertTrue(self.app.docking.is_floating("stats"))
 
     def test_let_go_just_below_the_window_docks_at_the_end(self):
         self._float("graph", QPoint(200, 300))
@@ -377,10 +398,17 @@ class QtDockingTests(unittest.TestCase):
         over = self.app.panels["Photoshop"].mapToGlobal(QPoint(100, 20))
         self._press_move(block, start, start + QPoint(10, 0), over)
         self.assertIsNone(self.app.docking.dock_slot)
-        self.assertFalse(self.app.docking.marker.isVisible())
+        self.assertFalse(self.app.docking.preview.isVisible())
         self._mouse(block, QEvent.Type.MouseButtonRelease, over)
         self.assertTrue(self.app.docking.is_floating("stats"))
         self.assertTrue(self.app.docking.is_floating("graph"))
+
+    def test_switching_to_landscape_keeps_the_full_width_on_later_layouts(self):
+        self.app.landscape = True
+        self.app._arrange_blocks()
+        self.app._arrange_blocks()
+        self.assertIsNone(self.app.landscape_width)
+        self.assertEqual(self.app.window.width(), self.app.window.full_size()[0])
 
 
 if __name__ == "__main__":

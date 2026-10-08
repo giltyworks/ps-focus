@@ -2,7 +2,8 @@
 their own, which snap to each other and to the window, move together while they touch, and dock back in. The rules
 are those of the Tk version on the tk-floating-panels branch (ui_docking.py), with these changes the user asked for:
 anything not a control moves the window or panel pressed on, with all that touches it; a lone panel let go over the
-window, or just past its far end (below it, or right of it in landscape), docks there, a blue marker showing where
+window, or just past its far end (below it, or right of it in landscape), docks there; while it would, the blocks
+in the window make room for it and a blue box shows the space it will take
 
 Positions are in Qt's screen units. A rectangle is (left, top, right, bottom), right and bottom just past the edge
 """
@@ -14,10 +15,10 @@ import os
 from ctypes import wintypes
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRectF, Qt, QTimer
-from PySide6.QtGui import QGuiApplication, QPainter, QPaintEvent
+from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QWidget
 
-from app_config import MODULE_GAP, TODAY_PANEL_WIDTH, WINDOW_MARGIN
+from app_config import TODAY_PANEL_WIDTH
 
 from .theme import color
 from .window import visible_frame
@@ -35,9 +36,9 @@ TOUCH_TOLERANCE = 4
 GRAB_OFFSET = QPoint(30, 12)
 # How long the window and panels have to stay still before their positions are saved
 SAVE_DELAY_MS = 350
-# The marker showing where a panel will dock: its thickness, and how see-through the panel is meanwhile
-MARKER_THICKNESS = 4
+# How see-through a panel is while it would dock if let go; and how strongly the space it will take is filled in
 DOCKING_OPACITY = 0.7
+PREVIEW_FILL_ALPHA = 60
 
 if os.name == "nt":
     _user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -179,22 +180,25 @@ class FloatingPanel(QWidget):
         return block
 
 
-class DockMarker(QWidget):
-    """The blue bar in the window where a panel being dragged will dock, between the blocks it will go between"""
+class DockPreview(QWidget):
+    """The space a panel being dragged will take in the window, shown as a block of its size among the others: a
+    blue outline, lightly filled in"""
 
-    def __init__(self, window: QWidget) -> None:
-        super().__init__(window)
+    def __init__(self) -> None:
+        super().__init__()
         self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
-        self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground)
-        self.hide()
+        # Laid out with the blocks, which look for these
+        self.border_color = "calendar_blue"
+        self.stretch = 0
 
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(color("calendar_blue"))
-        radius = min(self.width(), self.height()) / 2
-        painter.drawRoundedRect(QRectF(self.rect()), radius, radius)
+        painter.fillRect(self.rect(), color("background"))
+        fill = QColor(color("calendar_blue"))
+        fill.setAlpha(PREVIEW_FILL_ALPHA)
+        painter.fillRect(self.rect(), fill)
+        painter.setPen(QPen(color("calendar_blue"), 2))
+        painter.drawRect(QRectF(self.rect()).adjusted(1, 1, -1, -1))
         painter.end()
 
 
@@ -210,7 +214,10 @@ class Docking:
         # Set while a module changes parent, so the drag does not take it being hidden for the end of the drag
         self.reparenting = False
         self.mover = WindowMover()
-        self.marker = DockMarker(self.window)
+        # The space shown in the window for the panel being dragged, and where among the blocks it is; None when not
+        self.preview = DockPreview()
+        self.preview_slot: int | None = None
+        self.dock_slot: int | None = None
         self._reset_drag()
         # The main window's visible frame when last seen, to tell how far it moved; and the panels moving with it
         # while the mouse button is held, fixed for the move so that it does not gather up panels it passes
@@ -220,6 +227,8 @@ class Docking:
         self.save_timer = QTimer(singleShot=True, interval=SAVE_DELAY_MS, timeout=self.save_positions)
 
     def _reset_drag(self) -> None:
+        if getattr(self, "source", None) is not None:
+            self._show_dock_slot(None)
         self.source: str | None = None
         # "window": the main window moved, with the panels touching it; "group": a floating panel moved with the
         # panels touching it; "detach": a floating panel moved by its grip, alone; "grip": a docked module's grip,
@@ -236,8 +245,7 @@ class Docking:
         self.gap_panels: dict[str, Rect] = {}
         self.gap_closed = True
         # Where in the window's order the panel being dragged would dock if let go now, or None
-        self.dock_slot: int | None = None
-        self._show_dock_slot(None)
+        self.dock_slot = None
 
     # Where things are
 
@@ -550,41 +558,31 @@ class Docking:
         return None
 
     def _show_dock_slot(self, slot: int | None) -> None:
-        """Show the blue marker where the panel will dock, and the panel see-through meanwhile"""
-        if slot == self.dock_slot and (slot is None) == (not self.marker.isVisible()):
+        """Make room in the window where the panel will dock, showing the space it will take, and the panel
+        see-through meanwhile; the window lays itself out again only when the place changes"""
+        if slot == self.dock_slot:
             return
         self.dock_slot = slot
         panel = self.floating.get(self.source) if self.source else None
         if panel is not None:
             panel.setWindowOpacity(1.0 if slot is None else DOCKING_OPACITY)
-        if slot is None or self.app.settings_shown:
-            self.marker.hide()
+        # The Settings page shows no blocks to make room among
+        preview_slot = None if slot is None or panel is None or self.app.settings_shown else slot
+        if preview_slot == self.preview_slot:
             return
-        window = self.window
-        blocks = [self.app.blocks_by_name()[name] for name in self._shown_names()]
-        thickness, half_gap = MARKER_THICKNESS, MODULE_GAP // 2
-        if self.app.landscape:
-            if slot < len(blocks):
-                x = blocks[slot].mapTo(window, QPoint(0, 0)).x() - half_gap
-            elif blocks:
-                last = blocks[-1]
-                x = last.mapTo(window, QPoint(last.width(), 0)).x() + half_gap
-            else:
-                x = WINDOW_MARGIN + TODAY_PANEL_WIDTH + half_gap
-            x = max(0, min(x - thickness // 2, window.width() - thickness))
-            self.marker.setGeometry(x, 0, thickness, window.height())
-        else:
-            if slot < len(blocks):
-                y = blocks[slot].mapTo(window, QPoint(0, 0)).y() - half_gap
-            elif blocks:
-                last = blocks[-1]
-                y = last.mapTo(window, QPoint(0, last.height())).y() + half_gap
-            else:
-                y = window.top_height() + half_gap
-            y = max(0, min(y - thickness // 2, window.height() - thickness))
-            self.marker.setGeometry(WINDOW_MARGIN, y, TODAY_PANEL_WIDTH, thickness)
-        self.marker.raise_()
-        self.marker.show()
+        self.preview_slot = preview_slot
+        if preview_slot is not None:
+            block = self.app.modules[self.source]
+            width = block.docked_width() if self.app.landscape else TODAY_PANEL_WIDTH
+            # In landscape the app gives it the height every column shares
+            self.preview.setFixedSize(width, panel.height())
+        self.app._arrange_blocks()
+
+    def shown_with_preview(self, blocks: list) -> list:
+        """The blocks to lay out in the window, with the space for a panel being docked among them"""
+        if self.preview_slot is None:
+            return blocks
+        return blocks[:self.preview_slot] + [self.preview] + blocks[self.preview_slot:]
 
     def _snap(self, name: str, x: int, y: int) -> tuple[int, int]:
         panel = self.floating[name]
@@ -605,9 +603,11 @@ class Docking:
 
     def release(self, point: QPoint) -> None:
         name, kind, slot = self.source, self.kind, self.dock_slot
-        self._show_dock_slot(None)
         if name in self.floating and kind in ("group", "detach"):
             if slot is not None:
+                # The space shown goes, and the module itself takes it
+                self.dock_slot = self.preview_slot = None
+                self.floating[name].setWindowOpacity(1.0)
                 self.dock_module(name, slot)
             else:
                 self._resolve_overlap(name)

@@ -69,6 +69,8 @@ class MainWindow(QWidget):
         self.settings_page: QWidget | None = None
         # The width the app last gave the window in landscape, to tell a width the user dragged to from it
         self.requested_width = 0
+        # Set while the window resizes itself, so that a size Qt passes through then is not taken for the user's
+        self.refitting = False
         # Laid over the bottom of a window too short for its blocks, so they disappear behind a margin rather than
         # running right up to the edge, see the Tk ModulesMixin._update_clip_margin
         self.clip_margin = QWidget(self)
@@ -194,6 +196,14 @@ class MainWindow(QWidget):
             self.show_settings(self.settings_page)
             return
         self._lay_out()
+        self.refitting = True
+        try:
+            self._fit_to_blocks(width)
+        finally:
+            self.refitting = False
+        self._slide()
+
+    def _fit_to_blocks(self, width: int | None) -> None:
         full_width, full_height = self.full_size()
         if self.landscape:
             self.setMinimumSize(min(TODAY_PANEL_WIDTH, full_width), full_height)
@@ -205,7 +215,6 @@ class MainWindow(QWidget):
             self.setMinimumSize(full_width, min(self.compact_height(), full_height))
             self.setMaximumSize(full_width, full_height)
             self._resize_on_screen(full_width, full_height)
-        self._slide()
 
     def _resize_on_screen(self, width: int, height: int) -> None:
         """Resize keeping the window's left edge, and with it the header, in place; it then moves left as far as it
@@ -249,7 +258,8 @@ class MainWindow(QWidget):
         super().resizeEvent(event)
         self._slide()
         # In landscape a width the app did not ask for is one the user dragged to, kept while blocks come and go
-        if self.settings_page is None and self.landscape and self.width() != self.requested_width and self.on_resized_by_user is not None:
+        if (self.settings_page is None and self.landscape and not self.refitting and self.width() != self.requested_width
+                and self.on_resized_by_user is not None):
             self.requested_width = self.width()
             self.on_resized_by_user(self.width())
 

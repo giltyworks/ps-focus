@@ -141,6 +141,10 @@ class ModuleBlock(QWidget):
     def paint_title(self, painter: QPainter) -> None:
         draw_text(painter, 1 + MODULE_MARGIN, 1 + MODULE_TITLE_PADDING, self.title, color("text"), self.fonts.bold)
 
+    def docked_width(self) -> int:
+        """Width in the window in landscape, where the graph and calendar have their strip beside them"""
+        return TODAY_PANEL_WIDTH
+
     def grip_rect(self) -> QRect:
         """The grip: at the right of the name row, or in landscape's side strip just after the name"""
         top = 1 + MODULE_TITLE_PADDING + (line_height(self.fonts.bold) - DOCK_CONTROL_SIZE) // 2

@@ -263,6 +263,9 @@ class PSFocusQt:
                 # A floating module keeps the portrait layout, having no columns to share a height with
                 if not self.docking.is_floating(name):
                     module.set_layout(self.landscape, height)
+            if self.landscape and self.docking.preview_slot is not None:
+                # The space for a module being docked stands as tall as the columns, as the module will
+                self.docking.preview.setFixedSize(self.docking.preview.width(), height + 2)
             for name in ("graph", "calendar"):
                 if self.module_ticked[name]:
                     self._refresh_module(name)
@@ -309,7 +312,7 @@ class PSFocusQt:
 
     def _shown_blocks(self) -> list:
         blocks = {**self.panels, **self.modules}
-        return [blocks[name] for name in self.block_order if self._block_shown(name)]
+        return self.docking.shown_with_preview([blocks[name] for name in self.block_order if self._block_shown(name)])
 
     def _anchor_panel(self) -> TodayPanel | None:
         """The program panel kept in view under the header as the window gets shorter: Photoshop's when it is

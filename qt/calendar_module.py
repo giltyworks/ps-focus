@@ -97,6 +97,9 @@ class CalendarModule(ModuleBlock):
         )
         return MODULE_MARGIN + widest + SIDE_STRIP_RIGHT_MARGIN
 
+    def docked_width(self) -> int:
+        return 2 + MODULE_CANVAS_WIDTH + self.side_width()
+
     def set_layout(self, landscape: bool, height: int = 0) -> None:
         """The title row above the days, or in landscape a strip down their left side holding the name, the month,
         the buttons, the legend and the streaks, the days filling this height inside the module's border"""
