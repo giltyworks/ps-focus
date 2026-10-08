@@ -219,10 +219,14 @@ class ModuleBlock(QWidget):
 
     def title_rect(self) -> QRect:
         """Where the module is taken by to put it in a new order or out of the window: its name row, or in landscape,
-        where the graph and calendar have their name in the strip beside them, the name itself"""
+        where the graph and calendar have their name in the column beside them, the top of that column"""
         if getattr(self, "landscape", False) and not self.floating:
-            return QRect(1, 1, 2 * MODULE_MARGIN + text_width(self.fonts.bold, self.title), self.strip_height)
+            return QRect(1, 1, self.side_title_width(), self.strip_height)
         return QRect(1, 1, self.width() - 2, self.strip_height)
+
+    def side_title_width(self) -> int:
+        """How far the name strip runs along the top of the landscape column"""
+        return 2 * MODULE_MARGIN + text_width(self.fonts.bold, self.title)
 
     def dock_rect(self) -> QRect | None:
         """The dock icon, at the right of the name row while the module floats"""

@@ -98,6 +98,10 @@ class ChartModule(ModuleBlock):
     def glass_changed(self) -> None:
         self.drawn_state = None
 
+    def side_title_width(self) -> int:
+        # The column up to the period buttons, which stand at its right from the top
+        return self.side_width() - self.buttons[0].width - SIDE_BUTTON_GAP
+
     def docked_width(self) -> int:
         return 2 + self.side_width() + MODULE_CANVAS_WIDTH
 

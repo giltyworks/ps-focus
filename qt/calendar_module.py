@@ -98,6 +98,10 @@ class CalendarModule(ModuleBlock):
     def glass_changed(self) -> None:
         self.drawn_state = None
 
+    def side_title_width(self) -> int:
+        # The whole column, up to where the days start
+        return self.side_width()
+
     def docked_width(self) -> int:
         return 2 + MODULE_CANVAS_WIDTH + self.side_width()
 
