@@ -31,6 +31,7 @@ class StatsModule(ModuleBlock):
         self.store = store
         self.on_height_changed = on_height_changed
         self.drawn_lines: list[StatLine] | None = None
+        self.drawn_ratio: float | None = None
         self.picture: QPixmap | None = None
         # Height of the lines, and in landscape the height the modules share, inside the border
         self.lines_height = 1
@@ -55,9 +56,11 @@ class StatsModule(ModuleBlock):
     def refresh(self, calendar_view: str, calendar_month: date) -> None:
         """Work the figures out again, for the period the calendar shows, and draw them if they changed"""
         lines = figure_lines(self.store, date.today()) + session_summary_lines(self.store, calendar_view, calendar_month)
-        if lines != self.drawn_lines:
+        ratio = self.devicePixelRatioF()
+        if lines != self.drawn_lines or ratio != self.drawn_ratio:
             self.drawn_lines = lines
             self._draw(lines)
+            self.drawn_ratio = ratio
 
     def _note_font(self, line: StatLine):
         # A rating is drawn like the rating on a calendar day, so the two read as the same thing

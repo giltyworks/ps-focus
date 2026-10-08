@@ -1,0 +1,33 @@
+name: Build Qt preview
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  preview:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+      - run: python -m pip install -r requirements-qt.txt pyinstaller==6.22.3 pyinstaller-hooks-contrib==2026.7
+      - name: Install Inno Setup if missing
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ISCC.exe -ErrorAction SilentlyContinue) -and -not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+          }
+      - run: python tools/build_qt_preview.py --compact --installer
+        env:
+          PSFOCUS_OAUTH_CREDENTIALS: ${{ secrets.PSFOCUS_OAUTH_CREDENTIALS }}
+      - name: Validate isolated install and uninstall
+        shell: pwsh
+        run: |
+          $qtPreviewVersion = python -c "from app_config import APP_VERSION; print(APP_VERSION)"
+          python tools/test_qt_installer.py "dist/qt-preview/compact-build/PS-Focus-Qt-Preview-Setup-$qtPreviewVersion.exe" --max-installed-bytes 50000000
+      - uses: actions/upload-artifact@v4
+        with:
+          name: qt-preview
+          path: dist/qt-preview/
+          if-no-files-found: error

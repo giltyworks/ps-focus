@@ -63,6 +63,7 @@ class MainWindow(QWidget):
         self.modules_shown = False
         self.landscape = False
         self.offset = 0
+        self.settings_page: QWidget | None = None
         # The width the app last gave the window in landscape, to tell a width the user dragged to from it
         self.requested_width = 0
         # Laid over the bottom of a window too short for its blocks, so they disappear behind a margin rather than
@@ -83,6 +84,10 @@ class MainWindow(QWidget):
         """Show these blocks in this order and hide any others. The anchor is the program panel kept in view as the
         window gets smaller; modules_shown, whether a module is among the blocks. In landscape the window is this
         wide, or with none given as wide as every block"""
+        if self.settings_page is not None:
+            self.settings_page.hide()
+            self.settings_page = None
+        self.viewport.show()
         for block in self.blocks:
             if block not in blocks:
                 block.hide()
@@ -91,6 +96,22 @@ class MainWindow(QWidget):
         for block in blocks:
             block.show()
         self.refit(width)
+
+    def show_settings(self, page: QWidget) -> None:
+        """Show the Settings page whole beneath the header, as in the Tk app."""
+        self.settings_page = page
+        self.viewport.hide()
+        self.controls.hide()
+        self.clip_margin.hide()
+        self.header.setParent(self)
+        self.header.move(WINDOW_MARGIN, 0)
+        self.header.show()
+        page.setParent(self)
+        page.move(WINDOW_MARGIN, self.header.height() + HEADER_GAP)
+        page.show()
+        width = TODAY_PANEL_WIDTH + WINDOW_MARGIN * 2
+        height = self.header.height() + HEADER_GAP + page.height()
+        self.setFixedSize(width, height)
 
     def reorder_blocks(self, blocks: list[QWidget]) -> None:
         """Show the same blocks in a new order, the window keeping its size"""
@@ -166,6 +187,9 @@ class MainWindow(QWidget):
         """Lay the blocks out again and size the window to all of them, after a block has come, gone, grown or
         shrunk. In portrait it can then be dragged shorter, down to its compact height; in landscape narrower, down
         to the width of a panel, and it is given this width if one is given and it is not wider than everything"""
+        if self.settings_page is not None:
+            self.show_settings(self.settings_page)
+            return
         self._lay_out()
         full_width, full_height = self.full_size()
         if self.landscape:
@@ -194,6 +218,8 @@ class MainWindow(QWidget):
     def _slide(self) -> None:
         """Shrinking first hides the blocks after the anchor panel behind the window's far edge; once the edge
         reaches that panel the blocks slide instead, hiding those before it under the header or off the left"""
+        if self.settings_page is not None:
+            return
         self.viewport.resize(max(1, self.width() - self.viewport.x()), max(1, self.height() - self.viewport.y()))
         anchored = self.anchor is not None and self.anchor in self.blocks
         if self.landscape:
@@ -220,7 +246,7 @@ class MainWindow(QWidget):
         super().resizeEvent(event)
         self._slide()
         # In landscape a width the app did not ask for is one the user dragged to, kept while blocks come and go
-        if self.landscape and self.width() != self.requested_width and self.on_resized_by_user is not None:
+        if self.settings_page is None and self.landscape and self.width() != self.requested_width and self.on_resized_by_user is not None:
             self.requested_width = self.width()
             self.on_resized_by_user(self.width())
 

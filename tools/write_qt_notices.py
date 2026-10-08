@@ -1,0 +1,46 @@
+"""Collect the exact installed Qt package notices, with matching wheels as a fallback."""
+
+from __future__ import annotations
+
+import importlib.metadata
+import sys
+import zipfile
+from pathlib import Path
+
+import PySide6
+
+ROOT = Path(__file__).resolve().parent.parent
+PACKAGES = ('PySide6', 'PySide6_Essentials', 'shiboken6')
+
+
+def write_notices() -> Path:
+    sections = ['PS Focus Qt Preview - bundled software notices.\nThis preview is for testing; public release packaging remains pending.']
+    sections.append((Path(sys.base_prefix) / 'LICENSE.txt').read_text(encoding='utf-8', errors='replace'))
+    for package in PACKAGES:
+        try:
+            distribution = importlib.metadata.distribution(package)
+            if distribution.version != PySide6.__version__:
+                raise RuntimeError(f'{package} version differs from the Qt runtime')
+            files = [f for f in distribution.files or [] if '/licenses/' in str(f).replace('\\', '/') or any(word in f.name.upper() for word in ('LICENSE', 'COPYING', 'NOTICE'))]
+            documents = [(str(f), Path(distribution.locate_file(f)).read_text(encoding='utf-8', errors='replace')) for f in files]
+            metadata = distribution.read_text('METADATA') or ''
+        except importlib.metadata.PackageNotFoundError:
+            wheels = list((ROOT / 'build/qt-preview/wheels').glob(f'{package.lower()}-{PySide6.__version__}-*.whl'))
+            if len(wheels) != 1:
+                raise RuntimeError(f'No notices found for {package}; download its matching wheel into build/qt-preview/wheels')
+            with zipfile.ZipFile(wheels[0]) as archive:
+                documents = [(name, archive.read(name).decode('utf-8', errors='replace')) for name in archive.namelist() if '/licenses/' in name]
+                metadata = archive.read(next(name for name in archive.namelist() if name.endswith('/METADATA'))).decode('utf-8')
+        if not documents:
+            raise RuntimeError(f'No licence documents found for {package}')
+        license_fields = '\n'.join(line for line in metadata.splitlines() if line.startswith(('License:', 'License-Expression:', 'License-File:', 'Project-URL:')))
+        sections.append(f'===== {package} {PySide6.__version__} =====\n{license_fields}')
+        sections.extend(f'----- {name} -----\n{text}' for name, text in documents)
+    output = ROOT / 'build/qt-preview/Third-Party Notices.txt'
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text('\n\n'.join(sections), encoding='utf-8')
+    return output
+
+
+if __name__ == '__main__':
+    print(write_notices())

@@ -71,10 +71,12 @@ def _windows_data_protection(function_name: str, content: bytes) -> bytes:
 
 
 class GoogleDriveSync:
-    def __init__(self, app_data: Path, credentials_file: Path) -> None:
+    def __init__(self, app_data: Path, credentials_file: Path, *, settings_filename: str = "settings.json", activity_filename: str = "activity.sqlite3") -> None:
         self.token_file = app_data / "google-token.json"
         self.credentials_file = credentials_file
         self._token_lock = threading.RLock()
+        self.settings_filename = settings_filename
+        self.activity_filename = activity_filename
 
     @property
     def connected(self) -> bool:
@@ -346,13 +348,13 @@ class GoogleDriveSync:
         )
 
     def upload_settings(self, settings: dict) -> None:
-        self._upload_file("settings.json", json.dumps(settings, indent=2).encode("utf-8"), "application/json")
+        self._upload_file(self.settings_filename, json.dumps(settings, indent=2).encode("utf-8"), "application/json")
 
     def upload_activity_backup(self, content: bytes) -> None:
-        self._upload_file("activity.sqlite3", content, "application/x-sqlite3")
+        self._upload_file(self.activity_filename, content, "application/x-sqlite3")
 
     def download_activity_backup(self) -> bytes | None:
-        file_id = self._find_file("activity.sqlite3")
+        file_id = self._find_file(self.activity_filename)
         if file_id is None:
             return None
 

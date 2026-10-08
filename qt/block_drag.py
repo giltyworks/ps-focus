@@ -43,6 +43,9 @@ class BlockDrag(QObject):
             return self._moved(event)
         elif kind == QEvent.Type.MouseButtonRelease and event.button() == Qt.MouseButton.LeftButton:
             return self._released()
+        elif kind == QEvent.Type.Hide and self._name_of(watched) == self.candidate:
+            # Switching pages or hiding to the tray may end a drag without a mouse release.
+            self._released()
         return False
 
     def _pressed(self, block: QObject, event: QMouseEvent) -> None:

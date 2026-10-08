@@ -14,14 +14,14 @@ import app_config
 from app_config import APP_NAME, APP_USER_MODEL_ID, LEGACY_APP_NAME
 
 
-def set_app_user_model_id() -> None:
+def set_app_user_model_id(app_id: str = APP_USER_MODEL_ID) -> None:
     if os.name != "nt":
         return
     shell32 = ctypes.WinDLL("shell32", use_last_error=True)
     set_app_id = shell32.SetCurrentProcessExplicitAppUserModelID
     set_app_id.argtypes = [ctypes.c_wchar_p]
     set_app_id.restype = ctypes.c_long
-    result = set_app_id(APP_USER_MODEL_ID)
+    result = set_app_id(app_id)
     if result != 0:
         raise OSError(f"Could not set Windows AppUserModelID: HRESULT {result:#x}")
 

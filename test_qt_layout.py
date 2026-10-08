@@ -134,6 +134,22 @@ class QtLayoutTests(unittest.TestCase):
         self.assertEqual((order, saved, self.first.border_color), (["first", "anchor", "last"], [], "border"))
         del drag
 
+    def test_hiding_a_dragged_block_restores_cursor_and_clears_drag(self):
+        from qt.block_drag import BlockDrag
+
+        order = ["first", "anchor", "last"]
+        drag = BlockDrag({"first": self.first, "anchor": self.anchor, "last": self.last}, lambda: order, lambda new: None, lambda: None)
+        start = self.first.mapToGlobal(QPoint(50, 50))
+        self._mouse(self.first, QEvent.Type.MouseButtonPress, start, Qt.MouseButton.LeftButton)
+        self._mouse(self.first, QEvent.Type.MouseMove, start + QPoint(0, 10), Qt.MouseButton.LeftButton)
+        self.assertIsNotNone(QApplication.overrideCursor())
+        self.first.hide()
+        self.assertIsNone(QApplication.overrideCursor())
+        self.assertEqual(self.first.border_color, "border")
+        self.assertIsNone(drag.candidate)
+        self.assertIsNone(drag.dragged)
+        del drag
+
 
 if __name__ == "__main__":
     unittest.main()

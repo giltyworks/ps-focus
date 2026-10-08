@@ -16,6 +16,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 import app_config
 from app_config import (
     APP_NAME,
+    BACKUP_INTERVAL_MS,
     MODULE_GAP,
     CHART_PERIODS,
     DEFAULT_SETTINGS,
@@ -31,6 +32,7 @@ from app_config import (
 )
 from tracker import ActivityStore, foreground_application, user_is_active
 from windows_startup import SingleInstance
+from google_drive import GoogleDriveSync
 
 from .block_drag import BlockDrag
 from .calendar_module import CalendarModule
@@ -38,9 +40,11 @@ from .chart import ChartModule
 from .day_overview import DayOverview
 from .header import Header, ModuleControls
 from .stats_module import StatsModule
+from .settings_page import SettingsPage
 from .theme import Fonts
 from .today_panel import TodayPanel
 from .window import MainWindow
+from .google_sync import GoogleSync
 
 # Every block that can be put in order: the program panels and the modules, as in the Tk ui_modules
 MODULE_NAMES = ("graph", "calendar", "stats")
@@ -69,11 +73,15 @@ class PSFocusQt:
         # window is dragged as wide as everything again
         self.landscape_width: int | None = None
         self.arranging = False
+        self.settings_shown = False
+        self.modules_were_hidden = True
         self.window = MainWindow(on_close=self.window_hidden, on_resized_by_user=self._window_width_chosen)
         self.header = Header(self.fonts)
         self.module_ticked = {name: bool(self.settings.get(f"show_{name}", True)) for name in MODULE_NAMES}
         self.module_controls = ModuleControls(self.fonts, self.module_ticked, self._module_toggled)
         self.window.set_top(self.header, self.module_controls)
+        self.header.on_settings = self._toggle_settings
+        self.header.version_text = f"v{app_config.APP_VERSION}"
         # Made without a parent, so a panel stays out of sight until the window's column takes it in
         self.panels = {name: TodayPanel(name, self.fonts) for name in PROGRAM_PANEL_SETTINGS}
         period = self.settings.get("period")
@@ -88,6 +96,22 @@ class PSFocusQt:
             {**self.panels, **self.modules}, lambda: self.block_order, self._blocks_reordered, self._save_settings, lambda: self.landscape
         )
         self._arrange_blocks()
+        self.settings_page = SettingsPage(self.fonts, self.settings, self._setting_toggled, self._set_orientation, self._settings_resized)
+        self.settings_page.exit_button.command = self.close
+        # Startup remains deferred; Google uses the existing controls through its controller.
+        self.settings_page.disabled_settings.update(("launch_on_startup", "start_minimized"))
+        self.settings_page.set_google_buttons_enabled(False)
+        preview = bool(app_config.DATA_DIRECTORY_OVERRIDE)
+        client = GoogleDriveSync(
+            app_config.APP_DATA, resource_path("credentials.json"),
+            settings_filename="qt-preview-settings.json" if preview else "settings.json",
+            activity_filename="qt-preview-activity.sqlite3" if preview else "activity.sqlite3",
+        )
+        self.google_sync = GoogleSync(self, client)
+        self.settings_page.backup_button.command = lambda: self._backup_activity_now(force=True)
+        self._backup_activity_now()
+        self.backup_timer = QTimer(interval=BACKUP_INTERVAL_MS, timeout=self._backup_activity_now)
+        self.backup_timer.start()
         self._start_tray_icon()
         self.last_tick_time = time.monotonic()
         self.unrecorded_active_seconds = 0.0
@@ -108,13 +132,80 @@ class PSFocusQt:
         """The saved order of the program panels and modules, with any missing added at the end; see the Tk
         PSFocusApp._read_block_order, which also carries over the order kept by versions before 1.0.6"""
         order = self.settings.get("block_order")
-        order = order if isinstance(order, list) else list(BLOCK_NAMES)
+        if not isinstance(order, list):
+            modules = self.settings.get("module_order")
+            modules = [name for name in modules if isinstance(name, str)] if isinstance(modules, list) else []
+            before = self.settings.get("modules_left")
+            before = before if isinstance(before, list) else []
+            order = [name for name in modules if name in before] + list(PROGRAM_PANEL_SETTINGS) + [name for name in modules if name not in before]
         order = list(dict.fromkeys(name for name in order if name in BLOCK_NAMES))
         return order + [name for name in BLOCK_NAMES if name not in order]
+
+    def _backup_activity_now(self, force: bool = False) -> None:
+        """Use the shared store's snapshot/retention logic on its owning UI thread."""
+        if self.closing:
+            return
+        try:
+            paths = self.store.create_local_backups(force=force)
+        except Exception as error:
+            self.settings_page.set_backup_status(f"Local backup failed: {error}", "red")
+            return
+        if len(paths) < len(self.store.backup_directories):
+            self.settings_page.set_backup_status("Local backup saved; some backup folders could not be written", "orange")
+        else:
+            self.settings_page.set_backup_status("Local activity backups saved", "muted")
+        if hasattr(self, "google_sync"):
+            self.google_sync.backup()
+
+    def _settings_resized(self) -> None:
+        if self.settings_shown and hasattr(self, "settings_page"):
+            self.window.show_settings(self.settings_page)
+
+    def _toggle_settings(self) -> None:
+        self.settings_shown = not self.settings_shown
+        self.header.settings_shown = self.settings_shown
+        self.header.update()
+        if self.settings_shown:
+            self.window.show_settings(self.settings_page)
+        else:
+            self._arrange_blocks()
+            self._refresh_visible_modules()
+
+    def _setting_toggled(self, key: str) -> None:
+        if key in self.settings_page.disabled_settings:
+            return
+        value = not bool(self.settings.get(key, DEFAULT_SETTINGS[key]))
+        if key in PROGRAM_PANEL_SETTINGS.values():
+            if not value and not any(self.settings.get(other) for other in PROGRAM_PANEL_SETTINGS.values() if other != key):
+                return
+            application = next(name for name, setting in PROGRAM_PANEL_SETTINGS.items() if setting == key)
+            self.settings["program_panels_chosen"] = list(dict.fromkeys([*self._chosen_panels(), application]))
+        self.settings[key] = value
+        self._save_settings()
+        self.settings_page.update()
+
+    def _set_orientation(self, landscape: bool) -> None:
+        if landscape == self.landscape:
+            return
+        self.landscape = landscape
+        self.settings["landscape"] = landscape
+        self._save_settings()
+        self.settings_page.update()
+
+    def _refresh_visible_modules(self) -> None:
+        if self.settings_shown or not self.window.isVisible() or self.window.isMinimized():
+            self.modules_were_hidden = True
+            return
+        self.modules_were_hidden = False
+        for name in MODULE_NAMES:
+            if self.module_ticked[name]:
+                self._refresh_module(name)
 
     def _arrange_blocks(self) -> None:
         """Show the shown blocks in their order, one under another or in landscape side by side, every column then
         stretched to the same height"""
+        if self.settings_shown:
+            return
         self.arranging = True
         try:
             anchor = self._anchor_panel()
@@ -232,6 +323,8 @@ class PSFocusQt:
         temporary = app_config.SETTINGS_PATH.with_suffix(".tmp")
         temporary.write_text(json.dumps(self.settings, indent=2), encoding="utf-8")
         temporary.replace(app_config.SETTINGS_PATH)
+        if hasattr(self, "google_sync"):
+            self.google_sync.settings_changed()
 
     def _chosen_panels(self) -> list[str]:
         chosen = self.settings.get("program_panels_chosen")
@@ -270,8 +363,10 @@ class PSFocusQt:
         self.window.showNormal()
         self.window.raise_()
         self.window.activateWindow()
+        self._refresh_visible_modules()
 
     def _poll_signals(self) -> None:
+        self.google_sync.poll()
         if self.instance is None:
             return
         # Starting the app a second time brings up this copy's window instead
@@ -333,19 +428,29 @@ class PSFocusQt:
             )
         self.header.set_progress_reached(total_today_seconds >= SESSION_MINIMUM_SECONDS)
         self.header.set_level(user_level(lifetime_seconds), self.level_revealed)
+        self.feedback_unlocked = lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS
+        # Tracking continues in the tray and Settings; expensive module rendering waits for Overview.
+        if self.settings_shown or not self.window.isVisible() or self.window.isMinimized():
+            self.modules_were_hidden = True
+            return
+        refreshed_on_restore = self.modules_were_hidden
+        if refreshed_on_restore:
+            self._refresh_visible_modules()
         # The graph moves on with the time being counted, and with a new day
-        if self.module_ticked["graph"] and (self.active or self.chart_drawn_day != today):
-            self.chart.refresh()
+        if self.module_ticked["graph"] and (refreshed_on_restore or self.active or self.chart_drawn_day != today):
+            if not refreshed_on_restore:
+                self.chart.refresh()
             self.chart_drawn_day = today
         # As in the Tk app, the calendar and stats are brought up to date every 15 seconds
-        if self.slow_refresh_ticks % 15 == 0:
+        if not refreshed_on_restore and self.slow_refresh_ticks % 15 == 0:
             for name in ("calendar", "stats"):
                 if self.module_ticked[name]:
                     self._refresh_module(name)
         self.slow_refresh_ticks += 1
         self.feedback_unlocked = lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS
         # The level opens the feedback form once feedback is unlocked, until the level is revealed
-        self.header.level_clickable = self.feedback_unlocked and not self.level_revealed
+        # Claude handover: keep this inactive until the feedback dialog callback is ported.
+        self.header.level_clickable = False
 
     def close(self) -> None:
         # Windows and the tray may both ask, so only the first request closes
@@ -358,6 +463,7 @@ class PSFocusQt:
         watchdog.start()
         self.tick_timer.stop()
         self.poll_timer.stop()
+        self.backup_timer.stop()
         self.window.hide()
         self.tray_icon.hide()
         try:
@@ -368,10 +474,13 @@ class PSFocusQt:
         self.application.quit()
 
 
-def main(preview: bool) -> None:
+def main(preview: bool, smoke_test: bool = False) -> None:
     from windows_startup import set_app_user_model_id
 
-    set_app_user_model_id()
+    if preview:
+        set_app_user_model_id("PSFocus.PSFocus.QtPreview")
+    else:
+        set_app_user_model_id()
     instance = None
     if not preview:
         instance = SingleInstance()
@@ -385,5 +494,28 @@ def main(preview: bool) -> None:
     application.setQuitOnLastWindowClosed(False)
     application.setApplicationName(APP_NAME)
     app = PSFocusQt(application, instance)
+    if preview:
+        app.window.setWindowTitle("PS Focus Qt Preview")
+        app.tray_icon.setToolTip("PS Focus Qt Preview")
+    if smoke_test:
+        # Google requests use Python/OpenSSL rather than QtNetwork. Verify the
+        # trimmed package still loads TLS and Windows' trusted certificates.
+        import ssl
+        ssl.create_default_context()
+        # Exercise the packed painter/assets/plugins, not just a default empty dashboard.
+        application.processEvents()
+        if app.window.windowIcon().pixmap(32, 32).isNull() or app.tray_icon.icon().pixmap(32, 32).isNull():
+            raise RuntimeError("Packaged preview icons could not be decoded")
+        for name in MODULE_NAMES:
+            app.module_ticked[name] = True
+        for landscape in (False, True):
+            app.landscape = landscape
+            app._arrange_blocks()
+            application.processEvents()
+            if any(module.picture is None or module.picture.isNull() for module in app.modules.values()):
+                raise RuntimeError("Packaged preview module rendering failed")
+        app._toggle_settings()
+        app._toggle_settings()
+        QTimer.singleShot(250, app.close)
     application.exec()
     del app

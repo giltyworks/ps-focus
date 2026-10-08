@@ -19,30 +19,42 @@ MODULE_TITLE_PADDING = 5
 BUTTON_CORNER_RADIUS = 6
 
 
-def draw_rounded_box(painter: QPainter, box: QRectF, radius: float, fill: QColor, outline: QColor) -> None:
-    """A flat rounded rectangle with a one-pixel outline"""
+def draw_rounded_box(painter: QPainter, box: QRectF, radius: float, fill: QColor, outline: QColor, outline_width: int = 1) -> None:
+    """A flat rounded rectangle with an outline this many pixels wide"""
     painter.save()
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(outline)
     painter.drawRoundedRect(box, radius, radius)
     painter.setBrush(fill)
-    painter.drawRoundedRect(box.adjusted(1, 1, -1, -1), radius - 1, radius - 1)
+    inset = outline_width
+    painter.drawRoundedRect(box.adjusted(inset, inset, -inset, -inset), radius - inset, radius - inset)
     painter.restore()
 
 
 class PaintedButton:
     """A rounded button painted by the widget it sits in, as the Tk widgets.CanvasButton: its outline turns white
     while it is pressed or marked as selected. The widget passes its mouse presses and releases on. Its width is
-    that of this many digits, or with none given, of its text; its text is muted unless the button is selected"""
+    that of this many digits, or with none given, of its text; its text is muted unless the button is selected. A
+    disabled button ignores clicks and shows muted text, as the Tk OutlinedButton"""
 
     def __init__(
-        self, text: str, command: Callable[[], None], fonts: Fonts, padx: int, pady: int, width_in_digits: int = 0, text_color: str = "muted"
+        self,
+        text: str,
+        command: Callable[[], None],
+        fonts: Fonts,
+        padx: int,
+        pady: int,
+        width_in_digits: int = 0,
+        text_color: str = "muted",
+        fill: str = "panel_alt",
     ) -> None:
         self.text = text
         self.command = command
         self.font = fonts.small
         self.text_color = text_color
+        self.fill = fill
+        self.enabled = True
         self.width = text_width(self.font, "0" * width_in_digits if width_in_digits else text) + 2 * padx
         self.height = line_height(self.font) + 2 * pady
         self.left = self.top = 0
@@ -61,7 +73,7 @@ class PaintedButton:
 
     def paint(self, painter: QPainter) -> None:
         box = QRectF(self.left, self.top, self.width, self.height)
-        fill = color("panel_alt")
+        fill = color(self.fill)
         draw_rounded_box(painter, box, BUTTON_CORNER_RADIUS, fill, color("text") if self.selected or self.pressed else fill)
         # Centred in whole pixels, as a Tk label centres its text
         draw_text(
@@ -69,18 +81,18 @@ class PaintedButton:
             self.left + (self.width - text_width(self.font, self.text)) // 2,
             self.top + (self.height - line_height(self.font)) // 2,
             self.text,
-            color("text") if self.selected else color(self.text_color),
+            color("text") if self.selected else color(self.text_color if self.enabled else "muted"),
             self.font,
         )
 
     def press(self, point: QPoint) -> bool:
-        self.pressed = self.contains(point)
+        self.pressed = self.enabled and self.contains(point)
         return self.pressed
 
     def release(self, point: QPoint) -> bool:
         """Letting go outside the button cancels the click, as it does for a standard button"""
         was_pressed, self.pressed = self.pressed, False
-        if was_pressed and self.contains(point):
+        if was_pressed and self.enabled and self.contains(point):
             self.command()
         return was_pressed
 

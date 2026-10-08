@@ -70,6 +70,7 @@ class ChartModule(ModuleBlock):
         self.buttons = list(self.period_buttons.values())
         self.month_text = ""
         self.plot: Plot | None = None
+        self.drawn_state: tuple | None = None
         self.hover_index: int | None = None
         # The chart without the readout, drawn when the data changes, so following the mouse only redraws the readout
         self.picture: QPixmap | None = None
@@ -122,6 +123,7 @@ class ChartModule(ModuleBlock):
             self.chart_size = (width, app_config.CHART_HEIGHT)
             self.set_content_height(button_height + CONTROLS_GAP + app_config.CHART_HEIGHT)
         self.picture = None
+        self.drawn_state = None
 
     def _set_period(self, period: str) -> None:
         self.period = period
@@ -146,6 +148,12 @@ class ChartModule(ModuleBlock):
             else:
                 start = today - timedelta(days=count - 1)
             last_index = min(count - 1, (today - start).days)
+        state = (
+            self.period, today, last_index, tuple(values), tuple(labels),
+            self.chart_size, self.landscape, self.devicePixelRatioF(),
+        )
+        if state == self.drawn_state:
+            return
         for name, button in self.period_buttons.items():
             button.selected = name == self.period
         width, height = self.chart_size
@@ -191,6 +199,7 @@ class ChartModule(ModuleBlock):
             draw_anchored(painter, (left + right) / 2, top + plot_height / 2, "center", "No activity recorded for this period", muted, self.fonts.normal)
         painter.end()
         self.picture = picture
+        self.drawn_state = state
         self.update()
 
     @staticmethod

@@ -158,7 +158,7 @@ class CalendarModule(ModuleBlock):
                 (day, totals.get(day, 0) >= SESSION_MINIMUM_SECONDS, ratings.get(day))
                 for week in calendar.monthcalendar(year, month) for day in week if day
             )
-        state = (self.view, year, month, today, streaks, days, self.landscape, self.shared_height)
+        state = (self.view, year, month, today, streaks, days, self.landscape, self.shared_height, self.devicePixelRatioF())
         if state == self.drawn_state and not force:
             return
         self.drawn_state = state

@@ -4,6 +4,26 @@ from tools.check_credentials import inspect
 
 
 class CredentialCheckTests(unittest.TestCase):
+    def test_qt_marker_exception_does_not_allow_other_secrets(self):
+        marker = b'-----BEGIN ' + b'PRIVATE KEY-----'
+        self.assertTrue(inspect('qt.dll', marker))
+        self.assertFalse(inspect('qt.dll', marker, allow_verified_qt_pem_markers=True))
+        self.assertTrue(inspect('qt.dll', b'GOCSPX-' + b'a' * 24, allow_verified_qt_pem_markers=True))
+
+    def test_qt_binary_exception_requires_known_name_and_exact_contents(self):
+        from tools.check_credentials import verified_qt_binary
+        self.assertFalse(verified_qt_binary('other.dll', b'-----BEGIN ' + b'PRIVATE KEY-----'))
+        try:
+            import PySide6
+        except ImportError:
+            return
+        from pathlib import Path
+        source = Path(PySide6.__file__).parent / 'Qt6Network.dll'
+        if source.exists():
+            data = source.read_bytes()
+            self.assertTrue(verified_qt_binary('PySide6/Qt6Network.dll', data))
+            self.assertFalse(verified_qt_binary('PySide6/Qt6Network.dll', data + b'changed'))
+
     def test_credential_files_are_rejected_even_without_signature(self):
         for name in ("credentials.json", "release/credentials.json", ".env.production", "keys/signing.pfx", "google-token.json"):
             with self.subTest(name=name):
