@@ -103,7 +103,7 @@ class QtDockingTests(unittest.TestCase):
 
     def _grip(self, name):
         block = self.app.modules[name]
-        return block.mapToGlobal(block.grip_rect().center())
+        return block.mapToGlobal(block.title_rect().center())
 
     def _float(self, name, to):
         start = self._grip(name)
@@ -135,7 +135,7 @@ class QtDockingTests(unittest.TestCase):
         stats = self.app.modules["stats"]
         drop = stats.mapToGlobal(QPoint(stats.width() // 2, stats.height() - 2))
         block = self.app.modules["graph"]
-        grip = block.mapToGlobal(block.grip_rect().center())
+        grip = block.mapToGlobal(block.title_rect().center())
         self._drag(block, grip, grip + QPoint(10, 0), drop)
         self.assertFalse(self.app.docking.is_floating("graph"))
         self.assertFalse(self.app.chart.floating)
@@ -157,14 +157,14 @@ class QtDockingTests(unittest.TestCase):
         panel = self._float("stats", QPoint(300, 400))
         left = self.app.docking.main_bounds()[0]
         block = self.app.modules["stats"]
-        grip = block.mapToGlobal(block.grip_rect().center())
+        grip = block.mapToGlobal(block.title_rect().center())
         offset = grip - panel.pos()
         # Let go with the panel's right edge 12 pixels short of the window's left edge
         aim = QPoint(left - panel.width() - 12, panel.y()) + offset
         self._drag(block, grip, grip + QPoint(10, 0), aim)
         self.assertEqual(panel.x() + panel.width(), left)
 
-    def test_title_drag_moves_the_window_with_the_panels_touching_it(self):
+    def test_dragging_a_module_body_moves_the_window_with_the_panels_touching_it(self):
         panel = self._float("stats", QPoint(300, 400))
         left, top, _right, _bottom = self.app.docking.main_bounds()
         panel.move(left - panel.width(), top)
@@ -172,7 +172,10 @@ class QtDockingTests(unittest.TestCase):
         loose_position = loose.pos()
         self.app.docking.main_last_bounds = self.app.docking.main_bounds()
         calendar = self.app.modules["calendar"]
-        start = calendar.mapToGlobal(QPoint(20, 8))
+        # The month's name under the title: neither the title nor anything to click
+        start = calendar.mapToGlobal(QPoint(30, calendar.content_top + 8))
+        self.assertIsNone(calendar.control_at(calendar.mapFromGlobal(start)))
+        self.assertFalse(calendar.interactive_at(calendar.mapFromGlobal(start)))
         window_position, panel_position = self.app.window.pos(), panel.pos()
         self._drag(calendar, start, start + QPoint(40, 30))
         self.assertEqual(self.app.window.pos(), window_position + QPoint(40, 30))
@@ -190,14 +193,17 @@ class QtDockingTests(unittest.TestCase):
             self.application.processEvents()
         self.assertEqual(panel.pos(), QPoint(left - panel.width() - 50, top + 30))
 
-    def test_title_drag_on_a_floating_panel_moves_its_group(self):
+    def test_body_drag_on_a_floating_panel_moves_its_group(self):
         # Floated well apart, as one let go over another would swap with it
         first = self._float("stats", QPoint(100, 50))
         second = self._float("graph", QPoint(700, 50))
         second.move(first.x() + first.width(), first.y())
         block = self.app.modules["stats"]
-        start = block.mapToGlobal(QPoint(20, 8))
+        # A line of the stats, under the title
+        start = block.mapToGlobal(QPoint(20, block.content_top + 10))
+        first_position = first.pos()
         self._drag(block, start, start + QPoint(0, 50))
+        self.assertEqual(first.pos(), first_position + QPoint(0, 50))
         self.assertEqual(second.pos(), QPoint(first.x() + first.width(), first.y()))
 
     def test_grip_drag_pulls_one_panel_from_its_group_and_the_gap_closes(self):
@@ -207,7 +213,7 @@ class QtDockingTests(unittest.TestCase):
         second.move(first.x() + first.width(), first.y())
         third.move(second.x() + second.width(), first.y())
         block = self.app.modules["graph"]
-        grip = block.mapToGlobal(block.grip_rect().center())
+        grip = block.mapToGlobal(block.title_rect().center())
         self._drag(block, grip, grip + QPoint(0, 10), grip + QPoint(0, 900))
         # The calendar slides left into the graph's slot; the stats stay
         self.assertEqual(third.x(), first.x() + first.width())
@@ -219,7 +225,7 @@ class QtDockingTests(unittest.TestCase):
         second = self._float("graph", QPoint(200, 1300))
         first_position, second_position = first.pos(), second.pos()
         block = self.app.modules["stats"]
-        grip = block.mapToGlobal(block.grip_rect().center())
+        grip = block.mapToGlobal(block.title_rect().center())
         self._drag(block, grip, grip + QPoint(10, 0), grip + (second_position - first_position))
         self.assertEqual(first.pos(), second_position)
         self.assertEqual(second.pos(), first_position)
@@ -313,7 +319,7 @@ class QtDockingTests(unittest.TestCase):
         self.app._arrange_blocks()
         self.application.processEvents()
         photoshop = self.app.panels["Photoshop"]
-        grip = photoshop.mapToGlobal(photoshop.grip_rect().center())
+        grip = photoshop.mapToGlobal(photoshop.title_rect().center())
         position = self.app.window.pos()
         self._drag(photoshop, grip, grip + QPoint(0, 10), grip + QPoint(-600, 0))
         self.assertEqual(self.app.window.pos(), position)
@@ -448,6 +454,43 @@ class QtDockingTests(unittest.TestCase):
         self.assertEqual(clear.pixelColor(0, 0).alpha(), 0)
         self.assertEqual(icon("moon", 16, "#000000").pixelColor(0, 0), QColor("#000000"))
         self.app.calendar.set_glass(255)
+
+    def test_first_run_tip_points_at_the_first_title_until_dismissed(self):
+        self.app.window.show()
+        self.app._show_drag_hint()
+        hint = self.app.drag_hint
+        self.assertTrue(hint.isVisible())
+        first = self.app._shown_blocks()[0]
+        title_bottom = first.mapTo(self.app.window, QPoint(0, first.title_rect().bottom())).y()
+        self.assertEqual(hint.y(), title_bottom + 1)
+        # Out of the way on the Settings page, back after it
+        self.app._toggle_settings()
+        self.assertFalse(hint.isVisible())
+        self.app._toggle_settings()
+        self.assertTrue(hint.isVisible())
+        hint.dismiss()
+        self.assertFalse(hint.isVisible())
+        self.assertTrue(self.app.settings["drag_hint_shown"])
+        self.app._show_drag_hint()
+        self.assertFalse(hint.isVisible())
+
+    def test_dragging_a_title_dismisses_the_tip(self):
+        self.app.window.show()
+        self.app._show_drag_hint()
+        calendar = self.app.modules["calendar"]
+        title = calendar.mapToGlobal(calendar.title_rect().center())
+        self._drag(calendar, title, title + QPoint(0, 10), title + QPoint(0, 12))
+        self.assertFalse(self.app.drag_hint.isVisible())
+        self.assertTrue(self.app.settings["drag_hint_shown"])
+
+    def test_title_shows_an_open_hand_and_program_names_brighten(self):
+        calendar = self.app.modules["calendar"]
+        calendar.update_cursor(calendar.title_rect().center())
+        self.assertEqual(calendar.cursor().shape(), Qt.CursorShape.OpenHandCursor)
+        photoshop = self.app.panels["Photoshop"]
+        photoshop._hover(True)
+        self.assertTrue(photoshop.title_hovered)
+        self.assertEqual(photoshop.cursor().shape(), Qt.CursorShape.OpenHandCursor)
 
 
 if __name__ == "__main__":

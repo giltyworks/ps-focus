@@ -15,7 +15,7 @@ from stat_lines import DAY_ABBREVIATIONS
 from tracker import ActivityStore
 
 from .icons import icon
-from .module import DOCK_CONTROL_SIZE, GRIP_AFTER_TITLE, ModuleBlock, PaintedButton
+from .module import ModuleBlock, PaintedButton
 from .theme import Fonts, anchored_top_left, color, draw_anchored, draw_outline_text, draw_text, line_height, text_width
 
 # The same measurements as the Tk calendar, see ui_calendar.py. The first and last years it can be stepped to
@@ -85,11 +85,9 @@ class CalendarModule(ModuleBlock):
         self.set_layout(False)
 
     def side_width(self) -> int:
-        """Width of the landscape strip: just enough for its widest line, the longest month name and year, or the name
-        with the grip after it"""
+        """Width of the landscape strip: just enough for its widest line, the longest month name and year"""
         fonts = self.fonts
         widest = max(
-            text_width(fonts.bold, self.title) + GRIP_AFTER_TITLE + DOCK_CONTROL_SIZE,
             text_width(fonts.two_week, "September 0000"),
             self.toggle.width,
             LEGEND_SQUARE_SIZE + 6 + text_width(fonts.small, "15 min+"),
@@ -388,5 +386,4 @@ class CalendarModule(ModuleBlock):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
-        over = any(button.contains(point) for button in self.buttons) | self.hover_controls(point) or self._day_at(point) is not None
-        self.setCursor(Qt.CursorShape.PointingHandCursor if over else Qt.CursorShape.ArrowCursor)
+        self.update_cursor(point, any(button.contains(point) for button in self.buttons) or self._day_at(point) is not None)

@@ -1,8 +1,8 @@
-"""Dragging in the window and the floating panels, one rule throughout: a block's grip rearranges, anything else moves
+"""Dragging in the window and the floating panels, one rule throughout: a block's title rearranges, anything else moves
 
-- The grip at a block's top right puts the block in a new order: pressed and moved a few pixels, the block is outlined
+- A block's title, its name row, puts the block in a new order: pressed and moved a few pixels, the block is outlined
   in blue and passes the block under the pointer as the pointer crosses that block's middle, as in the Tk
-  ModulesMixin. A module dragged by its grip out of the window floats in a window of its own, see docking; a program
+  ModulesMixin. A module dragged by its title out of the window floats in a window of its own, see docking; a program
   panel stays in the window.
 - Anywhere else that is not a button, link or checkbox moves the window, or the floating panel pressed on, together
   with every panel touching it.
@@ -40,14 +40,16 @@ class BlockDrag(QObject):
         # Whether a press on this widget, one of the window's own rather than a block, may move the window
         self.draggable = draggable
         self.candidate: str | None = None
-        # "reorder": a block's grip, putting it in order; "move": the window or a floating panel moved by Docking,
-        # which also handles a module's grip, giving the drag back to "reorder" while the module stays in the window
+        # "reorder": a block's title, putting it in order; "move": the window or a floating panel moved by Docking,
+        # which also handles a module's title, giving the drag back to "reorder" while the module stays in the window
         self.mode: str | None = None
         self.origin = QPoint()
         self.dragged = False
         self.order_changed = False
         # The widget holding the mouse while a drag lasts, see _moved
         self.grabber: QWidget | None = None
+        # Told when a block is first dragged by its title
+        self.on_title_drag: Callable[[], None] = lambda: None
         QApplication.instance().installEventFilter(self)
 
     def _name_of(self, widget: QObject) -> str | None:
@@ -102,11 +104,11 @@ class BlockDrag(QObject):
         self.dragged = False
         self.order_changed = False
         self.candidate = name
-        if control == "grip":
+        if control == "title":
             self.mode = "move" if self._is_module(name) else "reorder"
             if self.mode == "move":
                 self.docking.press(name, True, self.origin)
-            # The grip is the drag's alone
+            # The title is the drag's alone
             return True
         if self.docking is None:
             self.candidate = None
@@ -127,13 +129,14 @@ class BlockDrag(QObject):
             if self.docking is not None and self.docking.window.isVisible():
                 self.grabber = self.docking.window
                 self.grabber.grabMouse()
-            if self.candidate is not None and (self.mode == "reorder" or self.docking.kind == "grip"):
+            if self.candidate is not None and (self.mode == "reorder" or self.docking.kind == "title"):
+                self.on_title_drag()
                 self._mark(True)
-                QApplication.setOverrideCursor(Qt.CursorShape.PointingHandCursor)
+                QApplication.setOverrideCursor(Qt.CursorShape.ClosedHandCursor)
         if self.mode == "move":
             if self.docking.drag(pointer):
                 return True
-            if self.docking.kind != "grip":
+            if self.docking.kind != "title":
                 return True
         self._reorder(pointer)
         # While dragging, the block's own handling of the pointer, such as the graph's readout, is left out

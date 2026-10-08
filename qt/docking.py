@@ -1,4 +1,4 @@
-"""Floating modules: the graph, calendar and stats can be dragged out of the window by their grip into windows of
+"""Floating modules: the graph, calendar and stats can be dragged out of the window by their title into windows of
 their own, which snap to each other and to the window, move together while they touch, and dock back in. The rules
 are those of the Tk version on the tk-floating-panels branch (ui_docking.py), with these changes the user asked for:
 anything not a control moves the window or panel pressed on, with all that touches it; a lone panel let go over the
@@ -26,7 +26,7 @@ from .window import visible_frame
 Rect = tuple[int, int, int, int]
 # How near an edge has to come before it snaps to another
 SNAP_DISTANCE = 20
-# How far outside the window a module's grip may be dragged and still be put back in order rather than float
+# How far outside the window a module's title may be dragged and still be put back in order rather than float
 DOCK_MARGIN = 24
 # How far past the window's far end, below it or in landscape right of it, a panel let go still docks
 DOCK_ZONE = 40
@@ -41,7 +41,7 @@ DOCKING_OPACITY = 0.7
 PREVIEW_FILL_ALPHA = 60
 # The most see-through a floating panel's background gets, at full transparency: never clear, so its text and figures
 # stay readable over whatever is behind
-GLASS_MIN_ALPHA = 110
+GLASS_MIN_ALPHA = 165
 
 
 def glass_alpha(transparency: object) -> int:
@@ -257,16 +257,16 @@ class Docking:
             self._show_dock_slot(None)
         self.source: str | None = None
         # "window": the main window moved, with the panels touching it; "group": a floating panel moved with the
-        # panels touching it; "detach": a floating panel moved by its grip, alone; "grip": a docked module's grip,
+        # panels touching it; "detach": a floating panel moved by its title, alone; "title": a docked module's title,
         # putting it in order inside the window until it is dragged out
         self.kind: str | None = None
         self.origin = QPoint()
         self.grab_offset = GRAB_OFFSET
         self.group_positions: dict[str, QPoint] = {}
         self.moves_main = False
-        # Where a panel moved by its grip started, for a swap; None for a module dragged out of the window
+        # Where a panel moved by its title started, for a swap; None for a module dragged out of the window
         self.swap_origin: QPoint | None = None
-        # The slot a panel moved by its grip left, and the panels around it then, so the gap can be closed
+        # The slot a panel moved by its title left, and the panels around it then, so the gap can be closed
         self.gap_source: Rect | None = None
         self.gap_panels: dict[str, Rect] = {}
         self.gap_closed = True
@@ -474,15 +474,15 @@ class Docking:
         if name in panels:
             self.floating[name].raise_()
 
-    def press(self, name: str | None, on_grip: bool, point: QPoint) -> None:
-        """A press on a block's grip, or anywhere else in the window (name None) or a floating panel"""
+    def press(self, name: str | None, on_title: bool, point: QPoint) -> None:
+        """A press on a block's title, or anywhere else in the window (name None) or a floating panel"""
         self._reset_drag()
         self.main_drag_members = None
         self.source = name
         self.origin = point
         self._raise_group(name if name in self.floating else None)
         floating = name in self.floating
-        if on_grip and floating:
+        if on_title and floating:
             panel = self.floating[name]
             self.kind = "detach"
             self.grab_offset = point - panel.pos()
@@ -491,8 +491,8 @@ class Docking:
             self.gap_panels = self.visible_panels(leave_out={name})
             self.gap_closed = False
             self._begin_group(name, detach=True)
-        elif on_grip:
-            self.kind = "grip"
+        elif on_title:
+            self.kind = "title"
         elif floating:
             self.kind = "group"
             self.grab_offset = point - self.floating[name].pos()
@@ -518,11 +518,11 @@ class Docking:
         self.mover.begin(([self.window] if self.moves_main else []) + [self.floating[key] for key in sorted(group)])
 
     def drag(self, point: QPoint) -> bool:
-        """Follow the pointer; False leaves the drag to BlockDrag, to put a docked module in order by its grip"""
+        """Follow the pointer; False leaves the drag to BlockDrag, to put a docked module in order by its title"""
         if self.kind == "window":
             self._move_together(point - self.origin, moves_main=True)
             return True
-        if self.kind == "grip":
+        if self.kind == "title":
             if self.dock_target(point, margin=DOCK_MARGIN):
                 return False
             # Dragged out of the window: it floats under the pointer, and is moved alone from then on
@@ -731,7 +731,7 @@ class Docking:
             pending -= component
 
     def _resolve_overlap(self, name: str) -> None:
-        """Let go over another floating panel by its grip, a panel swaps places with it; then panels a larger one now
+        """Let go over another floating panel by its title, a panel swaps places with it; then panels a larger one now
         covers move aside to the nearest clear edge, the dragged group staying as it is"""
         moving = (set(self.group_positions) or {name}) & set(self.floating)
         source = self.floating[name]

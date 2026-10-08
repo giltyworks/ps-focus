@@ -20,8 +20,8 @@ def _block(height: int) -> "QWidget":
     block = QWidget()
     block.setFixedSize(TODAY_PANEL_WIDTH, height)
     block.border_color = "border"
-    # A test block is grip all over, so pressing anywhere on it puts it in a new order
-    block.control_at = lambda _point: "grip"
+    # A test block is title all over, so pressing anywhere on it puts it in a new order
+    block.control_at = lambda _point: "title"
     return block
 
 
