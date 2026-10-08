@@ -14,7 +14,7 @@ from app_config import resource_path
 from uninstall import DONE_MESSAGE_DELETED, DONE_MESSAGE_KEPT, WARNING_MESSAGE, WINDOW_TITLE, APP_NAME, uninstall
 from windows_startup import set_title_bar_colors_for_handle
 
-from .header import checkbox_hover_rect, draw_checkbox
+from .header import draw_checkbox
 from .module import PaintedButton, paint_hover_box
 from .settings_page import wrap
 from .theme import Fonts, color, draw_text, line_height, text_width
@@ -75,10 +75,8 @@ class UninstallWindow(QDialog):
         draw_text(painter, PADDING, self.title_top, self.title, color("text"), self.fonts.bold)
         for index, line in enumerate(self.note):
             draw_text(painter, PADDING, self.note_top + index * line_height(self.fonts.small), line, color("muted"), self.fonts.small)
-        if self.option_hovered:
-            paint_hover_box(painter, checkbox_hover_rect(self.checkbox_center), color("border"))
         draw_text(painter, PADDING, self.label_top, "Also delete all user data", color("text"), self.fonts.small)
-        draw_checkbox(painter, self.checkbox_center, self.delete_data)
+        draw_checkbox(painter, self.checkbox_center, self.delete_data, self.option_hovered)
         for button in self.buttons:
             button.paint(painter)
         painter.end()

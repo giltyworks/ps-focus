@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QWidget
 
 from app_config import COMPACT_BOTTOM_SPACE, EDGE_PADDING, PANEL_GAP, TODAY_PANEL_WIDTH
 
-from .header import checkbox_hover_rect, draw_checkbox
+from .header import draw_checkbox
 from .module import PaintedButton, draw_rounded_box, paint_hover_box
 from .theme import Fonts, ascent, color, draw_text, line_height, text_width
 
@@ -286,15 +286,11 @@ class SettingsPage(QWidget):
         for top, height in self.boxes:
             painter.fillRect(0, top, TODAY_PANEL_WIDTH, height, color("border"))
             painter.fillRect(1, top + 1, TODAY_PANEL_WIDTH - 2, height - 2, color("panel"))
-        hovered = self.checkboxes.get(self.hovered_checkbox)
-        if hovered is not None:
-            # The same faint box as a button under the mouse, around the checkbox itself
-            paint_hover_box(painter, checkbox_hover_rect(hovered[1]), color("border"))
         for text in self.texts:
             for index, line in enumerate(text.lines):
                 draw_text(painter, text.x, text.y + index * line_height(text.font), line, color(text.color), text.font)
         for key, (_area, center, _surface) in self.checkboxes.items():
-            draw_checkbox(painter, center, bool(self.settings.get(key)))
+            draw_checkbox(painter, center, bool(self.settings.get(key)), key == self.hovered_checkbox)
         self._paint_orientation(painter)
         self._paint_slider(painter)
         for button in self.buttons:
