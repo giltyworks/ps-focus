@@ -47,8 +47,11 @@ def paint_dock_icon(painter: QPainter, rect: QRect, hovered: bool) -> None:
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     painter.setPen(pen)
     middle = rect.y() + rect.height() / 2
-    for tip in (rect.x() + 4.5, rect.x() + 9.5):
-        painter.drawPolyline([QPointF(tip + 4, middle - 4), QPointF(tip, middle), QPointF(tip + 4, middle + 4)])
+    # Two small chevrons, 3 pixels each way, centred in the button
+    arm, spacing = 3, 4
+    left = rect.x() + (rect.width() - spacing - arm) / 2
+    for tip in (left, left + spacing):
+        painter.drawPolyline([QPointF(tip + arm, middle - arm), QPointF(tip, middle), QPointF(tip + arm, middle + arm)])
     painter.restore()
 
 
