@@ -176,8 +176,14 @@ class TodayPanel(QWidget):
         background.setAlpha(self.glass_alpha)
         painter.fillRect(self.rect(), background)
         paint_title_strip(painter, self.title_rect(), self.title_hovered, self.glass_alpha)
-        painter.setPen(color(self.border_color))
+        edge = color(self.border_color)
+        edge.setAlpha(self.glass_alpha)
+        painter.save()
+        # Like the background, the border fades rather than adding up with what is under it
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        painter.setPen(edge)
         painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
+        painter.restore()
         for name, item in self.texts.items():
             painter.setFont(item.font)
             painter.setPen(color("text") if name == "name" and self.title_hovered else item.color)

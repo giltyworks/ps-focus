@@ -481,7 +481,7 @@ class QtDockingTests(unittest.TestCase):
         self.app.window.show()
         self.app.settings["panel_transparency"] = 100
         faded = glass_alpha(100) / 255
-        with patch("qt.app.QCursor.pos", return_value=QPoint(5, 5)), patch("qt.docking.QCursor.pos", return_value=QPoint(5, 5)):
+        with patch("qt.docking.QCursor.pos", return_value=QPoint(5, 5)):
             self.app.update_glass()
             self.assertAlmostEqual(self.app.window.windowOpacity(), faded, places=2)
             # Its blocks stay solid; it is the window that fades
@@ -491,17 +491,18 @@ class QtDockingTests(unittest.TestCase):
             self.assertEqual(self.app.window.windowOpacity(), 1.0)
             self.app._toggle_settings()
             self.assertAlmostEqual(self.app.window.windowOpacity(), faded, places=2)
-        with patch("qt.app.QCursor.pos", return_value=self.app.window.frameGeometry().center()):
+        with patch("qt.docking.QCursor.pos", return_value=self.app.window.frameGeometry().center()):
             self.app.update_glass()
         self.assertEqual(self.app.window.windowOpacity(), 1.0)
 
-    def test_glass_draws_pictures_on_nothing_and_icons_without_a_square(self):
+    def test_glass_pictures_match_the_background_and_icons_have_no_square(self):
         from PySide6.QtGui import QColor
         from qt.icons import icon
 
         self.app.calendar.set_glass(100)
         self.app.calendar.refresh()
-        self.assertEqual(self.app.calendar.picture_fill().alpha(), 0)
+        # Pictures start from the panel as see-through as the module, and replace the background when drawn
+        self.assertEqual(self.app.calendar.picture_fill().alpha(), 100)
         clear = icon("moon", 16, "")
         self.assertEqual(clear.pixelColor(0, 0).alpha(), 0)
         self.assertEqual(icon("moon", 16, "#000000").pixelColor(0, 0), QColor("#000000"))
@@ -515,6 +516,38 @@ class QtDockingTests(unittest.TestCase):
         photoshop._hover("title")
         self.assertTrue(photoshop.title_hovered)
         self.assertEqual(photoshop.cursor().shape(), Qt.CursorShape.OpenHandCursor)
+
+    def test_snapped_windows_turn_solid_and_see_through_together(self):
+        from qt.docking import glass_alpha
+
+        self.app.window.show()
+        self.app.settings["panel_transparency"] = 100
+        attached = self._float("stats", QPoint(300, 400))
+        left, top, _right, _bottom = self.app.docking.main_bounds()
+        attached.move(left - attached.width(), top)
+        apart = self._float("graph", QPoint(100, 1300))
+        partner = self._float("calendar", QPoint(700, 1300))
+        partner.move(apart.x() + apart.width(), apart.y())
+        faded = glass_alpha(100)
+        with patch("qt.docking.QCursor.pos", return_value=QPoint(5, 5)):
+            self.app.update_glass()
+        self.assertEqual((self.app.stats.glass_alpha, self.app.chart.glass_alpha, self.app.calendar.glass_alpha), (faded, faded, faded))
+        # The mouse on the panel snapped to the window: the window turns solid with it; the other group stays glass
+        with patch("qt.docking.QCursor.pos", return_value=attached.geometry().center()):
+            self.app.update_glass()
+        self.assertEqual(self.app.stats.glass_alpha, 255)
+        self.assertEqual(self.app.window.windowOpacity(), 1.0)
+        self.assertEqual(self.app.chart.glass_alpha, faded)
+        # The mouse on the window: the panel snapped to it turns solid too
+        with patch("qt.docking.QCursor.pos", return_value=self.app.window.frameGeometry().center()):
+            self.app.update_glass()
+        self.assertEqual(self.app.stats.glass_alpha, 255)
+        # The mouse on one of two snapped floating panels: both turn solid, the window fades
+        with patch("qt.docking.QCursor.pos", return_value=apart.geometry().center()):
+            self.app.update_glass()
+        self.assertEqual((self.app.chart.glass_alpha, self.app.calendar.glass_alpha), (255, 255))
+        self.assertLess(self.app.window.windowOpacity(), 1.0)
+        self.assertEqual(self.app.stats.glass_alpha, faded)
 
 
 if __name__ == "__main__":

@@ -210,22 +210,8 @@ class PSFocusQt:
             self.window.show_settings(self.settings_page)
 
     def update_glass(self) -> None:
-        """The window and floating panels are see-through, as far as the setting says, while the mouse is elsewhere;
-        solid under the mouse, while something is dragged, and while Settings is open, for reading and clicking.
-        Floating panels turn to glass, their text and figures staying solid; the window, whose Windows title bar
-        cannot have a see-through background behind it, fades as a whole"""
-        from .docking import glass_alpha
-
+        """How see-through the window and floating panels are, see Docking.update_glass"""
         self.docking.update_glass()
-        window = self.window
-        solid = (
-            self.settings_shown or self.block_drag.mode is not None or not window.isVisible()
-            or window.frameGeometry().contains(QCursor.pos())
-        )
-        opacity = 1.0 if solid else glass_alpha(self.settings.get("panel_transparency")) / 255
-        if opacity != self.main_opacity:
-            self.main_opacity = opacity
-            window.setWindowOpacity(opacity)
 
     def _toggle_settings(self) -> None:
         self.settings_shown = not self.settings_shown

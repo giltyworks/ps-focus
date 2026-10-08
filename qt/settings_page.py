@@ -106,8 +106,9 @@ class SettingsPage(QWidget):
         self.on_transparency: Callable[[int, bool], None] = lambda _value, _done: None
         self.slider_left = self.slider_top = 0
         self.slider_dragging = False
-        # The checkbox the mouse is over, which then shows its box
+        # The checkbox, and the orientation, the mouse is over, which then fill a shade lighter
         self.hovered_checkbox: str | None = None
+        self.hovered_orientation: bool | None = None
         self.disabled_settings: set[str] = set()
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         self.setMouseTracking(True)
@@ -305,8 +306,11 @@ class SettingsPage(QWidget):
             width, height = (long_side, short_side) if landscape else (short_side, long_side)
             chosen = landscape == chosen_landscape
             box = QRectF(self.orientation_left + left, middle - height // 2, width, height)
-            fill: QColor = color("text" if chosen else "panel")
-            draw_rounded_box(painter, box, ORIENTATION_ICON_RADIUS, fill, color("text" if chosen else "muted"), outline_width=2)
+            # Drawn as the checkboxes are: a two-pixel outline, dark when not chosen; the chosen one white. Under the
+            # mouse the inside of one not chosen fills a shade lighter, as an empty checkbox's does
+            hovered = landscape == self.hovered_orientation and not chosen
+            fill: QColor = color("text" if chosen else ("border" if hovered else "panel"))
+            draw_rounded_box(painter, box, ORIENTATION_ICON_RADIUS, fill, color("text" if chosen else "border"), outline_width=2)
 
     def transparency(self) -> int:
         try:
@@ -391,8 +395,8 @@ class SettingsPage(QWidget):
             self.update()
 
     def leaveEvent(self, _event) -> None:
-        if PaintedButton.update_hover(self.buttons, None) or self.hovered_checkbox is not None:
-            self.hovered_checkbox = None
+        if PaintedButton.update_hover(self.buttons, None) or self.hovered_checkbox is not None or self.hovered_orientation is not None:
+            self.hovered_checkbox = self.hovered_orientation = None
             self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
@@ -401,8 +405,9 @@ class SettingsPage(QWidget):
             self.update()
         checkbox = self._checkbox_at(point)
         checkbox = None if checkbox in self.disabled_settings else checkbox
-        if checkbox != self.hovered_checkbox:
-            self.hovered_checkbox = checkbox
+        orientation = self._orientation_at(point)
+        if checkbox != self.hovered_checkbox or orientation != self.hovered_orientation:
+            self.hovered_checkbox, self.hovered_orientation = checkbox, orientation
             self.update()
         if self.slider_dragging:
             self._slide_to(point, False)

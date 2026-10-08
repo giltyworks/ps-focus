@@ -215,6 +215,9 @@ class CalendarModule(ModuleBlock):
     def _cell(painter: QPainter, left: int, top: int, right: int, bottom: int, fill: QColor, radius: int) -> None:
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        if fill.alpha() < 255:
+            # A see-through cell replaces the background under it rather than adding to it
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
         painter.setPen(Qt.PenStyle.NoPen)
         painter.setBrush(fill)
         painter.drawRoundedRect(QRectF(left, top, right - left, bottom - top), radius, radius)
@@ -284,7 +287,10 @@ class CalendarModule(ModuleBlock):
         def weekday_row(row_top: int) -> None:
             # In landscape the names sit on the panel itself, as they do when written in the last week's gaps
             if not landscape:
+                painter.save()
+                painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
                 painter.fillRect(offset, row_top, width, header_height, self.surface("background"))
+                painter.restore()
             for column, weekday in enumerate(DAY_ABBREVIATIONS):
                 left, right = column_edges[column], column_edges[column + 1] - CALENDAR_CELL_GAP
                 draw_anchored(painter, (left + right) / 2, row_top + header_height / 2, "center", weekday, muted, fonts.small)
@@ -365,7 +371,7 @@ class CalendarModule(ModuleBlock):
         painter = QPainter(self)
         self.paint_frame(painter)
         if self.picture is not None:
-            painter.drawPixmap(self.origin, self.picture)
+            self.draw_picture(painter, self.origin, self.picture)
             # In landscape the days start at the top, their picture covering the panel where the name is
             if self.landscape:
                 self.paint_title(painter)

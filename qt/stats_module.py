@@ -115,6 +115,6 @@ class StatsModule(ModuleBlock):
         painter = QPainter(self)
         self.paint_frame(painter)
         if self.picture is not None:
-            painter.drawPixmap(1, self.content_top, self.picture)
+            self.draw_picture(painter, QPoint(1, self.content_top), self.picture)
         self.paint_dock_controls(painter)
         painter.end()

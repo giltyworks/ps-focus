@@ -261,7 +261,7 @@ class ChartModule(ModuleBlock):
         for button in self.buttons:
             button.paint(painter)
         if self.picture is not None:
-            painter.drawPixmap(self.chart_origin, self.picture)
+            self.draw_picture(painter, self.chart_origin, self.picture)
         self._paint_readout(painter)
         self.paint_dock_controls(painter)
         painter.end()

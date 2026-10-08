@@ -191,5 +191,8 @@ class BlockDrag(QObject):
             self.on_finished()
         self.candidate = self.mode = None
         self.dragged = self.order_changed = False
+        if self.docking is not None:
+            # Solid while dragged, the windows now go see-through again if the mouse is off them
+            self.docking.update_glass()
         # A drag let go over a button is not a click on it
         return was_dragged

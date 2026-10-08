@@ -29,9 +29,15 @@ def paint_title_strip(painter: QPainter, rect: QRect, hovered: bool, alpha: int 
     lighter under the mouse, with a line under it. The whole strip is where the block is taken by"""
     fill = color("calendar_blank" if hovered else "background")
     fill.setAlpha(alpha)
+    edge = color("border")
+    edge.setAlpha(alpha)
+    painter.save()
+    # On a see-through block it replaces the background under it, so the two do not add up to something more solid
+    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
     painter.fillRect(rect, fill)
     if line:
-        painter.fillRect(rect.left(), rect.bottom() + 1, rect.width(), 1, color("border"))
+        painter.fillRect(rect.left(), rect.bottom() + 1, rect.width(), 1, edge)
+    painter.restore()
 
 
 def paint_dock_icon(painter: QPainter, rect: QRect, hovered: bool) -> None:
@@ -81,9 +87,12 @@ def draw_rounded_box(painter: QPainter, box: QRectF, radius: float, fill: QColor
 
 
 def paint_hover_box(painter: QPainter, rect: QRectF, fill: QColor) -> None:
-    """The faint rounded box behind a button or icon under the mouse, as Photoshop's buttons show"""
+    """The faint rounded box behind a button or icon under the mouse, as Photoshop's buttons show. See-through, it
+    replaces the background under it rather than adding to it"""
     painter.save()
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    if fill.alpha() < 255:
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
     painter.setPen(Qt.PenStyle.NoPen)
     painter.setBrush(fill)
     painter.drawRoundedRect(rect, HOVER_BOX_RADIUS, HOVER_BOX_RADIUS)
@@ -222,17 +231,36 @@ class ModuleBlock(QWidget):
         return result
 
     def picture_fill(self) -> QColor:
-        """What a picture drawn ahead starts from: the panel, or nothing on a see-through module"""
-        return color("panel") if self.glass_alpha == 255 else QColor(0, 0, 0, 0)
+        """What a picture drawn ahead starts from: the panel, as see-through as the module"""
+        return self.surface("panel")
+
+    def draw_picture(self, painter: QPainter, point: QPoint, picture) -> None:
+        """Draw a picture drawn ahead. On a see-through module it replaces the background under it, its own
+        background being the same, so its cells and buttons are as see-through as the rest rather than more solid"""
+        painter.save()
+        if self.glass_alpha < 255:
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        painter.drawPixmap(point, picture)
+        painter.restore()
+
+    def border(self) -> QColor:
+        """The border's colour, fading with the background"""
+        result = color(self.border_color)
+        result.setAlpha(self.glass_alpha)
+        return result
 
     def icon_background(self) -> str:
         return color("panel").name() if self.glass_alpha == 255 else ""
 
     def paint_frame(self, painter: QPainter) -> None:
         painter.fillRect(self.rect(), self.surface("panel"))
-        painter.setPen(color(self.border_color))
-        painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
         self.paint_title(painter)
+        painter.save()
+        # Like the background, the border fades rather than adding up with what is under it
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        painter.setPen(self.border())
+        painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
+        painter.restore()
 
     def paint_title(self, painter: QPainter) -> None:
         """The name on its strip; in landscape's side strip the strip is just around the name, with no line, the

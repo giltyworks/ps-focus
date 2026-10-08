@@ -367,21 +367,46 @@ class Docking:
         self._reset_drag()
         self.app.settings["floating_modules"] = {}
 
-    def update_glass(self, name: str | None = None) -> None:
-        """Floating panels are see-through, as far as the setting says, except while the mouse is over one or it is
-        being dragged; then it is solid, for reading and clicking. With no name given, every panel"""
-        names = [name] if name is not None else list(self.floating)
-        alpha = glass_alpha(self.app.settings.get("panel_transparency"))
-        for key in names:
-            panel = self.floating.get(key)
-            if panel is None:
-                continue
-            solid = key == self.source or panel.geometry().contains(QCursor.pos())
-            block = panel.block
-            before = block.glass_alpha
-            block.set_glass(255 if solid else alpha)
-            if block.glass_alpha != before and panel.isVisible():
-                self.app._refresh_module(key)
+    def update_glass(self, _name: str | None = None) -> None:
+        """PS Focus turns see-through, as far as the setting says, while the mouse is elsewhere; solid under the
+        mouse, while something is dragged, and while Settings is open, for reading and clicking. Windows snapped
+        together count as one: the mouse over any of them makes them all solid. Floating panels turn to glass, their
+        text and figures staying solid; the main window, whose Windows title bar cannot have a see-through background
+        behind it, fades as a whole"""
+        app = self.app
+        alpha = glass_alpha(app.settings.get("panel_transparency"))
+        cursor = QCursor.pos()
+        drag = getattr(app, "block_drag", None)
+        dragging = drag is not None and drag.mode is not None
+        panels = self.visible_panels()
+        # The main window with the panels touching it, then each group of floating panels touching one another
+        main_group = attached_panels(self.main_bounds(), panels) if self._main_shown() else set()
+        groups = [(True, main_group)]
+        remaining = set(panels) - main_group
+        while remaining:
+            first = min(remaining)
+            group = ({first} | attached_panels(panels[first], {key: rect for key, rect in panels.items() if key != first})) - main_group
+            groups.append((False, group))
+            remaining -= group
+        # Panels out of sight keep to their own state, the next time they show
+        hidden = {name for name, panel in self.floating.items() if panel is not None and name not in panels}
+        groups.extend((False, {name}) for name in hidden)
+        for with_main, members in groups:
+            over = any(self.floating[name].geometry().contains(cursor) for name in members)
+            if with_main:
+                over = over or self.window.frameGeometry().contains(cursor)
+            solid = over or dragging or (with_main and (app.settings_shown or not self.window.isVisible()))
+            if with_main:
+                opacity = 1.0 if solid else alpha / 255
+                if opacity != app.main_opacity:
+                    app.main_opacity = opacity
+                    self.window.setWindowOpacity(opacity)
+            for name in members:
+                block = self.floating[name].block
+                before = block.glass_alpha
+                block.set_glass(255 if solid else alpha)
+                if block.glass_alpha != before and self.floating[name].isVisible():
+                    app._refresh_module(name)
 
     def _panel_should_show(self, name: str) -> bool:
         return self.app._block_wanted(name) and self._main_shown()
