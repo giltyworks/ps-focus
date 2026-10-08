@@ -122,6 +122,11 @@ class Header(QWidget):
         """Width from the window's edge to the end of the badge: padding, the word Level, a gap, and the badge"""
         return EDGE_PADDING + QFontMetrics(fonts.normal).horizontalAdvance("Level") + 4 + LEVEL_BADGE_SIZE
 
+    def badge_center(self) -> QPointF:
+        """The middle of the level badge, which the first firework of a level-up bursts from"""
+        top = (self.height() - HEADER_ICON_SIZE) // 2
+        return QPointF(self.level_width(self.fonts) - LEVEL_BADGE_SIZE / 2, top + HEADER_ICON_SIZE / 2)
+
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.fillRect(self.rect(), color("background"))

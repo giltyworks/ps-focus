@@ -39,6 +39,8 @@ class QtSettingsTests(unittest.TestCase):
             patch("qt.app.load_settings", return_value={**app_config.DEFAULT_SETTINGS, "show_graph": True, "show_calendar": True, "show_stats": True}),
             patch("qt.app.foreground_application", return_value=None),
             patch.object(PSFocusQt, "_start_tray_icon"),
+            # The daily update check would go to the network
+            patch.object(PSFocusQt, "_check_for_updates"),
             patch("qt.window.MainWindow.place_top_right"),
         ]
         for item in self.patches:
@@ -493,6 +495,137 @@ class QtSettingsTests(unittest.TestCase):
         client.download_activity_backup.assert_not_called()
         client.upload_activity_backup.assert_not_called()
         self.assertEqual(self.app.settings_page.backup_status[1], "red")
+
+
+    def _unlock_feedback(self):
+        self.app._set_feedback_unlocked(True)
+        self.assertTrue(self.app.header.level_clickable)
+        self.assertTrue(self.app.settings_page.feedback_shown)
+
+    def _open_feedback(self, reveal_prompt=False):
+        from qt.feedback_dialog import FeedbackDialog
+
+        self.app._open_feedback_dialog(reveal_prompt)
+        dialog = next(
+            widget for widget in self.application.topLevelWidgets()
+            if isinstance(widget, FeedbackDialog) and widget.isVisible() and not getattr(widget, "_tested", False)
+        )
+        dialog._tested = True
+        self.addCleanup(dialog.close)
+        return dialog
+
+    def test_feedback_needs_a_rating_or_message_and_reveals_the_level(self):
+        self._unlock_feedback()
+        dialog = self._open_feedback(reveal_prompt=True)
+        self.assertEqual(dialog.title, "Rate us to reveal your level")
+        dialog.submit()
+        self.assertEqual(dialog.status[1], "red")
+        self.assertEqual(self.app.feedback.pending(), [])
+        dialog.stars.choose(4)
+        dialog.message.setPlainText("  More charts  ")
+        self.assertEqual(dialog.status[0], "")
+        with patch.object(self.app, "_send_pending_feedback") as send:
+            dialog.submit()
+        send.assert_called_once()
+        [entry] = self.app.feedback.pending()
+        self.assertEqual((entry["rating"], entry["message"]), (4, "More charts"))
+        self.assertEqual(dialog.status, ("Thank you for your feedback", "active_green"))
+        self.assertFalse(dialog.submit_button.enabled)
+        self.assertTrue(self.app.level_revealed)
+        self.assertFalse(self.app.header.level_clickable)
+        self.assertTrue(self.app.settings["feedback_submitted"])
+        self.assertEqual(self.app.settings["feedback_count"], 1)
+        self.assertIsNone(self.app._feedback_cooldown_remaining())
+
+    def test_second_feedback_starts_a_cooldown(self):
+        self._unlock_feedback()
+        self.app.settings["feedback_submitted"] = True
+        with patch.object(self.app, "_send_pending_feedback"):
+            dialog = self._open_feedback()
+            dialog.stars.choose(5)
+            dialog.submit()
+        self.assertEqual(self.app.settings["feedback_count"], 2)
+        self.assertIsNotNone(self.app._feedback_cooldown_remaining())
+        dialog = self._open_feedback()
+        self.assertFalse(dialog.submit_button.enabled)
+        self.assertEqual(dialog.status[1], "orange")
+        self.assertEqual(len(self.app.feedback.pending()), 1)
+
+    def test_choosing_the_same_star_again_clears_the_rating(self):
+        dialog = self._open_feedback()
+        dialog.stars.choose(3)
+        dialog.stars.choose(3)
+        self.assertEqual(dialog.stars.rating, 0)
+
+    def test_level_click_opens_feedback_only_while_unlocked_and_unrevealed(self):
+        with patch.object(self.app, "_open_feedback_dialog") as open_dialog:
+            self.app._level_clicked()
+            open_dialog.assert_not_called()
+            self._unlock_feedback()
+            self.app._level_clicked()
+            open_dialog.assert_called_once_with(reveal_prompt=True)
+            self.app.level_revealed = True
+            self.app._level_clicked()
+            open_dialog.assert_called_once()
+
+    def test_level_up_plays_fireworks_and_sound_once(self):
+        self.app.window.show()
+        self.application.processEvents()
+        with patch("qt.app.play_celebration_sound") as sound:
+            self.app.celebrated_level = None
+            self.app._celebrate_level_up(3)
+            self.assertIsNone(self.app.fireworks)
+            self.app._celebrate_level_up(4)
+            fireworks = self.app.fireworks
+            self.assertIsNotNone(fireworks)
+            self.assertEqual(fireworks.geometry(), self.app.window.rect())
+            # A second level-up while the show runs neither restarts it nor the sound
+            self.app._celebrate_level_up(5)
+            self.assertIs(self.app.fireworks, fireworks)
+            sound.assert_called_once()
+            fireworks.stop()
+
+    def test_level_up_while_hidden_or_silenced(self):
+        self.app.window.hide()
+        self.app.settings["disable_fanfare_sound"] = True
+        with patch("qt.app.play_celebration_sound") as sound:
+            self.app.celebrated_level = None
+            self.app._celebrate_level_up(1)
+            self.app._celebrate_level_up(2)
+        sound.assert_not_called()
+        self.assertIsNone(self.app.fireworks)
+
+    def test_fireworks_end_and_remove_themselves(self):
+        from qt.celebration import Fireworks
+
+        self.app.window.show()
+        self.application.processEvents()
+        fireworks = Fireworks(self.app.window, self.app.header.badge_center())
+        fireworks.started -= 10
+        fireworks._step()
+        self.assertTrue(fireworks.finished)
+        self.assertFalse(fireworks.timer.isActive())
+        self.assertFalse(fireworks.isVisible())
+
+    def test_available_update_turns_the_version_into_a_link(self):
+        self.app.tray_icon = Mock()
+        update = ("9.9.9", "https://github.com/giltyworks/ps-focus/releases/latest")
+        with patch("qt.app.available_update", return_value=update):
+            self.app._update_check_worker()
+        self.app._poll_signals()
+        self.assertEqual((self.app.header.version_text, self.app.header.version_is_link), ("Get version 9.9.9", True))
+        # The tray says so only the first time
+        self.app._show_available_update(update)
+        self.app.tray_icon.showMessage.assert_called_once()
+        with patch("qt.app.webbrowser.open") as browser, patch("qt.app.is_safe_download_url", return_value=True):
+            self.app.header.on_version()
+        browser.assert_called_once_with(update[1])
+
+    def test_offline_update_check_changes_nothing(self):
+        with patch("qt.app.available_update", side_effect=RuntimeError("offline")):
+            self.app._update_check_worker()
+        self.app._poll_signals()
+        self.assertFalse(self.app.header.version_is_link)
 
 
 if __name__ == "__main__":

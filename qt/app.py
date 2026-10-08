@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import os
+import queue
 import sys
 import threading
 import time
+import webbrowser
 from datetime import date, datetime, timedelta
 
 from PySide6.QtCore import QTimer
@@ -20,6 +22,7 @@ from app_config import (
     MODULE_GAP,
     CHART_PERIODS,
     DEFAULT_SETTINGS,
+    FEEDBACK_COOLDOWN,
     FEEDBACK_UNLOCK_SECONDS,
     IDLE_TIMEOUT_SECONDS,
     MAX_TICK_CREDIT_SECONDS,
@@ -30,14 +33,18 @@ from app_config import (
     resource_path,
     user_level,
 )
+from feedback import FeedbackOutbox
 from tracker import ActivityStore, foreground_application, user_is_active
+from update_check import UPDATE_CHECK_INTERVAL_MS, available_update, is_safe_download_url
 from windows_startup import SingleInstance
 from google_drive import GoogleDriveSync
 
 from .block_drag import BlockDrag
 from .calendar_module import CalendarModule
+from .celebration import Fireworks, play_celebration_sound
 from .chart import ChartModule
 from .day_overview import DayOverview
+from .feedback_dialog import FeedbackDialog
 from .header import Header, ModuleControls
 from .stats_module import StatsModule
 from .settings_page import SettingsPage
@@ -68,6 +75,15 @@ class PSFocusQt:
         self.active = False
         self.level_revealed = bool(self.settings.get("feedback_submitted"))
         self.feedback_unlocked = False
+        self.feedback = FeedbackOutbox(app_config.APP_DATA / "feedback-outbox.json")
+        self.feedback_send_in_progress = False
+        self.fireworks: Fireworks | None = None
+        # The level at the last tick, which a level-up is noticed against; None until the first tick sets it
+        self.celebrated_level: int | None = None
+        self.available_update: tuple[str, str] | None = None
+        self.update_announced = False
+        # Results from background threads, handed to the UI thread by the poll timer
+        self.results: queue.Queue = queue.Queue()
         self.landscape = bool(self.settings.get("landscape", False))
         # In landscape, a width the user dragged the window narrower to, kept while blocks come and go until the
         # window is dragged as wide as everything again
@@ -81,7 +97,9 @@ class PSFocusQt:
         self.module_controls = ModuleControls(self.fonts, self.module_ticked, self._module_toggled)
         self.window.set_top(self.header, self.module_controls)
         self.header.on_settings = self._toggle_settings
-        self.header.version_text = f"v{app_config.APP_VERSION}"
+        self.header.on_level = self._level_clicked
+        self.header.on_version = self._open_update_page
+        self.header.version_text = f"Version {app_config.APP_VERSION}"
         # Made without a parent, so a panel stays out of sight until the window's column takes it in
         self.panels = {name: TodayPanel(name, self.fonts) for name in PROGRAM_PANEL_SETTINGS}
         period = self.settings.get("period")
@@ -98,6 +116,7 @@ class PSFocusQt:
         self._arrange_blocks()
         self.settings_page = SettingsPage(self.fonts, self.settings, self._setting_toggled, self._set_orientation, self._settings_resized)
         self.settings_page.exit_button.command = self.close
+        self.settings_page.feedback_button.command = self._open_feedback_dialog
         # Startup remains deferred; Google uses the existing controls through its controller.
         self.settings_page.disabled_settings.update(("launch_on_startup", "start_minimized"))
         self.settings_page.set_google_buttons_enabled(False)
@@ -120,6 +139,12 @@ class PSFocusQt:
         self.tick_timer.start()
         self.poll_timer = QTimer(interval=150, timeout=self._poll_signals)
         self.poll_timer.start()
+        self._send_pending_feedback()
+        # The preview would be offered the Tk release, so only the real app looks for a newer version
+        self.update_timer = QTimer(interval=UPDATE_CHECK_INTERVAL_MS, timeout=self._check_for_updates)
+        if not app_config.DATA_DIRECTORY_OVERRIDE:
+            self._check_for_updates()
+            self.update_timer.start()
         # Windows closing the app, for an installer upgrading it or for signing out or shutting down
         application.commitDataRequest.connect(lambda _manager: self.close())
         if "--minimized" in sys.argv:
@@ -156,6 +181,9 @@ class PSFocusQt:
             self.settings_page.set_backup_status("Local activity backups saved", "muted")
         if hasattr(self, "google_sync"):
             self.google_sync.backup()
+        if hasattr(self, "feedback"):
+            # Undelivered feedback is tried again with each periodic backup, as in the Tk app
+            self._send_pending_feedback()
 
     def _settings_resized(self) -> None:
         if self.settings_shown and hasattr(self, "settings_page"):
@@ -367,6 +395,13 @@ class PSFocusQt:
 
     def _poll_signals(self) -> None:
         self.google_sync.poll()
+        while True:
+            try:
+                kind, value = self.results.get_nowait()
+            except queue.Empty:
+                break
+            if kind == "update":
+                self._show_available_update(value)
         if self.instance is None:
             return
         # Starting the app a second time brings up this copy's window instead
@@ -427,8 +462,10 @@ class PSFocusQt:
                 "active_green" if app_active else "muted",
             )
         self.header.set_progress_reached(total_today_seconds >= SESSION_MINIMUM_SECONDS)
-        self.header.set_level(user_level(lifetime_seconds), self.level_revealed)
-        self.feedback_unlocked = lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS
+        level = user_level(lifetime_seconds)
+        self.header.set_level(level, self.level_revealed)
+        self._celebrate_level_up(level)
+        self._set_feedback_unlocked(lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS)
         # Tracking continues in the tray and Settings; expensive module rendering waits for Overview.
         if self.settings_shown or not self.window.isVisible() or self.window.isMinimized():
             self.modules_were_hidden = True
@@ -447,10 +484,106 @@ class PSFocusQt:
                 if self.module_ticked[name]:
                     self._refresh_module(name)
         self.slow_refresh_ticks += 1
-        self.feedback_unlocked = lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS
-        # The level opens the feedback form once feedback is unlocked, until the level is revealed
-        # Claude handover: keep this inactive until the feedback dialog callback is ported.
+
+    def _set_feedback_unlocked(self, unlocked: bool) -> None:
+        """Feedback opens once enough time has been tracked: Settings shows Got feedback?, and the level, until it is
+        revealed, opens the form"""
+        self.feedback_unlocked = unlocked
+        self.settings_page.set_feedback_shown(unlocked)
+        self.header.level_clickable = unlocked and not self.level_revealed
+
+    def _level_clicked(self) -> None:
+        if self.feedback_unlocked and not self.level_revealed:
+            self._open_feedback_dialog(reveal_prompt=True)
+
+    def _open_feedback_dialog(self, reveal_prompt: bool = False) -> None:
+        dialog = FeedbackDialog(
+            self.window, self.fonts, self.feedback, self._feedback_cooldown_remaining, self._feedback_submitted, reveal_prompt
+        )
+        dialog.show_centred_on(self.window)
+
+    def _feedback_cooldown_remaining(self) -> timedelta | None:
+        try:
+            cooldown_until = datetime.fromisoformat(self.settings.get("feedback_cooldown_until") or "")
+        except (TypeError, ValueError):
+            return None
+        remaining = cooldown_until - datetime.now()
+        return remaining if remaining > timedelta(0) else None
+
+    def _feedback_submitted(self) -> None:
+        """Count the feedback, sending it on and revealing the level; from the second one on, more waits a while"""
+        self._send_pending_feedback()
+        count = int(self.settings.get("feedback_count") or 0)
+        if count == 0 and self.settings.get("feedback_submitted"):
+            # Feedback sent before submissions were counted was the first one
+            count = 1
+        count += 1
+        self.settings["feedback_count"] = count
+        if count >= 2:
+            self.settings["feedback_cooldown_until"] = (datetime.now() + FEEDBACK_COOLDOWN).isoformat(timespec="seconds")
+        self.settings["feedback_submitted"] = True
+        self._save_settings()
+        self.level_revealed = True
         self.header.level_clickable = False
+        if self.header.badge_state is not None:
+            self.header.set_level(self.header.badge_state[0], True)
+
+    def _send_pending_feedback(self) -> None:
+        if self.feedback_send_in_progress or not self.feedback.configured or not self.feedback.pending():
+            return
+        self.feedback_send_in_progress = True
+        threading.Thread(target=self._feedback_worker, daemon=True).start()
+
+    def _feedback_worker(self) -> None:
+        try:
+            self.feedback.send_pending()
+        except Exception:
+            # Undelivered feedback stays in the outbox and is retried with the next periodic backup
+            pass
+        finally:
+            self.feedback_send_in_progress = False
+
+    def _celebrate_level_up(self, level: int) -> None:
+        """Celebrate when the level has risen since the last tick; the first tick only sets the starting point"""
+        previous, self.celebrated_level = self.celebrated_level, level
+        if previous is not None and level > previous:
+            self.celebrate()
+
+    def celebrate(self) -> None:
+        if self.fireworks is not None and not self.fireworks.finished:
+            # A show is already running; restarting the sound alone would knock it out of step with the bursts
+            return
+        # With the window hidden in the tray or minimized there is nowhere to draw them, so only the sound plays
+        if self.window.isVisible() and not self.window.isMinimized():
+            origin = self.window.mapFromGlobal(self.header.mapToGlobal(self.header.badge_center()))
+            self.fireworks = Fireworks(self.window, origin)
+        if not self.settings.get("disable_fanfare_sound"):
+            play_celebration_sound()
+
+    def _check_for_updates(self) -> None:
+        threading.Thread(target=self._update_check_worker, daemon=True).start()
+
+    def _update_check_worker(self) -> None:
+        try:
+            update = available_update(app_config.APP_VERSION)
+        except RuntimeError:
+            # Offline or the endpoint is unavailable; the next daily check tries again
+            return
+        if update is not None:
+            self.results.put(("update", update))
+
+    def _show_available_update(self, update: tuple[str, str]) -> None:
+        """The version at the top of Settings becomes a link to the new one; the first time, the tray says so too"""
+        self.available_update = update
+        self.header.version_text, self.header.version_is_link = f"Get version {update[0]}", True
+        self.header.update()
+        if not self.update_announced:
+            self.update_announced = True
+            self.tray_icon.showMessage("PS Focus update", f"Version {update[0]} is available. Open Settings to download it")
+
+    def _open_update_page(self) -> None:
+        if self.available_update is not None and is_safe_download_url(self.available_update[1]):
+            webbrowser.open(self.available_update[1])
 
     def close(self) -> None:
         # Windows and the tray may both ask, so only the first request closes
@@ -464,6 +597,9 @@ class PSFocusQt:
         self.tick_timer.stop()
         self.poll_timer.stop()
         self.backup_timer.stop()
+        self.update_timer.stop()
+        if self.fireworks is not None:
+            self.fireworks.stop()
         self.window.hide()
         self.tray_icon.hide()
         try:
