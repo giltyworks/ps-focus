@@ -97,6 +97,9 @@ class ChartModule(ModuleBlock):
         room = max(name, text_width(self.fonts.headline, SIDE_HEADLINE_SAMPLE))
         return MODULE_MARGIN + room + SIDE_BUTTON_GAP + self.buttons[0].width
 
+    def glass_changed(self) -> None:
+        self.drawn_state = None
+
     def docked_width(self) -> int:
         return 2 + self.side_width() + MODULE_CANVAS_WIDTH
 
@@ -190,7 +193,7 @@ class ChartModule(ModuleBlock):
         ratio = self.devicePixelRatioF()
         picture = QPixmap(round(width * ratio), round(height * ratio))
         picture.setDevicePixelRatio(ratio)
-        picture.fill(color("panel"))
+        picture.fill(self.picture_fill())
         painter = QPainter(picture)
         self._paint_plot(painter, points, bottom, [(left, right, y) for y in gridlines])
         muted = color("muted")

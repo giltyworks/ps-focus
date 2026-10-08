@@ -47,10 +47,11 @@ def _flame_outline() -> QPolygonF:
 @lru_cache(maxsize=None)
 def icon(kind: str, size: int, background: str, color_name: str = "gold", ratio: float = 1.0) -> QImage:
     """The icon "award", "flame" or "moon" on a square of the background colour, ready to draw at `size` logical
-    pixels. The award takes its colour by name, gold unless it is a medal"""
+    pixels; with no background colour given, on nothing, for a see-through panel. The award takes its colour by name,
+    gold unless it is a medal"""
     side = round(size * ratio)
     image = QImage(side, side, QImage.Format.Format_ARGB32_Premultiplied)
-    image.fill(QColor(background))
+    image.fill(QColor(background) if background else QColor(0, 0, 0, 0))
     painter = QPainter(image)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     painter.setPen(Qt.PenStyle.NoPen)
@@ -58,8 +59,12 @@ def icon(kind: str, size: int, background: str, color_name: str = "gold", ratio:
     painter.scale(side, side)
 
     def disc(x: float, y: float, radius: float, fill: str) -> None:
-        painter.setBrush(QColor(fill))
+        # A disc of no colour cuts through what is drawn already
+        if not fill:
+            painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Clear)
+        painter.setBrush(QColor(fill) if fill else QColor(0, 0, 0))
         painter.drawEllipse(QPointF(x, y), radius, radius)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_SourceOver)
 
     if kind == "award":
         color = COLORS[color_name]

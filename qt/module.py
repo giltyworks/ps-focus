@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QRect, QRectF, Qt
-from PySide6.QtGui import QColor, QMouseEvent, QPainter
+from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPainterPath
 from PySide6.QtWidgets import QWidget
 
 from app_config import MODULE_MARGIN, TODAY_PANEL_WIDTH
@@ -38,6 +38,19 @@ def draw_rounded_box(painter: QPainter, box: QRectF, radius: float, fill: QColor
     painter.save()
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     painter.setPen(Qt.PenStyle.NoPen)
+    if fill.alpha() < 255:
+        # See-through, the outline is a ring, so the fill laid over it does not show it through
+        inset = outline_width
+        outer, inner = QPainterPath(), QPainterPath()
+        outer.addRoundedRect(box, radius, radius)
+        inner.addRoundedRect(box.adjusted(inset, inset, -inset, -inset), radius - inset, radius - inset)
+        if outline != fill:
+            painter.fillPath(outer.subtracted(inner), outline)
+            painter.fillPath(inner, fill)
+        else:
+            painter.fillPath(outer, fill)
+        painter.restore()
+        return
     painter.setBrush(outline)
     painter.drawRoundedRect(box, radius, radius)
     painter.setBrush(fill)
@@ -69,6 +82,8 @@ class PaintedButton:
         self.text_color = text_color
         self.fill = fill
         self.enabled = True
+        # How solid its fill is, lower on a see-through panel
+        self.alpha = 255
         self.width = text_width(self.font, "0" * width_in_digits if width_in_digits else text) + 2 * padx
         self.height = line_height(self.font) + 2 * pady
         self.left = self.top = 0
@@ -88,6 +103,7 @@ class PaintedButton:
     def paint(self, painter: QPainter) -> None:
         box = QRectF(self.left, self.top, self.width, self.height)
         fill = color(self.fill)
+        fill.setAlpha(self.alpha)
         draw_rounded_box(painter, box, BUTTON_CORNER_RADIUS, fill, color("text") if self.selected or self.pressed else fill)
         # Centred in whole pixels, as a Tk label centres its text
         draw_text(
@@ -128,12 +144,43 @@ class ModuleBlock(QWidget):
         # Whether it is in a window of its own, see docking; and which of its grip and dock icon the mouse is over
         self.floating = False
         self.hovered_control: str | None = None
+        # How solid its background is: 255 in the window, lower on a see-through floating panel, its text and
+        # figures staying solid
+        self.glass_alpha = 255
 
     def set_content_height(self, height: int) -> None:
         self.setFixedSize(TODAY_PANEL_WIDTH, self.content_top + height + 1)
 
+    def set_glass(self, alpha: int) -> None:
+        """Make the background this solid, from 255 down; the module draws itself again"""
+        if alpha == self.glass_alpha:
+            return
+        self.glass_alpha = alpha
+        # A see-through module leaves Qt to clear behind it first
+        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, alpha == 255)
+        for button in self.buttons:
+            button.alpha = alpha
+        self.glass_changed()
+        self.update()
+
+    def glass_changed(self) -> None:
+        """Forget anything drawn ahead for the old background, to draw it again for the new one"""
+
+    def surface(self, name: str) -> QColor:
+        """A background colour, as see-through as the module"""
+        result = color(name)
+        result.setAlpha(self.glass_alpha)
+        return result
+
+    def picture_fill(self) -> QColor:
+        """What a picture drawn ahead starts from: the panel, or nothing on a see-through module"""
+        return color("panel") if self.glass_alpha == 255 else QColor(0, 0, 0, 0)
+
+    def icon_background(self) -> str:
+        return color("panel").name() if self.glass_alpha == 255 else ""
+
     def paint_frame(self, painter: QPainter) -> None:
-        painter.fillRect(self.rect(), color("panel"))
+        painter.fillRect(self.rect(), self.surface("panel"))
         painter.setPen(color(self.border_color))
         painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
         self.paint_title(painter)

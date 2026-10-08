@@ -23,6 +23,10 @@ BOX_PADDING = 5
 ORIENTATION_ICON_SIZE = (26, 18)
 ORIENTATION_ICON_RADIUS = 4
 ORIENTATION_ICON_GAP = 10
+# The transparency slider: its length, the thickness of its track and the knob's size
+SLIDER_WIDTH = 92
+SLIDER_TRACK = 4
+SLIDER_KNOB = 14
 BACKUP_BOX_PADDING = 9
 BACKUP_LINE_GAP = 7
 CHECKBOX_LABEL_GAP = 6
@@ -97,6 +101,10 @@ class SettingsPage(QWidget):
         self.on_toggle = on_toggle
         self.on_orientation = on_orientation
         self.on_resized = on_resized
+        # Told the transparency while the slider is dragged, and once more, done, when it is let go
+        self.on_transparency: Callable[[int, bool], None] = lambda _value, _done: None
+        self.slider_left = self.slider_top = 0
+        self.slider_dragging = False
         self.disabled_settings: set[str] = set()
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         self.setMouseTracking(True)
@@ -216,6 +224,13 @@ class SettingsPage(QWidget):
                 self.orientation_left + left - 3, self.orientation_top, self.orientation_left + right + 4, self.orientation_top + long_side
             )
         y += height + PANEL_GAP
+        height, control_top = self._boxed_row(
+            y, "Panel transparency", "Floating panels turn see-through while the mouse is elsewhere",
+            PAGE_TEXT_WIDTH - SLIDER_WIDTH - EDGE_PADDING, SLIDER_KNOB,
+        )
+        self.slider_left = TODAY_PANEL_WIDTH - 1 - EDGE_PADDING - SLIDER_WIDTH
+        self.slider_top = control_top
+        y += height + PANEL_GAP
         y += self._checkbox_row(y, OPTION_CHECKBOXES) + PANEL_GAP
         y = self._lay_out_backups(y)
         # Exit at the left, and Got feedback? at the right once unlocked
@@ -274,6 +289,7 @@ class SettingsPage(QWidget):
         for key, (_area, center, _surface) in self.checkboxes.items():
             draw_checkbox(painter, center, bool(self.settings.get(key)))
         self._paint_orientation(painter)
+        self._paint_slider(painter)
         for button in self.buttons:
             button.paint(painter)
         painter.end()
@@ -288,6 +304,38 @@ class SettingsPage(QWidget):
             box = QRectF(self.orientation_left + left, middle - height // 2, width, height)
             fill: QColor = color("text" if chosen else "panel")
             draw_rounded_box(painter, box, ORIENTATION_ICON_RADIUS, fill, color("text" if chosen else "muted"), outline_width=2)
+
+    def transparency(self) -> int:
+        try:
+            return max(0, min(100, int(self.settings.get("panel_transparency", 0))))
+        except (TypeError, ValueError):
+            return 0
+
+    def _paint_slider(self, painter: QPainter) -> None:
+        """A track filled in blue up to the knob, as far as the panels are see-through"""
+        middle = self.slider_top + SLIDER_KNOB / 2
+        knob_x = self.slider_left + SLIDER_KNOB / 2 + (SLIDER_WIDTH - SLIDER_KNOB) * self.transparency() / 100
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        track = QRectF(self.slider_left, middle - SLIDER_TRACK / 2, SLIDER_WIDTH, SLIDER_TRACK)
+        painter.setBrush(color("border"))
+        painter.drawRoundedRect(track, SLIDER_TRACK / 2, SLIDER_TRACK / 2)
+        painter.setBrush(color("calendar_blue"))
+        painter.drawRoundedRect(QRectF(track.left(), track.top(), knob_x - track.left(), SLIDER_TRACK), SLIDER_TRACK / 2, SLIDER_TRACK / 2)
+        painter.setBrush(color("text"))
+        painter.drawEllipse(QPointF(knob_x, middle), SLIDER_KNOB / 2, SLIDER_KNOB / 2)
+        painter.restore()
+
+    def _over_slider(self, point: QPoint) -> bool:
+        return (self.slider_left - 4 <= point.x() <= self.slider_left + SLIDER_WIDTH + 4
+                and self.slider_top - 4 <= point.y() <= self.slider_top + SLIDER_KNOB + 4)
+
+    def _slide_to(self, point: QPoint, done: bool) -> None:
+        span = SLIDER_WIDTH - SLIDER_KNOB
+        value = round(max(0, min(span, point.x() - self.slider_left - SLIDER_KNOB / 2)) * 100 / span)
+        self.on_transparency(value, done)
+        self.update()
 
     def _checkbox_at(self, point: QPoint) -> str | None:
         for key, ((left, top, right, bottom), _center, _surface) in self.checkboxes.items():
@@ -311,6 +359,10 @@ class SettingsPage(QWidget):
         if any([button.press(point) for button in self.buttons]):
             self.update()
             return
+        if self._over_slider(point):
+            self.slider_dragging = True
+            self._slide_to(point, False)
+            return
         key = self._checkbox_at(point)
         landscape = self._orientation_at(point)
         if key is not None and key not in self.disabled_settings:
@@ -328,12 +380,19 @@ class SettingsPage(QWidget):
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
+        if self.slider_dragging and event.button() == Qt.MouseButton.LeftButton:
+            self.slider_dragging = False
+            self._slide_to(point, True)
+            return
         if event.button() == Qt.MouseButton.LeftButton and any([button.release(point) for button in self.buttons]):
             self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
-        hand = (
+        if self.slider_dragging:
+            self._slide_to(point, False)
+            return
+        hand = self._over_slider(point) or (
             any(button.enabled and button.contains(point) for button in self.buttons)
             or (self._checkbox_at(point) is not None and self._checkbox_at(point) not in self.disabled_settings)
             or self._orientation_at(point) is not None

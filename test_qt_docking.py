@@ -410,6 +410,45 @@ class QtDockingTests(unittest.TestCase):
         self.assertIsNone(self.app.landscape_width)
         self.assertEqual(self.app.window.width(), self.app.window.full_size()[0])
 
+    def test_floating_panels_turn_to_glass_away_from_the_mouse(self):
+        from qt.docking import GLASS_MIN_ALPHA, glass_alpha
+
+        self.assertEqual((glass_alpha(0), glass_alpha(100), glass_alpha("bad")), (255, GLASS_MIN_ALPHA, 255))
+        self.app.settings["panel_transparency"] = 50
+        with patch("qt.docking.QCursor.pos", return_value=QPoint(5, 5)):
+            panel = self._float("stats", QPoint(300, 400))
+            self.assertEqual(self.app.stats.glass_alpha, glass_alpha(50))
+            self.assertTrue(panel.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground))
+            self.assertFalse(self.app.stats.testAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent))
+        # The mouse on the panel makes it solid
+        with patch("qt.docking.QCursor.pos", return_value=panel.geometry().center()):
+            self.app.docking.update_glass("stats")
+        self.assertEqual(self.app.stats.glass_alpha, 255)
+        with patch("qt.docking.QCursor.pos", return_value=QPoint(5, 5)):
+            # The slider sets how see-through, live; 0 is solid
+            self.app._transparency_chosen(100, False)
+            self.assertEqual(self.app.stats.glass_alpha, GLASS_MIN_ALPHA)
+            self.app._transparency_chosen(0, True)
+            self.assertEqual(self.app.stats.glass_alpha, 255)
+            self.app._transparency_chosen(60, True)
+        self.assertEqual(self.app.settings["panel_transparency"], 60)
+        # Docked, a module is solid again
+        self.app.docking.dock_module("stats")
+        self.assertEqual(self.app.stats.glass_alpha, 255)
+        self.assertTrue(self.app.stats.testAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent))
+
+    def test_glass_draws_pictures_on_nothing_and_icons_without_a_square(self):
+        from PySide6.QtGui import QColor
+        from qt.icons import icon
+
+        self.app.calendar.set_glass(100)
+        self.app.calendar.refresh()
+        self.assertEqual(self.app.calendar.picture_fill().alpha(), 0)
+        clear = icon("moon", 16, "")
+        self.assertEqual(clear.pixelColor(0, 0).alpha(), 0)
+        self.assertEqual(icon("moon", 16, "#000000").pixelColor(0, 0), QColor("#000000"))
+        self.app.calendar.set_glass(255)
+
 
 if __name__ == "__main__":
     unittest.main()

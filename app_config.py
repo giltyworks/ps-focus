@@ -151,6 +151,8 @@ DEFAULT_SETTINGS = {
     "feedback_submitted": False,
     "feedback_count": 0,
     "feedback_cooldown_until": "",
+    # How see-through floating panels are while the mouse is elsewhere, from 0 (solid) to 100, see qt/docking.py
+    "panel_transparency": 35,
 }
 FEEDBACK_COOLDOWN = timedelta(minutes=30)
 FEEDBACK_UNLOCK_SECONDS = 2 * 60 * 60

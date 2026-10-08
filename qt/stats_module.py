@@ -42,6 +42,9 @@ class StatsModule(ModuleBlock):
         """Height the stats need in landscape, inside their border, with their name above the lines"""
         return self.content_top - 1 + self.lines_height
 
+    def glass_changed(self) -> None:
+        self.drawn_lines = None
+
     def set_layout(self, landscape: bool, height: int = 0) -> None:
         """In landscape the stats stretch to the height the modules share; in portrait they are as tall as their lines"""
         self.shared_height = height if landscape else 0
@@ -81,7 +84,7 @@ class StatsModule(ModuleBlock):
         ratio = self.devicePixelRatioF()
         picture = QPixmap(round(width * ratio), round(height * ratio))
         picture.setDevicePixelRatio(ratio)
-        picture.fill(color("panel"))
+        picture.fill(self.picture_fill())
         painter = QPainter(picture)
         right = width - STATS_MARGIN - 2
         # The notes share one narrow column at the right edge; the values line up just before it
@@ -94,7 +97,7 @@ class StatsModule(ModuleBlock):
                 draw_anchored(painter, value_right, middle, "e", line.value, QColor(line.value_color), value_font)
             if line.medal:
                 medal_right = value_right - text_width(value_font, line.value) - MEDAL_GAP
-                medal = icon("award", MEDAL_SIZE, color("panel").name(), line.medal, ratio)
+                medal = icon("award", MEDAL_SIZE, self.icon_background(), line.medal, ratio)
                 painter.drawImage(QPoint(medal_right - MEDAL_SIZE, middle - MEDAL_SIZE // 2), medal)
             if line.note:
                 note_font = self._note_font(line)

@@ -97,6 +97,9 @@ class CalendarModule(ModuleBlock):
         )
         return MODULE_MARGIN + widest + SIDE_STRIP_RIGHT_MARGIN
 
+    def glass_changed(self) -> None:
+        self.drawn_state = None
+
     def docked_width(self) -> int:
         return 2 + MODULE_CANVAS_WIDTH + self.side_width()
 
@@ -179,7 +182,7 @@ class CalendarModule(ModuleBlock):
         ratio = self.devicePixelRatioF()
         picture = QPixmap(round(width * ratio), round(height * ratio))
         picture.setDevicePixelRatio(ratio)
-        picture.fill(color("panel"))
+        picture.fill(self.picture_fill())
         painter = QPainter(picture)
         self.day_boxes = []
         if self.landscape:
@@ -228,7 +231,7 @@ class CalendarModule(ModuleBlock):
         ratio = painter.device().devicePixelRatioF()
         for kind, text in (("flame", f"{week_streak} week streak"), ("moon", f"{rest_day_streak} rest days")):
             top += self.line_height
-            painter.drawImage(QPoint(left, top + (self.line_height - STREAK_ICON_SIZE) // 2), icon(kind, STREAK_ICON_SIZE, color("panel").name(), ratio=ratio))
+            painter.drawImage(QPoint(left, top + (self.line_height - STREAK_ICON_SIZE) // 2), icon(kind, STREAK_ICON_SIZE, self.icon_background(), ratio=ratio))
             draw_text(painter, left + STREAK_ICON_SIZE + STREAK_ICON_GAP, top + LINE_PADDING, text, muted, fonts.small)
         return top + self.line_height + SIDE_STRIP_GAP
 
@@ -254,7 +257,7 @@ class CalendarModule(ModuleBlock):
             text_left = right - 2 - text_width(fonts.small, text)
             draw_text(painter, text_left, text_top, text, muted, fonts.small)
             icon_left = text_left - STREAK_ICON_GAP - STREAK_ICON_SIZE
-            painter.drawImage(QPoint(icon_left, top + (self.line_height - STREAK_ICON_SIZE) // 2), icon(kind, STREAK_ICON_SIZE, color("panel").name(), ratio=ratio))
+            painter.drawImage(QPoint(icon_left, top + (self.line_height - STREAK_ICON_SIZE) // 2), icon(kind, STREAK_ICON_SIZE, self.icon_background(), ratio=ratio))
             right = icon_left - STREAK_COUNTER_GAP
         return top + self.line_height + CALENDAR_ROW_GAP
 
@@ -279,7 +282,7 @@ class CalendarModule(ModuleBlock):
         def weekday_row(row_top: int) -> None:
             # In landscape the names sit on the panel itself, as they do when written in the last week's gaps
             if not landscape:
-                painter.fillRect(offset, row_top, width, header_height, color("background"))
+                painter.fillRect(offset, row_top, width, header_height, self.surface("background"))
             for column, weekday in enumerate(DAY_ABBREVIATIONS):
                 left, right = column_edges[column], column_edges[column + 1] - CALENDAR_CELL_GAP
                 draw_anchored(painter, (left + right) / 2, row_top + header_height / 2, "center", weekday, muted, fonts.small)
@@ -302,11 +305,11 @@ class CalendarModule(ModuleBlock):
                 if day == 0:
                     # The days before the 1st are blacked out; those after the last day are left empty
                     if row == 0:
-                        self._cell(painter, left, cell_top, right, cell_bottom, color("calendar_blank"), CALENDAR_CELL_RADIUS)
+                        self._cell(painter, left, cell_top, right, cell_bottom, self.surface("calendar_blank"), CALENDAR_CELL_RADIUS)
                     continue
                 active, rating = day_info[day]
                 session_day = date(year, month, day)
-                self._cell(painter, left, cell_top, right, cell_bottom, color("calendar_blue" if active else "calendar_cell"), CALENDAR_CELL_RADIUS)
+                self._cell(painter, left, cell_top, right, cell_bottom, color("calendar_blue") if active else self.surface("calendar_cell"), CALENDAR_CELL_RADIUS)
                 center = (left + right) / 2
                 day_color = color("calendar_blue" if session_day == today and not active else "text")
                 draw_anchored(painter, center, cell_top + number_inset, "n", str(day), day_color, fonts.small)
@@ -348,7 +351,7 @@ class CalendarModule(ModuleBlock):
                         continue
                     x = left + 1 + column * YEAR_DAY_PITCH[0]
                     y = month_top + 22 + row * YEAR_DAY_PITCH[1]
-                    fill = color("calendar_blue" if day in active_days[index] else "calendar_cell")
+                    fill = color("calendar_blue") if day in active_days[index] else self.surface("calendar_cell")
                     self._cell(painter, x, y, x + day_width, y + day_height, fill, YEAR_DAY_RADIUS)
                     # As in the month view, days still to come cannot be opened. A pixel of slack makes the small
                     # squares easier to hit and covers the thin gaps between them

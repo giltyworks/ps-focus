@@ -15,7 +15,7 @@ import os
 from ctypes import wintypes
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRectF, Qt, QTimer
-from PySide6.QtGui import QColor, QGuiApplication, QPainter, QPaintEvent, QPen
+from PySide6.QtGui import QColor, QCursor, QGuiApplication, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QWidget
 
 from app_config import TODAY_PANEL_WIDTH
@@ -39,6 +39,18 @@ SAVE_DELAY_MS = 350
 # How see-through a panel is while it would dock if let go; and how strongly the space it will take is filled in
 DOCKING_OPACITY = 0.7
 PREVIEW_FILL_ALPHA = 60
+# The most see-through a floating panel's background gets, at full transparency: never clear, so its text and figures
+# stay readable over whatever is behind
+GLASS_MIN_ALPHA = 110
+
+
+def glass_alpha(transparency: object) -> int:
+    """How solid a panel's background is for a transparency setting from 0 (solid) to 100"""
+    try:
+        amount = max(0, min(100, int(transparency)))
+    except (TypeError, ValueError):
+        amount = 0
+    return round(255 - amount * (255 - GLASS_MIN_ALPHA) / 100)
 
 if os.name == "nt":
     _user32 = ctypes.WinDLL("user32", use_last_error=True)
@@ -149,10 +161,14 @@ class FloatingPanel(QWidget):
     """A window of its own holding one module: no title bar, the module's own name row standing in for it. Owned by
     the main window, so it has no taskbar button, stays above that window and minimizes with it"""
 
-    def __init__(self, owner: QWidget, name: str, block: QWidget) -> None:
+    def __init__(self, owner: QWidget, name: str, block: QWidget, on_hover=None) -> None:
         super().__init__(owner, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
         self.block_name = name
         self.block = block
+        # Told when the mouse comes onto the panel or leaves it, which turns it solid or see-through
+        self.on_hover = on_hover
+        # A background that can be see-through, the module painting it as solid as it is to be
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         # Coming up under the pointer mid-drag, it leaves the keyboard where it was
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setWindowTitle(f"PS Focus - {block.title}")
@@ -170,6 +186,16 @@ class FloatingPanel(QWidget):
 
     def bounds(self) -> Rect:
         return (self.x(), self.y(), self.x() + self.width(), self.y() + self.height())
+
+    def enterEvent(self, event) -> None:
+        super().enterEvent(event)
+        if self.on_hover is not None:
+            self.on_hover(self.block_name)
+
+    def leaveEvent(self, event) -> None:
+        super().leaveEvent(event)
+        if self.on_hover is not None:
+            self.on_hover(self.block_name)
 
     def release_block(self) -> QWidget:
         """Hand the module back, hidden and without a parent, for the window to take in again"""
@@ -286,12 +312,13 @@ class Docking:
             self.app._arrange_blocks()
             block.floating = True
             block.set_layout(False, 0)
-            panel = FloatingPanel(self.window, name, block)
+            panel = FloatingPanel(self.window, name, block, self.update_glass)
         finally:
             self.reparenting = False
         self.floating[name] = panel
         panel.move(top_left)
         panel.setVisible(self._panel_should_show(name))
+        self.update_glass(name)
         self.app._refresh_module(name)
 
     def dock_module(self, name: str, slot: int | None = None, relayout: bool = True) -> None:
@@ -307,6 +334,7 @@ class Docking:
             del self.floating[name]
             block = panel.release_block()
             block.floating = False
+            block.set_glass(255)
             panel.deleteLater()
             if relayout:
                 self.app._arrange_blocks()
@@ -337,6 +365,22 @@ class Docking:
             self.dock_module(name, relayout=False)
         self._reset_drag()
         self.app.settings["floating_modules"] = {}
+
+    def update_glass(self, name: str | None = None) -> None:
+        """Floating panels are see-through, as far as the setting says, except while the mouse is over one or it is
+        being dragged; then it is solid, for reading and clicking. With no name given, every panel"""
+        names = [name] if name is not None else list(self.floating)
+        alpha = glass_alpha(self.app.settings.get("panel_transparency"))
+        for key in names:
+            panel = self.floating.get(key)
+            if panel is None:
+                continue
+            solid = key == self.source or panel.geometry().contains(QCursor.pos())
+            block = panel.block
+            before = block.glass_alpha
+            block.set_glass(255 if solid else alpha)
+            if block.glass_alpha != before and panel.isVisible():
+                self.app._refresh_module(key)
 
     def _panel_should_show(self, name: str) -> bool:
         return self.app.module_ticked[name] and self._main_shown()
@@ -603,6 +647,14 @@ class Docking:
 
     def release(self, point: QPoint) -> None:
         name, kind, slot = self.source, self.kind, self.dock_slot
+        try:
+            self._release(name, kind, slot)
+        finally:
+            # The panel let go goes see-through again once the mouse is off it
+            if name in self.floating:
+                self.update_glass(name)
+
+    def _release(self, name: str | None, kind: str | None, slot: int | None) -> None:
         if name in self.floating and kind in ("group", "detach"):
             if slot is not None:
                 # The space shown goes, and the module itself takes it

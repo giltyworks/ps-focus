@@ -122,6 +122,7 @@ class PSFocusQt:
         self.settings_page = SettingsPage(self.fonts, self.settings, self._setting_toggled, self._set_orientation, self._settings_resized)
         self.settings_page.exit_button.command = self.close
         self.settings_page.feedback_button.command = self._open_feedback_dialog
+        self.settings_page.on_transparency = self._transparency_chosen
         # Startup remains deferred; Google uses the existing controls through its controller.
         self.settings_page.disabled_settings.update(("launch_on_startup", "start_minimized"))
         self.settings_page.set_google_buttons_enabled(False)
@@ -217,6 +218,13 @@ class PSFocusQt:
         self.settings[key] = value
         self._save_settings()
         self.settings_page.update()
+
+    def _transparency_chosen(self, value: int, done: bool) -> None:
+        """The panels follow the slider as it moves; the setting is saved once it is let go"""
+        self.settings["panel_transparency"] = value
+        self.docking.update_glass()
+        if done:
+            self._save_settings()
 
     def _set_orientation(self, landscape: bool) -> None:
         """Choosing Portrait or Landscape, even the one already chosen, also docks every floating module and puts
