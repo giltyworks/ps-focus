@@ -117,7 +117,7 @@ class SettingsPage(QWidget):
         self.google_buttons = "connect"
         self.on_google_status: Callable[[], None] = lambda: None
         button = lambda text, accent=False: PaintedButton(  # noqa: E731
-            text, lambda: None, fonts, BUTTON_PADX, BUTTON_PADY, text_color="accent" if accent else "text", fill="accent_dark" if accent else "panel_alt"
+            text, lambda: None, fonts, BUTTON_PADX, BUTTON_PADY, text_color="accent" if accent else "muted", fill="accent_dark" if accent else "panel_alt"
         )
         self.backup_button = button("Back up now", accent=True)
         self.connect_button = button("Connect Google", accent=True)
