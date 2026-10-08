@@ -59,6 +59,12 @@ def fit_text(text: str, font: QFont, width: int) -> str:
     return text.rstrip() + "…"
 
 
+def checkbox_hover_rect(center: QPointF) -> QRectF:
+    """Where the faint box shows around a checkbox under the mouse: the square it is centred in"""
+    half = MODULE_CHECKBOX_SIZE / 2
+    return QRectF(center.x() - half, center.y() - half, MODULE_CHECKBOX_SIZE, MODULE_CHECKBOX_SIZE)
+
+
 def draw_checkbox(painter: QPainter, center: QPointF, checked: bool) -> None:
     """The rounded square of a checkbox, filled when ticked, with a two-pixel outline"""
     outline = color("calendar_blue") if checked else color("border")
@@ -362,8 +368,8 @@ class ModuleControls(QWidget):
         for name, label in MODULE_LABELS:
             area, left, center = self.areas[name]
             if name == self.hovered:
-                # The same faint box as a button under the mouse, behind the name and its checkbox
-                paint_hover_box(painter, QRectF(area).adjusted(-4, 0, 4, 0), color("border"))
+                # The same faint box as a button under the mouse, around the checkbox itself
+                paint_hover_box(painter, checkbox_hover_rect(center), color("border"))
                 painter.setPen(color("muted"))
             painter.drawText(QPoint(left, text_top + baseline), label)
             draw_checkbox(painter, center, self.ticked[name])

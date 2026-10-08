@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QWidget
 
 from app_config import COMPACT_BOTTOM_SPACE, EDGE_PADDING, PANEL_GAP, TODAY_PANEL_WIDTH
 
-from .header import draw_checkbox
+from .header import checkbox_hover_rect, draw_checkbox
 from .module import PaintedButton, draw_rounded_box, paint_hover_box
 from .theme import Fonts, ascent, color, draw_text, line_height, text_width
 
@@ -35,9 +35,10 @@ CHECKBOX_SIZE = 18
 TITLE_PADDING = 8
 TITLE_GAP = 6
 DESCRIPTION_GAP = 14
-# Padding of the page's buttons, as PSFocusApp._button gives them
+# Padding of the page's buttons: flat, they need little height; and the backups box's padding under them
 BUTTON_PADX = 17
-BUTTON_PADY = 6
+BUTTON_PADY = 3
+BUTTON_ROW_PADDING = 4
 
 PROGRAM_CHECKBOXES = (("tracking_enabled", "Photoshop"), ("tracking_clip_studio_paint", "CSP"), ("tracking_krita", "Krita"))
 OPTION_CHECKBOXES = (("tracking_paused", "Pause tracking"), ("disable_fanfare_sound", "Disable fanfare sound"))
@@ -261,7 +262,7 @@ class SettingsPage(QWidget):
         ).height() + BACKUP_LINE_GAP + 2
         self.google_status_text = self._text(x, y, *self.google_status, fonts.small, PAGE_TEXT_WIDTH - 2)
         y += self.google_status_text.height() + BACKUP_LINE_GAP
-        y += self._text(x, y, *self.backup_status, fonts.small, PAGE_TEXT_WIDTH - 2).height() + BACKUP_LINE_GAP + 3
+        y += self._text(x, y, *self.backup_status, fonts.small, PAGE_TEXT_WIDTH - 2).height() + BACKUP_LINE_GAP
         # Back up now at the left; Connect Google at the right, or once connected Log out at the right and Switch
         # account, or Reconnect when the sign-in needs renewing, centred in the space between
         self.backup_button.place(x, y)
@@ -275,7 +276,7 @@ class SettingsPage(QWidget):
             space_left = self.backup_button.right
             middle.place(space_left + (right.left - space_left - middle.width) // 2, y)
             self.buttons.append(middle)
-        y += self.backup_button.height + BACKUP_BOX_PADDING + 1
+        y += self.backup_button.height + BUTTON_ROW_PADDING + 1
         self.boxes.append((top, y - top))
         return y
 
@@ -287,9 +288,8 @@ class SettingsPage(QWidget):
             painter.fillRect(1, top + 1, TODAY_PANEL_WIDTH - 2, height - 2, color("panel"))
         hovered = self.checkboxes.get(self.hovered_checkbox)
         if hovered is not None:
-            # The same faint box as a button under the mouse, behind the checkbox and its name
-            left, top, right, bottom = hovered[0]
-            paint_hover_box(painter, QRectF(left, top, right - left, bottom - top).adjusted(-4, -2, 4, 2), color("border"))
+            # The same faint box as a button under the mouse, around the checkbox itself
+            paint_hover_box(painter, checkbox_hover_rect(hovered[1]), color("border"))
         for text in self.texts:
             for index, line in enumerate(text.lines):
                 draw_text(painter, text.x, text.y + index * line_height(text.font), line, color(text.color), text.font)
