@@ -1,4 +1,4 @@
----
+﻿---
 permalink: /
 body_class: home
 ---
@@ -16,7 +16,7 @@ body_class: home
 </div>
 
 <div class="note" markdown="1">
-Free and [open source](https://github.com/giltyworks/ps-focus) · Windows 10 and 11 (64-bit)
+Free and [open source](https://github.com/giltyworks/ps-focus) Â· Windows 10 and 11 (64-bit)
 
 Windows may say "Windows protected your PC" because the app isn't code-signed yet: choose **More info**, then **Run anyway**. Each release lists a SHA-256 checksum for checking your download.
 </div>
@@ -51,7 +51,7 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 </div>
 
 <figure class="wide-shot">
-  <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1575" height="237" alt="PS Focus in landscape: today's time in Photoshop, then the hours graph, the September calendar and the stats side by side in one wide, short window">
+  <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1587" height="237" alt="PS Focus in landscape: today's time in Photoshop, then the hours graph, the September calendar and the stats side by side in one wide, short window">
   <figcaption class="caption">Landscape: everything side by side in one short strip</figcaption>
 </figure>
 

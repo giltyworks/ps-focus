@@ -36,6 +36,8 @@ CAPTION_AT = (EDGE_PADDING, 34)
 SIDE_TITLE_TOP = 5
 SIDE_STRIP_GAP = 6
 SIDE_BUTTON_GAP = MODULE_MARGIN
+# How far the name strip runs on past the module's name in landscape
+SIDE_TITLE_ROOM = 12
 SIDE_CHART_GAP = MODULE_MARGIN
 CHART_TOP_SPACE = 14
 SIDE_HEADLINE_SAMPLE = "000h"
@@ -91,16 +93,17 @@ class ChartModule(ModuleBlock):
         return month_top, headline_top, caption_top, buttons_top, max(text_bottom, buttons_bottom)
 
     def side_width(self) -> int:
-        """Width of the landscape strip: the name and total, then the column of period buttons"""
-        room = max(text_width(self.fonts.bold, self.title), text_width(self.fonts.headline, SIDE_HEADLINE_SAMPLE))
+        """Width of the landscape strip: the name, with room for its strip to run on past it, and the total; then the
+        column of period buttons"""
+        room = max(text_width(self.fonts.bold, self.title) + SIDE_TITLE_ROOM, text_width(self.fonts.headline, SIDE_HEADLINE_SAMPLE))
         return MODULE_MARGIN + room + SIDE_BUTTON_GAP + self.buttons[0].width
 
     def glass_changed(self) -> None:
         self.drawn_state = None
 
     def side_title_width(self) -> int:
-        # The column up to the period buttons, which stand at its right from the top
-        return self.side_width() - self.buttons[0].width - SIDE_BUTTON_GAP
+        # The column up to the period buttons, which stand at its right from the top, a couple of pixels clear of them
+        return self.side_width() - self.buttons[0].width - 2
 
     def docked_width(self) -> int:
         return 2 + self.side_width() + MODULE_CANVAS_WIDTH
