@@ -628,5 +628,58 @@ class QtSettingsTests(unittest.TestCase):
         self.assertFalse(self.app.header.version_is_link)
 
 
+    def _connected_google(self):
+        controller, client = self._fake_google()
+        controller.connect()
+        for _ in range(10):
+            controller.poll()
+            if not controller.busy:
+                break
+        self.assertEqual(controller.email, "test@example.com")
+        return controller, client
+
+    def test_display_name_is_edited_per_account(self):
+        controller, client = self._connected_google()
+        self.app.window.show()
+        self.app.header.on_account_double()
+        entry = self.app.header.name_entry
+        self.assertTrue(entry.isVisible())
+        self.assertEqual((entry.text(), entry.selectedText()), ("test@example.com", "test@example.com"))
+        entry.setText("  Sam  ")
+        from PySide6.QtCore import QEvent, Qt
+        from PySide6.QtGui import QKeyEvent
+        entry.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Return, Qt.KeyboardModifier.NoModifier))
+        self.assertFalse(entry.isVisible())
+        self.assertEqual(self.app.settings["google_display_names"], {"test@example.com": "Sam"})
+        self.assertEqual(self.app.header.account_text, "Sam")
+        # Escape keeps the name as it was
+        self.app.header.on_account_double()
+        entry.setText("Someone else")
+        entry.keyPressEvent(QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier))
+        self.assertEqual(self.app.header.account_text, "Sam")
+        # Typing the email back, or nothing, shows the email again; a long name is cut to 32 characters
+        controller._renamed("x" * 40)
+        self.assertEqual(controller.display_name(), "x" * 32)
+        controller._renamed("test@example.com")
+        self.assertEqual(self.app.settings["google_display_names"], {})
+        self.assertEqual(self.app.header.account_text, "test@example.com")
+
+    def test_display_name_cannot_be_edited_while_signed_out_or_busy(self):
+        controller, client = self._fake_google()
+        self.app.header.on_account_double()
+        self.assertFalse(self.app.header.name_entry.isVisible())
+        controller, client = self._connected_google()
+        controller.busy = True
+        self.app.header.on_account_double()
+        self.assertFalse(self.app.header.name_entry.isVisible())
+
+    def test_name_saved_by_old_versions_goes_to_the_connected_account(self):
+        self.app.settings["google_display_name"] = "Old name"
+        controller, client = self._connected_google()
+        self.assertEqual(controller.display_name(), "Old name")
+        self.assertEqual(self.app.settings["google_display_name"], "")
+        self.assertEqual(self.app.header.account_text, "Old name")
+
+
 if __name__ == "__main__":
     unittest.main()

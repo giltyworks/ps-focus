@@ -11,6 +11,8 @@ from tracker import ActivityStore
 
 from google_drive import GoogleAccountAccessRequired
 
+from .header import NAME_MAX_LENGTH
+
 
 class GoogleSync:
     def __init__(self, app, client) -> None:
@@ -29,6 +31,7 @@ class GoogleSync:
         page.logout_button.command = self.logout
         page.on_google_status = self.sync
         app.header.on_account = self.account_clicked
+        app.header.on_account_double = self.rename
         self.update_status()
         if client.connected:
             self._start("account", client.account_email)
@@ -43,9 +46,7 @@ class GoogleSync:
             app.header.account_text = status
         else:
             status, tone, buttons = self.email or "Google connected", "active_green", "connected"
-            names = app.settings.get("google_display_names", {})
-            name = names.get(self.email.casefold(), "") if isinstance(names, dict) else ""
-            app.header.account_text = name if isinstance(name, str) and name else status
+            app.header.account_text = self.display_name() or status
         app.header.account_color = tone
         app.header.account_font = app.fonts.account if self.client.connected and not self.reauthentication_required else app.fonts.small
         app.header.account_disabled = self.busy
@@ -74,6 +75,50 @@ class GoogleSync:
 
         threading.Thread(target=worker, daemon=True).start()
         return True
+
+    def _display_names(self) -> dict:
+        names = self.app.settings.get("google_display_names")
+        return names if isinstance(names, dict) else {}
+
+    def display_name(self) -> str:
+        """The name chosen for the connected Google account; each account keeps its own on this PC"""
+        if not self.email:
+            return ""
+        name = self._display_names().get(self.email.casefold(), "")
+        return name if isinstance(name, str) else ""
+
+    def _set_display_name(self, name: str) -> None:
+        names = dict(self._display_names())
+        if name:
+            names[self.email.casefold()] = name
+        else:
+            names.pop(self.email.casefold(), None)
+        self.app.settings["google_display_names"] = names
+
+    def _adopt_legacy_display_name(self) -> None:
+        """Give the single name saved by versions before 1.0.4 to the account connected when it was chosen"""
+        legacy_name = self.app.settings.get("google_display_name")
+        if not legacy_name or not self.email:
+            return
+        if isinstance(legacy_name, str) and not self.display_name():
+            self._set_display_name(legacy_name[:NAME_MAX_LENGTH])
+        self.app.settings["google_display_name"] = ""
+        self.app._save_settings()
+
+    def rename(self) -> None:
+        """A double click on the connected account edits the name shown for it"""
+        if self.client.connected and not self.reauthentication_required and not self.busy and self.email:
+            self.app.header.edit_name(self.display_name() or self.email, self._renamed)
+
+    def _renamed(self, name: str | None) -> None:
+        if name is not None and self.email:
+            name = name.strip()
+            # Keeping the email, or clearing the field, goes back to showing the email
+            name = "" if name == self.email else name[:NAME_MAX_LENGTH]
+            if name != self.display_name():
+                self._set_display_name(name)
+                self.app._save_settings()
+        self.update_status()
 
     def account_clicked(self) -> None:
         if not self.client.connected or self.reauthentication_required:
@@ -170,6 +215,7 @@ class GoogleSync:
                 if kind in ("account", "connect", "switch"):
                     self.email = value
                     self.reauthentication_required = False
+                    self._adopt_legacy_display_name()
                 elif kind == "logout":
                     self.email = ""
                     self.reauthentication_required = False

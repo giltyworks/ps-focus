@@ -6,8 +6,8 @@ from __future__ import annotations
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QMouseEvent, QPainter, QPaintEvent
-from PySide6.QtWidgets import QWidget
+from PySide6.QtGui import QColor, QFocusEvent, QFont, QFontMetrics, QImage, QKeyEvent, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtWidgets import QLineEdit, QWidget
 
 from app_config import EDGE_PADDING, LEVEL_BADGE_SIZE, TODAY_PANEL_WIDTH
 
@@ -35,6 +35,9 @@ MODULE_CONTROL_GAP = 8
 CHECKBOX_BOX_SIZE = 14
 CHECKBOX_CORNER_RADIUS = 4
 MODULE_LABELS = (("graph", "Graph"), ("calendar", "Calendar"), ("stats", "Stats"))
+# The display name field is as wide as this many characters, as the Tk entry; a name may be this long
+NAME_ENTRY_CHARACTERS = 20
+NAME_MAX_LENGTH = 32
 
 Area = tuple[int, int, int, int]
 NO_AREA: Area = (0, 0, 0, 0)
@@ -71,6 +74,41 @@ def draw_checkbox(painter: QPainter, center: QPointF, checked: bool) -> None:
     painter.restore()
 
 
+class NameEntry(QLineEdit):
+    """The field for typing a display name, shown in place of the account text while a name is edited. Enter or
+    clicking elsewhere keeps the name, Escape drops it; on_finished is called with the name, or None when dropped"""
+
+    def __init__(self, parent: QWidget, fonts: Fonts) -> None:
+        super().__init__(parent)
+        self.on_finished: Callable[[str | None], None] = lambda _name: None
+        self.setFont(fonts.account)
+        self.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.setFrame(False)
+        self.setStyleSheet(
+            f"QLineEdit {{ background: {color('panel_alt').name()}; color: {color('text').name()};"
+            f" selection-background-color: {color('accent_dark').name()}; padding: 0; }}"
+        )
+        self.setFixedSize(QFontMetrics(fonts.account).horizontalAdvance("0" * NAME_ENTRY_CHARACTERS) + 2, line_height(fonts.account) + 2)
+        self.hide()
+
+    def _finish(self, name: str | None) -> None:
+        if self.isVisible():
+            self.hide()
+            self.on_finished(name)
+
+    def keyPressEvent(self, event: QKeyEvent) -> None:
+        if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter):
+            self._finish(self.text())
+        elif event.key() == Qt.Key.Key_Escape:
+            self._finish(None)
+        else:
+            super().keyPressEvent(event)
+
+    def focusOutEvent(self, event: QFocusEvent) -> None:
+        super().focusOutEvent(event)
+        self._finish(self.text())
+
+
 class Header(QWidget):
     """What it shows is set by the app through its attributes, followed by update()"""
 
@@ -100,6 +138,18 @@ class Header(QWidget):
         self.level_area = self.account_area = self.version_area = NO_AREA
         self.settings_area: Area = NO_AREA
         self.setFixedSize(HEADER_WIDTH, self.row_height())
+        self.name_entry = NameEntry(self, fonts)
+        # Always as wide, so always in the same place beside the progress dot
+        self.name_entry.move(self._group_left(self.name_entry.width()) + PROGRESS_DOT_SPACE, (self.height() - self.name_entry.height()) // 2)
+
+    def edit_name(self, name: str, on_finished: Callable[[str | None], None]) -> None:
+        """Show the display name field in place of the account text, holding this name, all of it selected"""
+        self.name_entry.on_finished = on_finished
+        self.name_entry.setText(name)
+        self.name_entry.selectAll()
+        self.name_entry.show()
+        self.name_entry.setFocus()
+        self.update()
 
     def row_height(self) -> int:
         """The same whatever the row shows, so nothing below it moves when the account text changes"""
@@ -161,6 +211,14 @@ class Header(QWidget):
             (height - line_height(account)) // 2, credit, color("active_green"), account,
         )
 
+    def _group_left(self, content_width: int) -> int:
+        """Where the progress dot and the account beside it start: centred in the window when they fit there, otherwise
+        as far from the level as they need to be to fit before the settings button"""
+        room_left = self.level_width(self.fonts) + HEADER_GROUP_GAP
+        room_right = SETTINGS_BUTTON_LEFT + 8 - HEADER_GROUP_GAP
+        group_width = PROGRESS_DOT_SPACE + content_width
+        return max(room_left, min((HEADER_WIDTH - group_width) // 2, room_right - group_width))
+
     def _paint_account(self, painter: QPainter, height: int) -> None:
         """The progress dot with the account text beside it, kept to one line: centred in the window when it fits there,
         moved towards the settings button when it only fits between the level and that button, and shortened when it
@@ -168,10 +226,13 @@ class Header(QWidget):
         font = self.account_font
         room_left = self.level_width(self.fonts) + HEADER_GROUP_GAP
         room_right = SETTINGS_BUTTON_LEFT + 8 - HEADER_GROUP_GAP
+        editing = self.name_entry.isVisible()
         text = fit_text(self.account_text, font, room_right - room_left - PROGRESS_DOT_SPACE - 2 * ACCOUNT_TEXT_INSET_X)
-        content_width = QFontMetrics(font).horizontalAdvance(text) + 2 * ACCOUNT_TEXT_INSET_X
-        group_width = PROGRESS_DOT_SPACE + content_width
-        group_left = max(room_left, min((HEADER_WIDTH - group_width) // 2, room_right - group_width))
+        if editing:
+            content_width = self.name_entry.width()
+        else:
+            content_width = QFontMetrics(font).horizontalAdvance(text) + 2 * ACCOUNT_TEXT_INSET_X
+        group_left = self._group_left(content_width)
         content_left = group_left + PROGRESS_DOT_SPACE
         dot_top = (height - HEADER_ICON_SIZE) // 2
         reached = self.progress_reached
@@ -182,6 +243,8 @@ class Header(QWidget):
         # Tk's oval from (2, 6) to (16, 20), its outline running along the inside of that box
         painter.drawEllipse(QRectF(group_left + 2.5, dot_top + 6.5, 13, 13))
         painter.restore()
+        if editing:
+            return
         text_color = self.palette().color(self.palette().ColorGroup.Disabled, self.palette().ColorRole.Text) if self.account_disabled else color(self.account_color)
         self._text(painter, content_left + ACCOUNT_TEXT_INSET_X, (height - line_height(font)) // 2, text, text_color, font)
         self.account_area = (content_left, 0, content_left + content_width, height)
