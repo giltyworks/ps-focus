@@ -19,7 +19,7 @@ from PIL import Image
 from pystray import MenuItem
 
 import app_config
-import uninstall
+import ui_uninstall
 from app_config import (
     APP_NAME,
     BACKUP_INTERVAL_MS,
@@ -945,7 +945,7 @@ class PSFocusApp(ModulesMixin, ChartMixin, CalendarMixin, SettingsMixin, BackupM
 def main() -> None:
     if "--uninstall" in sys.argv:
         # Handled before anything is opened, so no file the uninstall deletes is in use by this process
-        uninstall.main()
+        ui_uninstall.main()
         return
     set_app_user_model_id()
     instance = SingleInstance()

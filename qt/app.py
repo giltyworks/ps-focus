@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta
 
 from PySide6.QtCore import QTimer
 from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 import app_config
 from app_config import (
@@ -35,8 +35,16 @@ from app_config import (
 )
 from feedback import FeedbackOutbox
 from tracker import ActivityStore, foreground_application, user_is_active
+from unpack_cleanup import remove_stale_unpack_folders
 from update_check import UPDATE_CHECK_INTERVAL_MS, available_update, is_safe_download_url
-from windows_startup import SingleInstance
+from windows_startup import (
+    SingleInstance,
+    apply_first_run_startup,
+    migrate_legacy_app_data,
+    migrate_legacy_startup,
+    refresh_startup_entry,
+    set_startup,
+)
 from google_drive import GoogleDriveSync
 
 from .block_drag import BlockDrag
@@ -123,10 +131,12 @@ class PSFocusQt:
         self.settings_page.exit_button.command = self.close
         self.settings_page.feedback_button.command = self._open_feedback_dialog
         self.settings_page.on_transparency = self._transparency_chosen
-        # Startup remains deferred; Google uses the existing controls through its controller.
-        self.settings_page.disabled_settings.update(("launch_on_startup", "start_minimized"))
-        self.settings_page.set_google_buttons_enabled(False)
         preview = bool(app_config.DATA_DIRECTORY_OVERRIDE)
+        # Starting with Windows is the installed app's alone: a preview, or a copy run from source, would point the
+        # Windows entry at itself
+        if preview or not getattr(sys, "frozen", False):
+            self.settings_page.disabled_settings.update(("launch_on_startup", "start_minimized"))
+        self.settings_page.set_google_buttons_enabled(False)
         client = GoogleDriveSync(
             app_config.APP_DATA, resource_path("credentials.json"),
             settings_filename="qt-preview-settings.json" if preview else "settings.json",
@@ -215,6 +225,17 @@ class PSFocusQt:
                 return
             application = next(name for name, setting in PROGRAM_PANEL_SETTINGS.items() if setting == key)
             self.settings["program_panels_chosen"] = list(dict.fromkeys([*self._chosen_panels(), application]))
+        if key in ("launch_on_startup", "start_minimized"):
+            launch = value if key == "launch_on_startup" else bool(self.settings.get("launch_on_startup"))
+            minimized = value if key == "start_minimized" else bool(self.settings.get("start_minimized"))
+            # Start minimized changes the Windows entry only while the app starts with Windows
+            if key == "launch_on_startup" or launch:
+                try:
+                    set_startup(launch, minimized)
+                except (OSError, ImportError) as error:
+                    QMessageBox.warning(self.window, APP_NAME, f"Could not update Windows startup: {error}")
+                    if key == "launch_on_startup":
+                        return
         self.settings[key] = value
         self._save_settings()
         self.settings_page.update()
@@ -663,6 +684,19 @@ def main(preview: bool, smoke_test: bool = False) -> None:
             if "--minimized" not in sys.argv:
                 instance.ask_running_copy_to_show()
             return
+    if not preview and getattr(sys, "frozen", False):
+        # As the Tk app did: settings, history and sign-in carried over from the app's earlier name; on a first run
+        # the Windows startup entry the installer was asked for; otherwise the entry pointed at this copy
+        migrate_legacy_app_data()
+        first_run = not app_config.SETTINGS_PATH.exists()
+        settings = load_settings()
+        migrate_legacy_startup(settings)
+        if first_run:
+            apply_first_run_startup(settings)
+        else:
+            refresh_startup_entry(settings)
+        # The Tk versions before 1.1 unpacked themselves on every start; folders left by runs ended by force go
+        threading.Thread(target=remove_stale_unpack_folders, daemon=True).start()
     app_config.APP_DATA.mkdir(parents=True, exist_ok=True)
     application = QApplication(sys.argv)
     # Hidden in the tray the app keeps running

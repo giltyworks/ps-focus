@@ -680,6 +680,63 @@ class QtSettingsTests(unittest.TestCase):
         self.assertEqual(self.app.settings["google_display_name"], "")
         self.assertEqual(self.app.header.account_text, "Old name")
 
+    def test_start_with_windows_is_off_limits_from_source(self):
+        self.assertIn("launch_on_startup", self.app.settings_page.disabled_settings)
+        with patch("qt.app.set_startup") as set_startup:
+            self.app._setting_toggled("launch_on_startup")
+        set_startup.assert_not_called()
+
+    def test_installed_app_updates_the_windows_startup_entry(self):
+        self.app.settings_page.disabled_settings.clear()
+        self.app.settings.update({"launch_on_startup": True, "start_minimized": True})
+        with patch("qt.app.set_startup") as set_startup:
+            self.app._setting_toggled("start_minimized")
+            set_startup.assert_called_with(True, False)
+            self.app._setting_toggled("launch_on_startup")
+            set_startup.assert_called_with(False, False)
+            # Off, start minimized changes nothing in Windows
+            set_startup.reset_mock()
+            self.app._setting_toggled("start_minimized")
+            set_startup.assert_not_called()
+        self.assertEqual((self.app.settings["launch_on_startup"], self.app.settings["start_minimized"]), (False, True))
+
+    def test_failed_windows_startup_change_keeps_the_setting(self):
+        self.app.settings_page.disabled_settings.clear()
+        self.app.settings["launch_on_startup"] = False
+        with patch("qt.app.set_startup", side_effect=OSError("denied")), patch("qt.app.QMessageBox.warning") as warning:
+            self.app._setting_toggled("launch_on_startup")
+        warning.assert_called_once()
+        self.assertFalse(self.app.settings["launch_on_startup"])
+
+    def test_uninstall_window_keeps_data_unless_asked(self):
+        from qt.theme import Fonts
+        from qt.uninstall_window import UninstallWindow
+
+        run = Mock(return_value=[])
+        window = UninstallWindow(Fonts(), run)
+        with patch("qt.uninstall_window.QMessageBox") as box:
+            self.assertTrue(window.confirm())
+        run.assert_called_once_with(False)
+        box.warning.assert_not_called()
+        self.assertIn("were kept", box.information.call_args.args[2])
+
+    def test_uninstall_window_warns_before_deleting_data(self):
+        from PySide6.QtWidgets import QMessageBox
+        from qt.theme import Fonts
+        from qt.uninstall_window import UninstallWindow
+
+        run = Mock(return_value=[])
+        window = UninstallWindow(Fonts(), run)
+        window.delete_data = True
+        with patch("qt.uninstall_window.QMessageBox.warning", return_value=QMessageBox.StandardButton.No) as warning:
+            self.assertFalse(window.confirm())
+        warning.assert_called_once()
+        run.assert_not_called()
+        with patch("qt.uninstall_window.QMessageBox.warning", return_value=QMessageBox.StandardButton.Yes),                 patch("qt.uninstall_window.QMessageBox.information") as information:
+            self.assertTrue(window.confirm())
+        run.assert_called_once_with(True)
+        self.assertIn("all of its data", information.call_args.args[2])
+
 
 if __name__ == "__main__":
     unittest.main()

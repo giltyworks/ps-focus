@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
+import ui_uninstall
 import uninstall
 
 
@@ -125,8 +126,22 @@ class UninstallTests(unittest.TestCase):
         self.assertEqual([path.name for path in install_directory.iterdir()], ["PS Focus.exe"])
         environment = schedule_self_delete.call_args.kwargs["env"]
         self.assertEqual(environment[uninstall.INSTALL_DIRECTORY_VARIABLE], str(install_directory))
-        self.assertIn(f'rd "%{uninstall.INSTALL_DIRECTORY_VARIABLE}%"', schedule_self_delete.call_args.args[0])
-        self.assertNotIn("/s", schedule_self_delete.call_args.args[0].split("/c", 1)[1])
+        command = schedule_self_delete.call_args.args[0]
+        self.assertIn(f'rd "%{uninstall.INSTALL_DIRECTORY_VARIABLE}%"', command)
+        # The only folder emptied whole is the app's own runtime folder, and only when it is there
+        self.assertNotIn(uninstall.RUNTIME_DIRECTORY_VARIABLE, environment)
+        self.assertEqual(command.count("/s"), 2)  # cmd's own /s switch, and the runtime folder's rd
+        self.assertIn(f'if defined {uninstall.RUNTIME_DIRECTORY_VARIABLE} rd /s /q "%{uninstall.RUNTIME_DIRECTORY_VARIABLE}%"', command)
+
+    def test_installed_runtime_folder_is_removed_after_the_app(self):
+        install_directory = self.root / "PS Focus"
+        (install_directory / "_internal").mkdir(parents=True)
+        running_app = install_directory / "PS Focus.exe"
+        running_app.write_bytes(b"content")
+        with patch("uninstall.subprocess.Popen") as schedule_self_delete:
+            uninstall.remove_program_files(install_directory, running_app)
+        environment = schedule_self_delete.call_args.kwargs["env"]
+        self.assertEqual(environment[uninstall.RUNTIME_DIRECTORY_VARIABLE], str(install_directory / "_internal"))
 
     def test_folder_not_named_for_the_app_is_never_removed(self):
         running_app = self.root / "PS Focus.exe"
@@ -135,6 +150,14 @@ class UninstallTests(unittest.TestCase):
             uninstall.remove_program_files(self.root, running_app)
 
         self.assertNotIn(uninstall.INSTALL_DIRECTORY_VARIABLE, schedule_self_delete.call_args.kwargs["env"])
+
+    def test_runtime_folder_outside_the_apps_own_folder_is_never_removed(self):
+        (self.root / "_internal").mkdir()
+        running_app = self.root / "PS Focus.exe"
+        running_app.write_bytes(b"content")
+        with patch.dict(os.environ, {uninstall.RUNTIME_DIRECTORY_VARIABLE: "C:\\Users"}), patch("uninstall.subprocess.Popen") as schedule_self_delete:
+            uninstall.remove_program_files(self.root, running_app)
+        self.assertNotIn(uninstall.RUNTIME_DIRECTORY_VARIABLE, schedule_self_delete.call_args.kwargs["env"])
 
     def test_stopping_the_app_spares_the_process_doing_the_uninstall(self):
         with patch("uninstall.subprocess.run") as run, patch("uninstall.time.sleep"), patch("uninstall.os.getpid", return_value=111), patch(
@@ -165,8 +188,8 @@ class UninstallTests(unittest.TestCase):
         self.assertTrue((desktop / "Other.lnk").exists())
 
     def test_keeping_data_uninstalls_without_the_data_warning(self):
-        with patch("uninstall.messagebox") as messagebox, patch("uninstall.uninstall", return_value=[]) as run_uninstall:
-            self.assertTrue(uninstall.confirm_and_uninstall(False))
+        with patch("ui_uninstall.messagebox") as messagebox, patch("ui_uninstall.uninstall", return_value=[]) as run_uninstall:
+            self.assertTrue(ui_uninstall.confirm_and_uninstall(False))
 
         messagebox.askyesno.assert_not_called()
         run_uninstall.assert_called_once_with(False)
@@ -174,9 +197,9 @@ class UninstallTests(unittest.TestCase):
 
     def test_deleting_data_shows_one_warning_and_stops_when_declined(self):
         parent = Mock()
-        with patch("uninstall.messagebox") as messagebox, patch("uninstall.uninstall") as run_uninstall:
+        with patch("ui_uninstall.messagebox") as messagebox, patch("ui_uninstall.uninstall") as run_uninstall:
             messagebox.askyesno.return_value = False
-            self.assertFalse(uninstall.confirm_and_uninstall(True, parent))
+            self.assertFalse(ui_uninstall.confirm_and_uninstall(True, parent))
 
         messagebox.askyesno.assert_called_once()
         self.assertEqual(messagebox.askyesno.call_args.args[1], "This will permanently delete all user data. Continue?")
@@ -184,16 +207,16 @@ class UninstallTests(unittest.TestCase):
         parent.withdraw.assert_not_called()
 
     def test_deleting_data_runs_after_the_warning_is_accepted(self):
-        with patch("uninstall.messagebox") as messagebox, patch("uninstall.uninstall", return_value=[]) as run_uninstall:
+        with patch("ui_uninstall.messagebox") as messagebox, patch("ui_uninstall.uninstall", return_value=[]) as run_uninstall:
             messagebox.askyesno.return_value = True
-            self.assertTrue(uninstall.confirm_and_uninstall(True))
+            self.assertTrue(ui_uninstall.confirm_and_uninstall(True))
 
         messagebox.askyesno.assert_called_once()
         run_uninstall.assert_called_once_with(True)
 
     def test_uninstaller_opens_its_dialog_without_requesting_admin_rights(self):
-        with patch("uninstall.tk.Tk") as create_window, patch("uninstall.UninstallDialog") as dialog:
-            uninstall.main()
+        with patch("ui_uninstall.tk.Tk") as create_window, patch("ui_uninstall.UninstallDialog") as dialog:
+            ui_uninstall.main()
 
         dialog.assert_called_once_with(create_window.return_value)
         self.assertFalse(hasattr(uninstall, "relaunch_as_admin"))
@@ -202,7 +225,7 @@ class UninstallTests(unittest.TestCase):
     def test_app_started_with_the_uninstall_option_only_uninstalls(self):
         import main
 
-        with patch("main.sys.argv", ["PS Focus.exe", "--uninstall"]), patch("main.uninstall.main") as run_uninstaller, patch(
+        with patch("main.sys.argv", ["PS Focus.exe", "--uninstall"]), patch("main.ui_uninstall.main") as run_uninstaller, patch(
             "main.set_app_user_model_id"
         ) as start_app, patch("main.tk.Tk") as create_window:
             main.main()

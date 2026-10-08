@@ -1,6 +1,7 @@
-"""Uninstall mode of the app, run as `PS Focus.exe --uninstall`
+"""Uninstall mode of the app, run as `PS Focus.exe --uninstall`: what is removed and how
 
-Removes PS Focus and, when asked, its settings, activity history, and backups
+Removes PS Focus and, when asked, its settings, activity history, and backups. The window asking is the app's own:
+qt/uninstall_window.py, or ui_uninstall.py in the Tk app
 """
 
 from __future__ import annotations
@@ -11,16 +12,11 @@ import stat
 import subprocess
 import sys
 import time
-import tkinter as tk
-import tkinter.font as tkfont
 from pathlib import Path
-from tkinter import messagebox
 
 from google_drive import GoogleDriveSync
-from app_config import COLORS
 from unpack_cleanup import remove_stale_unpack_folders
-from widgets import OutlinedButton, checkbox_image
-from windows_startup import set_title_bar_colors, shell_folder, system_directory, system_executable
+from windows_startup import shell_folder, system_directory, system_executable
 
 APP_NAME = "PS Focus"
 LEGACY_APP_NAME = "FocusTrace"
@@ -29,6 +25,9 @@ BACKUP_FOLDER_NAME = "PS Focus Backups"
 RUN_KEY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 SELF_DELETE_VARIABLE = "PSFOCUS_UNINSTALLER"
 INSTALL_DIRECTORY_VARIABLE = "PSFOCUS_INSTALL_DIRECTORY"
+RUNTIME_DIRECTORY_VARIABLE = "PSFOCUS_RUNTIME_DIRECTORY"
+# The folder beside the app holding its libraries, which the running app keeps in use until it exits
+RUNTIME_FOLDER_NAME = "_internal"
 # Must match installer/PS Focus.iss
 UNINSTALL_KEY_PATH = rf"Software\Microsoft\Windows\CurrentVersion\Uninstall\{APP_NAME}"
 # Files the installer places beside the app, under names that differ from the source files they are made from,
@@ -38,9 +37,8 @@ CSIDL_PROGRAMS = 0x0002
 CSIDL_DESKTOPDIRECTORY = 0x0010
 WINDOW_TITLE = f"Uninstall {APP_NAME}"
 WARNING_MESSAGE = "This will permanently delete all user data. Continue?"
-# Space around the uninstall window's contents, and the width its text wraps at
-DIALOG_PADDING = 14
-DIALOG_TEXT_WIDTH = 300
+DONE_MESSAGE_KEPT = f"{APP_NAME} has been removed. Your activity history, settings, and backups were kept"
+DONE_MESSAGE_DELETED = f"{APP_NAME} and all of its data have been removed"
 
 
 def data_directories() -> list[Path]:
@@ -134,17 +132,23 @@ def remove_program_files(program_directory: Path, running_executable: Path) -> l
             failed.append(program_directory / name)
     environment = {**os.environ, SELF_DELETE_VARIABLE: str(running_executable)}
     environment.pop(INSTALL_DIRECTORY_VARIABLE, None)
+    environment.pop(RUNTIME_DIRECTORY_VARIABLE, None)
     if program_directory.name == APP_NAME:
         # Only the installer's own folder is removed, and rd without /s leaves it alone unless it is empty
         environment[INSTALL_DIRECTORY_VARIABLE] = str(program_directory)
+        # The libraries beside the app go with it; only in the installer's folder, where they are the app's alone
+        if (program_directory / RUNTIME_FOLDER_NAME).is_dir():
+            environment[RUNTIME_DIRECTORY_VARIABLE] = str(program_directory / RUNTIME_FOLDER_NAME)
     # Windows will not delete a running program, so a helper retries each second, for up to a minute, until
     # this process has exited; the closing message can stay open in the meantime. Paths reach cmd through
     # environment variables, so nothing in them is read as part of the command, and starting in the system
     # folder makes cmd run the real ping rather than one beside the app
     target, folder = f'"%{SELF_DELETE_VARIABLE}%"', f'"%{INSTALL_DIRECTORY_VARIABLE}%"'
+    runtime = f'"%{RUNTIME_DIRECTORY_VARIABLE}%"'
     subprocess.Popen(
         f'"{system_executable("cmd.exe")}" /d /s /c "for /L %i in (1,1,60) do @(del /f /q {target} >nul 2>&1'
-        f' & if not exist {target} ((if defined {INSTALL_DIRECTORY_VARIABLE} rd {folder}) & exit)'
+        f' & if not exist {target} ((if defined {RUNTIME_DIRECTORY_VARIABLE} rd /s /q {runtime})'
+        f' & (if defined {INSTALL_DIRECTORY_VARIABLE} rd {folder}) & exit)'
         f' else ping -n 2 127.0.0.1 >nul)"',
         cwd=system_directory(),
         env=environment,
@@ -171,108 +175,3 @@ def uninstall(delete_data: bool) -> list[Path]:
         remove_installation_entries()
         failed += remove_program_files(running_executable.parent, running_executable)
     return failed
-
-
-def confirm_and_uninstall(delete_data: bool, parent: tk.Misc | None = None) -> bool:
-    """Run the uninstall, asking first when user data would be deleted; return whether it ran"""
-    if delete_data and not messagebox.askyesno(WINDOW_TITLE, WARNING_MESSAGE, icon="warning", default="no", parent=parent):
-        return False
-    if parent is not None:
-        parent.withdraw()
-    failed = uninstall(delete_data)
-    if failed:
-        remaining = "\n".join(str(path) for path in failed)
-        messagebox.showwarning(WINDOW_TITLE, f"{APP_NAME} was removed, but these items could not be deleted:\n\n{remaining}")
-    elif delete_data:
-        messagebox.showinfo(WINDOW_TITLE, f"{APP_NAME} and all of its data have been removed")
-    else:
-        messagebox.showinfo(WINDOW_TITLE, f"{APP_NAME} has been removed. Your activity history, settings, and backups were kept")
-    return True
-
-
-class UninstallDialog:
-    """The uninstall window, styled like the app: dark title bar, rounded buttons, and the app's checkbox"""
-
-    def __init__(self, root: tk.Tk) -> None:
-        self.root = root
-        root.title(WINDOW_TITLE)
-        root.configure(bg=COLORS["background"])
-        root.resizable(False, False)
-        icon_path = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parent)) / "assets" / "icons" / "PSFocus.ico"
-        try:
-            root.iconbitmap(str(icon_path))
-        except tk.TclError:
-            pass
-        set_title_bar_colors(root)
-        font_bold = tkfont.Font(root=root, family="Segoe UI Semibold", size=10)
-        font_small = tkfont.Font(root=root, family="Segoe UI", size=9)
-
-        def text(parent: tk.Widget, content: str, color: str, font: tkfont.Font, wraplength: int = 0) -> tk.Label:
-            return tk.Label(
-                parent, text=content, bg=COLORS["background"], fg=COLORS[color], font=font, wraplength=wraplength, justify="left", bd=0, padx=0, pady=0
-            )
-
-        text(root, f"Remove {APP_NAME} from this PC?", "text", font_bold).pack(padx=DIALOG_PADDING, pady=(DIALOG_PADDING, 4), anchor="w")
-        text(
-            root,
-            "Your activity history, settings, and backups are kept unless you choose to delete them below",
-            "muted",
-            font_small,
-            DIALOG_TEXT_WIDTH,
-        ).pack(padx=DIALOG_PADDING, pady=(0, 12), anchor="w")
-
-        # The app's own checkbox: its name, then the rounded box; clicking either ticks it
-        self.delete_data = tk.BooleanVar(root, value=False)
-        option = tk.Frame(root, bg=COLORS["background"], cursor="hand2")
-        option.pack(padx=DIALOG_PADDING, pady=(0, 14), anchor="w")
-        label = text(option, "Also delete all user data", "text", font_small)
-        label.configure(cursor="hand2")
-        label.pack(side="left", padx=(0, 6))
-        self.checkbox = tk.Canvas(option, width=18, height=18, bg=COLORS["background"], highlightthickness=0, cursor="hand2", takefocus=True)
-        self.checkbox.pack(side="left")
-        self.checkbox_images = {checked: checkbox_image(checked, COLORS["background"]) for checked in (False, True)}
-        for widget in (option, label, self.checkbox):
-            widget.bind("<Button-1>", self._toggle_delete_data)
-        self.checkbox.bind("<Return>", self._toggle_delete_data)
-        self.checkbox.bind("<space>", self._toggle_delete_data)
-        self._draw_checkbox()
-
-        actions = tk.Frame(root, bg=COLORS["background"])
-        actions.pack(padx=DIALOG_PADDING, pady=(0, DIALOG_PADDING), anchor="e")
-        self._button(actions, "Cancel", root.destroy, font_small).pack(side="left", padx=(0, 6))
-        self._button(actions, "Uninstall", self._uninstall, font_small, accent=True).pack(side="left")
-
-        root.update_idletasks()
-        x = (root.winfo_screenwidth() - root.winfo_width()) // 2
-        y = (root.winfo_screenheight() - root.winfo_height()) // 2
-        root.geometry(f"+{max(0, x)}+{max(0, y)}")
-
-    def _toggle_delete_data(self, _event: tk.Event | None = None) -> None:
-        self.delete_data.set(not self.delete_data.get())
-        self._draw_checkbox()
-
-    def _draw_checkbox(self) -> None:
-        self.checkbox.delete("all")
-        self.checkbox.create_image(9, 9, image=self.checkbox_images[self.delete_data.get()])
-
-    def _button(self, parent: tk.Widget, label: str, command, font: tkfont.Font, accent: bool = False) -> OutlinedButton:
-        bg = COLORS["accent_dark"] if accent else COLORS["panel_alt"]
-        fg = COLORS["accent"] if accent else COLORS["text"]
-        return OutlinedButton(parent, text=label, command=command, bg=bg, fg=fg, padx=17, pady=6, font=font)
-
-    def _uninstall(self) -> None:
-        if confirm_and_uninstall(self.delete_data.get(), self.root):
-            self.root.destroy()
-
-
-def main() -> None:
-    if os.name != "nt":
-        raise SystemExit("The PS Focus uninstaller runs only on Windows")
-    # Everything removed belongs to the current user, so the uninstaller runs without administrator rights
-    root = tk.Tk()
-    UninstallDialog(root)
-    root.mainloop()
-
-
-if __name__ == "__main__":
-    main()
