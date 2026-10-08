@@ -738,6 +738,23 @@ class QtSettingsTests(unittest.TestCase):
         run.assert_called_once_with(True)
         self.assertIn("all of its data", information.call_args.args[2])
 
+    def test_calendar_day_under_the_mouse_is_drawn_lighter(self):
+        from datetime import date as day_type
+
+        calendar = self.app.calendar
+        calendar.refresh(force=True)
+        before = calendar.picture.cacheKey()
+        day = day_type.today().replace(day=1)
+        self.assertEqual(calendar._day_fill(day, False).name(), "#151515")
+        calendar._hover_day(day)
+        self.assertEqual(calendar._day_fill(day, False).name(), "#222222")
+        self.assertNotEqual(calendar.picture.cacheKey(), before)
+        # A session day stays blue
+        self.assertEqual(calendar._day_fill(day, True).name(), "#3d5ce6")
+        calendar._toggle_view()
+        calendar._hover_day(None)
+        self.assertIsNone(calendar.hovered_day)
+
 
 if __name__ == "__main__":
     unittest.main()

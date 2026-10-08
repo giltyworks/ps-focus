@@ -80,6 +80,8 @@ class CalendarModule(ModuleBlock):
         self.line_height = small + 2 * LINE_PADDING
         self.cell_height = CALENDAR_DAY_NUMBER_INSET + small + line_height(fonts.rating) + CALENDAR_RATING_INSET
         self.drawn_state: tuple | None = None
+        # The day under the mouse, whose square is drawn a shade lighter
+        self.hovered_day: date | None = None
         self.picture: QPixmap | None = None
         self.day_boxes: list[DayBox] = []
         self.set_layout(False)
@@ -168,7 +170,7 @@ class CalendarModule(ModuleBlock):
                 (day, totals.get(day, 0) >= SESSION_MINIMUM_SECONDS, ratings.get(day))
                 for week in calendar.monthcalendar(year, month) for day in week if day
             )
-        state = (self.view, year, month, today, streaks, days, self.landscape, self.shared_height, self.devicePixelRatioF())
+        state = (self.view, year, month, today, streaks, days, self.landscape, self.shared_height, self.devicePixelRatioF(), self.hovered_day)
         if state == self.drawn_state and not force:
             return
         self.drawn_state = state
@@ -317,7 +319,7 @@ class CalendarModule(ModuleBlock):
                     continue
                 active, rating = day_info[day]
                 session_day = date(year, month, day)
-                self._cell(painter, left, cell_top, right, cell_bottom, color("calendar_blue") if active else self.surface("calendar_cell"), CALENDAR_CELL_RADIUS)
+                self._cell(painter, left, cell_top, right, cell_bottom, self._day_fill(session_day, active), CALENDAR_CELL_RADIUS)
                 center = (left + right) / 2
                 day_color = color("calendar_blue" if session_day == today and not active else "text")
                 draw_anchored(painter, center, cell_top + number_inset, "n", str(day), day_color, fonts.small)
@@ -359,7 +361,7 @@ class CalendarModule(ModuleBlock):
                         continue
                     x = left + 1 + column * YEAR_DAY_PITCH[0]
                     y = month_top + 22 + row * YEAR_DAY_PITCH[1]
-                    fill = color("calendar_blue") if day in active_days[index] else self.surface("calendar_cell")
+                    fill = self._day_fill(date(year, month, day), day in active_days[index])
                     self._cell(painter, x, y, x + day_width, y + day_height, fill, YEAR_DAY_RADIUS)
                     # As in the month view, days still to come cannot be opened. A pixel of slack makes the small
                     # squares easier to hit and covers the thin gaps between them
@@ -394,6 +396,24 @@ class CalendarModule(ModuleBlock):
             if day is not None:
                 self.on_open_day(day)
 
+    def _day_fill(self, day: date, active: bool) -> QColor:
+        """A session day is blue; another day's square is grey, a shade lighter under the mouse as a button's box is,
+        while it can be opened"""
+        if active:
+            return color("calendar_blue")
+        return self.surface("border" if day == self.hovered_day else "calendar_cell")
+
+    def _hover_day(self, day: date | None) -> None:
+        if day != self.hovered_day:
+            self.hovered_day = day
+            self.refresh()
+
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
-        self.update_cursor(point, any(button.contains(point) for button in self.buttons) or self._day_at(point) is not None)
+        day = self._day_at(point)
+        self._hover_day(day)
+        self.update_cursor(point, any(button.contains(point) for button in self.buttons) or day is not None)
+
+    def leaveEvent(self, event) -> None:
+        super().leaveEvent(event)
+        self._hover_day(None)
