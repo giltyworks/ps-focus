@@ -387,8 +387,14 @@ class SettingsPage(QWidget):
         if event.button() == Qt.MouseButton.LeftButton and any([button.release(point) for button in self.buttons]):
             self.update()
 
+    def leaveEvent(self, _event) -> None:
+        if PaintedButton.update_hover(self.buttons, None):
+            self.update()
+
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
+        if PaintedButton.update_hover(self.buttons, point):
+            self.update()
         if self.slider_dragging:
             self._slide_to(point, False)
             return

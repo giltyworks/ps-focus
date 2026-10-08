@@ -15,8 +15,9 @@ from .theme import Fonts, color, draw_text, line_height, text_width
 
 # Space above and below a module's name, as in ui_modules.py
 MODULE_TITLE_PADDING = 5
-# The corners of a rounded button, as widgets.BUTTON_CORNER_RADIUS
+# The corners of a rounded button, as widgets.BUTTON_CORNER_RADIUS, and of the box behind a button under the mouse
 BUTTON_CORNER_RADIUS = 6
+HOVER_BOX_RADIUS = 4
 # The dock icon at the right of a floating module's name row: the square it takes
 DOCK_CONTROL_SIZE = 18
 # Space between the line under the name strip and the module's contents
@@ -39,9 +40,7 @@ def paint_dock_icon(painter: QPainter, rect: QRect, hovered: bool) -> None:
     painter.save()
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     if hovered:
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(color("border"))
-        painter.drawRoundedRect(QRectF(rect), 3, 3)
+        paint_hover_box(painter, QRectF(rect), color("border"))
     pen = QPen(color("muted"), 1.4)
     pen.setCapStyle(Qt.PenCapStyle.RoundCap)
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
@@ -81,11 +80,22 @@ def draw_rounded_box(painter: QPainter, box: QRectF, radius: float, fill: QColor
     painter.restore()
 
 
+def paint_hover_box(painter: QPainter, rect: QRectF, fill: QColor) -> None:
+    """The faint rounded box behind a button or icon under the mouse, as Photoshop's buttons show"""
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(fill)
+    painter.drawRoundedRect(rect, HOVER_BOX_RADIUS, HOVER_BOX_RADIUS)
+    painter.restore()
+
+
 class PaintedButton:
-    """A rounded button painted by the widget it sits in, as the Tk widgets.CanvasButton: its outline turns white
-    while it is pressed or marked as selected. The widget passes its mouse presses and releases on. Its width is
-    that of this many digits, or with none given, of its text; its text is muted unless the button is selected. A
-    disabled button ignores clicks and shows muted text, as the Tk OutlinedButton"""
+    """A flat button painted by the widget it sits in, as Photoshop's: just its text, a faint rounded box behind it
+    while the mouse is over it, a little lighter while pressed. A selected button, such as the period shown, keeps its
+    box and brighter text. A main action has text in the accent colour and a box of the dark accent. The widget passes
+    its mouse presses, releases and moves on. Its width is that of this many digits, or with none given, of its text.
+    A disabled button ignores clicks and shows muted text"""
 
     def __init__(
         self,
@@ -111,6 +121,18 @@ class PaintedButton:
         self.left = self.top = 0
         self.selected = False
         self.pressed = False
+        self.hovered = False
+
+    @staticmethod
+    def update_hover(buttons: list["PaintedButton"], point: QPoint | None) -> bool:
+        """Note which button the mouse is over, none when it is given no point; return whether any changed"""
+        changed = False
+        for button in buttons:
+            hovered = point is not None and button.enabled and button.contains(point)
+            if hovered != button.hovered:
+                button.hovered = hovered
+                changed = True
+        return changed
 
     def place(self, left: int, top: int) -> None:
         self.left, self.top = left, top
@@ -123,10 +145,13 @@ class PaintedButton:
         return self.left <= point.x() < self.left + self.width and self.top <= point.y() < self.top + self.height
 
     def paint(self, painter: QPainter) -> None:
-        box = QRectF(self.left, self.top, self.width, self.height)
-        fill = color(self.fill)
-        fill.setAlpha(self.alpha)
-        draw_rounded_box(painter, box, BUTTON_CORNER_RADIUS, fill, color("text") if self.selected or self.pressed else fill)
+        active = self.enabled and (self.hovered or self.pressed)
+        if self.selected or active:
+            fill = color("accent_dark" if self.fill == "accent_dark" else "border")
+            if self.pressed or (self.selected and active):
+                fill = fill.lighter(140)
+            fill.setAlpha(self.alpha)
+            paint_hover_box(painter, QRectF(self.left, self.top, self.width, self.height), fill)
         # Centred in whole pixels, as a Tk label centres its text
         draw_text(
             painter,
@@ -255,6 +280,8 @@ class ModuleBlock(QWidget):
 
     def update_cursor(self, point: QPoint, clickable: bool = False) -> None:
         """A pointing hand over something to click, an open hand over the name the module is taken by"""
+        if PaintedButton.update_hover(self.buttons, point):
+            self.update()
         control = self.hovered_control if self.hover_controls(point) else None
         if clickable or control == "dock":
             shape = Qt.CursorShape.PointingHandCursor
@@ -274,6 +301,8 @@ class ModuleBlock(QWidget):
 
     def leaveEvent(self, _event) -> None:
         self.hover_controls(None)
+        if PaintedButton.update_hover(self.buttons, None):
+            self.update()
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()

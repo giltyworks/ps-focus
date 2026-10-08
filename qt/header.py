@@ -12,6 +12,7 @@ from PySide6.QtWidgets import QLineEdit, QWidget
 from app_config import EDGE_PADDING, LEVEL_BADGE_SIZE, TODAY_PANEL_WIDTH
 
 from .badge import render_level_badge
+from .module import paint_hover_box
 from .theme import Fonts, ascent, color, line_height
 
 # The same measurements as the Tk header, see ui_header.py: the header is as wide as the panels; the square the
@@ -126,6 +127,8 @@ class Header(QWidget):
         self.settings_shown = False
         self.version_text, self.version_is_link = "", False
         self.level_clickable = False
+        # Whether the mouse is over the settings button, which then shows its box
+        self.settings_hovered = False
         self.badge: QImage | None = None
         self.badge_state: tuple[int, bool, float] | None = None
         # What a click does in each area, set by the app
@@ -266,6 +269,8 @@ class Header(QWidget):
         to its right, and the one below"""
         top = (height - HEADER_ICON_SIZE) // 2
         self.settings_area = (SETTINGS_BUTTON_LEFT, top, SETTINGS_BUTTON_LEFT + HEADER_ICON_SIZE, top + HEADER_ICON_SIZE)
+        if self.settings_hovered:
+            paint_hover_box(painter, QRectF(SETTINGS_BUTTON_LEFT + 2, top + 4, HEADER_ICON_SIZE - 4, HEADER_ICON_SIZE - 8), color("border"))
         dot_color = color("text")
         y = top + HEADER_ICON_SIZE // 2
         for index in range(3):
@@ -300,8 +305,17 @@ class Header(QWidget):
             # Qt reports the second of two quick clicks only as a double-click; elsewhere it is just another click
             self.mousePressEvent(event)
 
+    def leaveEvent(self, _event) -> None:
+        if self.settings_hovered:
+            self.settings_hovered = False
+            self.update()
+
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
+        over_settings = _inside(self.settings_area, point)
+        if over_settings != self.settings_hovered:
+            self.settings_hovered = over_settings
+            self.update()
         hand = (
             _inside(self.settings_area, point)
             or _inside(self.account_area, point)

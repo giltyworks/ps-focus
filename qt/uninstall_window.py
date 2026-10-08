@@ -98,8 +98,14 @@ class UninstallWindow(QDialog):
         if event.button() == Qt.MouseButton.LeftButton and any([button.release(event.position().toPoint()) for button in self.buttons]):
             self.update()
 
+    def leaveEvent(self, _event) -> None:
+        if PaintedButton.update_hover(self.buttons, None):
+            self.update()
+
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
+        if PaintedButton.update_hover(self.buttons, point):
+            self.update()
         over = self._over_option(point) or any(button.contains(point) for button in self.buttons)
         self.setCursor(Qt.CursorShape.PointingHandCursor if over else Qt.CursorShape.ArrowCursor)
 
