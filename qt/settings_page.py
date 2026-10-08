@@ -225,7 +225,7 @@ class SettingsPage(QWidget):
             )
         y += height + PANEL_GAP
         height, control_top = self._boxed_row(
-            y, "Panel transparency", "Floating panels turn see-through while the mouse is elsewhere",
+            y, "Transparency", "PS Focus turns see-through while the mouse is elsewhere",
             PAGE_TEXT_WIDTH - SLIDER_WIDTH - EDGE_PADDING, SLIDER_KNOB,
         )
         self.slider_left = TODAY_PANEL_WIDTH - 1 - EDGE_PADDING - SLIDER_WIDTH

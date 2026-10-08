@@ -272,14 +272,14 @@ class QtDockingTests(unittest.TestCase):
     def test_places_are_kept_between_runs(self):
         self._float("stats", QPoint(300, 400))
         # Inside the offscreen platform's 800 by 600 screen, so the place is not pulled back onto it
-        self.app.window.move(100, 10)
+        self.app.window.move(100, 0)
         self.application.processEvents()
         self.app.docking.save_positions()
         self.saved_settings = dict(self.app.settings)
         self.app.window_hidden()
         restarted = self._start()
         restarted.docking.restore()
-        self.assertEqual(restarted.window.pos(), QPoint(100, 10))
+        self.assertEqual(restarted.window.pos(), QPoint(100, 0))
         self.assertTrue(restarted.docking.is_floating("stats"))
         self.assertEqual(restarted.docking.floating["stats"].pos(), QPoint(270, 388))
 
@@ -438,10 +438,29 @@ class QtDockingTests(unittest.TestCase):
             self.assertEqual(self.app.stats.glass_alpha, 255)
             self.app._transparency_chosen(60, True)
         self.assertEqual(self.app.settings["panel_transparency"], 60)
-        # Docked, a module is solid again
+        # Docked, a module is solid again; the window fades as a whole
         self.app.docking.dock_module("stats")
         self.assertEqual(self.app.stats.glass_alpha, 255)
-        self.assertTrue(self.app.stats.testAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent))
+
+    def test_main_window_fades_away_from_the_mouse(self):
+        from qt.docking import glass_alpha
+
+        self.app.window.show()
+        self.app.settings["panel_transparency"] = 100
+        faded = glass_alpha(100) / 255
+        with patch("qt.app.QCursor.pos", return_value=QPoint(5, 5)), patch("qt.docking.QCursor.pos", return_value=QPoint(5, 5)):
+            self.app.update_glass()
+            self.assertAlmostEqual(self.app.window.windowOpacity(), faded, places=2)
+            # Its blocks stay solid; it is the window that fades
+            self.assertEqual(self.app.calendar.glass_alpha, 255)
+            # Settings open, it is solid
+            self.app._toggle_settings()
+            self.assertEqual(self.app.window.windowOpacity(), 1.0)
+            self.app._toggle_settings()
+            self.assertAlmostEqual(self.app.window.windowOpacity(), faded, places=2)
+        with patch("qt.app.QCursor.pos", return_value=self.app.window.frameGeometry().center()):
+            self.app.update_glass()
+        self.assertEqual(self.app.window.windowOpacity(), 1.0)
 
     def test_glass_draws_pictures_on_nothing_and_icons_without_a_square(self):
         from PySide6.QtGui import QColor

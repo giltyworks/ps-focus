@@ -12,7 +12,7 @@ import webbrowser
 from datetime import date, datetime, timedelta
 
 from PySide6.QtCore import QPoint, QTimer
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtGui import QAction, QCursor, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 import app_config
@@ -120,6 +120,9 @@ class PSFocusQt:
         self.modules = {"graph": self.chart, "calendar": self.calendar, "stats": self.stats}
         self.docking = Docking(self)
         self.window.on_moved = self.docking.main_moved
+        self.window.on_hover = self.update_glass
+        # How opaque the window is now, see update_glass
+        self.main_opacity = 1.0
         self.window.on_state_changed = lambda: self.docking.sync_visibility()
         # The calendar and stats change slowly, so they are worked out again every so many seconds
         self.slow_refresh_ticks = 0
@@ -211,6 +214,24 @@ class PSFocusQt:
         if self.settings_shown and hasattr(self, "settings_page"):
             self.window.show_settings(self.settings_page)
 
+    def update_glass(self) -> None:
+        """The window and floating panels are see-through, as far as the setting says, while the mouse is elsewhere;
+        solid under the mouse, while something is dragged, and while Settings is open, for reading and clicking.
+        Floating panels turn to glass, their text and figures staying solid; the window, whose Windows title bar
+        cannot have a see-through background behind it, fades as a whole"""
+        from .docking import glass_alpha
+
+        self.docking.update_glass()
+        window = self.window
+        solid = (
+            self.settings_shown or self.block_drag.mode is not None or not window.isVisible()
+            or window.frameGeometry().contains(QCursor.pos())
+        )
+        opacity = 1.0 if solid else glass_alpha(self.settings.get("panel_transparency")) / 255
+        if opacity != self.main_opacity:
+            self.main_opacity = opacity
+            window.setWindowOpacity(opacity)
+
     def _show_drag_hint(self) -> None:
         """Point the tip at the first block's title, while the blocks are in view and the tip has not been seen"""
         hint = self.drag_hint
@@ -230,6 +251,7 @@ class PSFocusQt:
 
     def _toggle_settings(self) -> None:
         self.settings_shown = not self.settings_shown
+        self.update_glass()
         self.header.settings_shown = self.settings_shown
         self.header.update()
         if self.settings_shown:
@@ -267,7 +289,7 @@ class PSFocusQt:
     def _transparency_chosen(self, value: int, done: bool) -> None:
         """The panels follow the slider as it moves; the setting is saved once it is let go"""
         self.settings["panel_transparency"] = value
-        self.docking.update_glass()
+        self.update_glass()
         if done:
             self._save_settings()
 
@@ -549,6 +571,7 @@ class PSFocusQt:
         self.header.set_progress_reached(total_today_seconds >= SESSION_MINIMUM_SECONDS)
         level = user_level(lifetime_seconds)
         self.header.set_level(level, self.level_revealed)
+        self.update_glass()
         self._celebrate_level_up(level)
         self._set_feedback_unlocked(lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS)
         # Tracking continues in the tray and Settings; expensive module rendering waits for Overview.

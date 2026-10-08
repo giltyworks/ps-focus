@@ -10,6 +10,7 @@ from PySide6.QtWidgets import QWidget
 
 from app_config import TODAY_PANEL_WIDTH
 
+from .module import paint_title_strip
 from .theme import Fonts, ascent, color, line_height
 
 # The same measurements as the Tk panel, see main.py: space inside the panel above its first row and below its
@@ -17,6 +18,9 @@ from .theme import Fonts, ascent, color, line_height
 TODAY_PANEL_PADDING = 9
 TODAY_PANEL_SIDE_PADDING = 8
 TODAY_FIGURE_SPACE = (12, 15)
+# The name strip: space below the name inside it, and between its line and the big figure's digits
+TODAY_STRIP_PADDING = 7
+TODAY_STRIP_GAP = 12
 TODAY_ROW_GAP = 7
 
 
@@ -54,7 +58,9 @@ class TodayPanel(QWidget):
             line_height(fonts.bold, fonts.counter),
         )
         heading_top = 1 + TODAY_PANEL_PADDING
-        digits_top = heading_top + heights[0] + TODAY_FIGURE_SPACE[0]
+        # The name row stands on a strip, as a module's name does, with a line under it
+        self.title_bottom = heading_top + heights[0] + TODAY_STRIP_PADDING
+        digits_top = self.title_bottom + 1 + TODAY_STRIP_GAP
         details_top = digits_top + digit_height + TODAY_FIGURE_SPACE[1]
         status_top = details_top + heights[2] + TODAY_ROW_GAP
         tops = (heading_top, digits_top, details_top, status_top)
@@ -66,8 +72,7 @@ class TodayPanel(QWidget):
             return tops[row] + (heights[row] - line_height(font)) // 2
 
         self.natural_height = status_top + heights[3] + TODAY_PANEL_PADDING + 1
-        # The name row, which the panel is taken by to put it in a new order; its name brightens under the mouse
-        self.title_bottom = heading_top + heights[0] + TODAY_FIGURE_SPACE[0] // 2
+        # The name strip, which the panel is taken by to put it in a new order; it brightens under the mouse
         self.title_hovered = False
         self.setMouseTracking(True)
         self.setFixedSize(TODAY_PANEL_WIDTH, self.natural_height)
@@ -90,7 +95,8 @@ class TodayPanel(QWidget):
         }
 
     def title_rect(self) -> QRect:
-        return QRect(1, 1, TODAY_PANEL_WIDTH - 2, self.title_bottom + self.stretch // 2)
+        """The strip along the top; in landscape, where the panel is stretched, its rows stay together under it"""
+        return QRect(1, 1, TODAY_PANEL_WIDTH - 2, self.title_bottom - 1)
 
     def control_at(self, point: QPoint) -> str | None:
         return "title" if self.title_rect().contains(point) else None
@@ -126,6 +132,7 @@ class TodayPanel(QWidget):
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.fillRect(self.rect(), color("panel"))
+        paint_title_strip(painter, self.title_rect(), self.title_hovered)
         painter.setPen(color(self.border_color))
         painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
         for name, item in self.texts.items():
@@ -134,5 +141,7 @@ class TodayPanel(QWidget):
             metrics = QFontMetrics(item.font)
             width = metrics.horizontalAdvance(item.text)
             x = item.x - width if item.right_aligned else item.x
-            painter.drawText(QPoint(x, item.top + self.stretch // 2 + ascent(item.font)), item.text)
+            # The name row keeps to its strip; the rows under it sit in the middle of what is left
+            shift = 0 if item.top < self.title_bottom else self.stretch // 2
+            painter.drawText(QPoint(x, item.top + shift + ascent(item.font)), item.text)
         painter.end()

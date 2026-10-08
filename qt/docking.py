@@ -334,6 +334,7 @@ class Docking:
             del self.floating[name]
             block = panel.release_block()
             block.floating = False
+            # Back in the window it is solid; the window fades as a whole
             block.set_glass(255)
             panel.deleteLater()
             if relayout:

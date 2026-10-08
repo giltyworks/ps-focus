@@ -5,8 +5,8 @@ from __future__ import annotations
 
 from typing import Callable
 
-from PySide6.QtCore import QPoint, QRect, QRectF, Qt
-from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPainterPath
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
+from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPainterPath, QPen
 from PySide6.QtWidgets import QWidget
 
 from app_config import MODULE_MARGIN, TODAY_PANEL_WIDTH
@@ -19,6 +19,18 @@ MODULE_TITLE_PADDING = 5
 BUTTON_CORNER_RADIUS = 6
 # The dock icon at the right of a floating module's name row: the square it takes
 DOCK_CONTROL_SIZE = 18
+# Space between the line under the name strip and the module's contents
+STRIP_GAP = 4
+
+
+def paint_title_strip(painter: QPainter, rect: QRect, hovered: bool, alpha: int = 255, line: bool = True) -> None:
+    """The strip a block's name sits on, as a panel's tab bar in Photoshop: a shade lighter than the panel, a touch
+    lighter again under the mouse, with a line under it. The whole strip is where the block is taken by"""
+    fill = color("border" if hovered else "panel_alt")
+    fill.setAlpha(alpha)
+    painter.fillRect(rect, fill)
+    if line:
+        painter.fillRect(rect.left(), rect.bottom() + 1, rect.width(), 1, color("border"))
 
 
 def draw_rounded_box(painter: QPainter, box: QRectF, radius: float, fill: QColor, outline: QColor, outline_width: int = 1) -> None:
@@ -122,7 +134,9 @@ class ModuleBlock(QWidget):
         super().__init__()
         self.title = title
         self.fonts = fonts
-        self.content_top = 1 + MODULE_TITLE_PADDING + line_height(fonts.bold) + MODULE_TITLE_PADDING
+        # The name strip, its line, and a gap before the contents
+        self.strip_height = MODULE_TITLE_PADDING + line_height(fonts.bold) + MODULE_TITLE_PADDING
+        self.content_top = 1 + self.strip_height + 1 + STRIP_GAP
         # The module paints every pixel itself, so Qt need not clear it first
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         self.setMouseTracking(True)
@@ -174,6 +188,11 @@ class ModuleBlock(QWidget):
         self.paint_title(painter)
 
     def paint_title(self, painter: QPainter) -> None:
+        """The name on its strip; in landscape's side strip the strip is just around the name, with no line, the
+        strip's own rows starting close under it"""
+        strip = self.title_rect()
+        side = getattr(self, "landscape", False) and not self.floating
+        paint_title_strip(painter, strip, self.hovered_control == "title", self.glass_alpha, line=not side)
         draw_text(painter, 1 + MODULE_MARGIN, 1 + MODULE_TITLE_PADDING, self.title, color("text"), self.fonts.bold)
 
     def docked_width(self) -> int:
@@ -184,8 +203,8 @@ class ModuleBlock(QWidget):
         """Where the module is taken by to put it in a new order or out of the window: its name row, or in landscape,
         where the graph and calendar have their name in the strip beside them, the name itself"""
         if getattr(self, "landscape", False) and not self.floating:
-            return QRect(1, 1, 2 * MODULE_MARGIN + text_width(self.fonts.bold, self.title), 2 * MODULE_TITLE_PADDING + line_height(self.fonts.bold))
-        return QRect(1, 1, self.width() - 2, self.content_top - 1)
+            return QRect(1, 1, 2 * MODULE_MARGIN + text_width(self.fonts.bold, self.title), self.strip_height)
+        return QRect(1, 1, self.width() - 2, self.strip_height)
 
     def dock_rect(self) -> QRect | None:
         """The dock icon, at the right of the name row while the module floats"""
@@ -201,19 +220,20 @@ class ModuleBlock(QWidget):
         return "title" if self.title_rect().contains(point) else None
 
     def paint_dock_controls(self, painter: QPainter) -> None:
-        """The dock icon of a floating module: a window with a rail and an arrow into it, as the Tk version drew it;
-        muted while the mouse is over it, otherwise the border's colour"""
+        """The dock icon of a floating module, two arrows pointing back, as Photoshop's panels have: muted on the name
+        strip, brightening under the mouse"""
         dock = self.dock_rect()
         if dock is None:
             return
         painter.save()
-        painter.setPen(color("muted" if self.hovered_control == "dock" else "border"))
-        x, y = dock.x(), dock.y()
-        painter.drawRect(x + 2, y + 3, 13, 11)
-        painter.drawLine(x + 6, y + 3, x + 6, y + 14)
-        painter.drawLine(x + 14, y + 9, x + 8, y + 9)
-        painter.drawLine(x + 10, y + 6, x + 7, y + 9)
-        painter.drawLine(x + 7, y + 9, x + 10, y + 12)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(color("text" if self.hovered_control == "dock" else "muted"), 1.4)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        middle = dock.y() + dock.height() / 2
+        for tip in (dock.x() + 4.5, dock.x() + 9.5):
+            painter.drawPolyline([QPointF(tip + 4, middle - 4), QPointF(tip, middle), QPointF(tip + 4, middle + 4)])
         painter.restore()
 
     def interactive_at(self, point: QPoint) -> bool:

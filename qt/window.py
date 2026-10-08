@@ -50,6 +50,8 @@ class MainWindow(QWidget):
         # Told when the window moves, and when it is minimized or brought back, for the floating modules
         self.on_moved: Callable[[], None] | None = None
         self.on_state_changed: Callable[[], None] | None = None
+        # Told when the mouse comes onto the window or leaves it, which turns it solid or see-through
+        self.on_hover: Callable[[], None] | None = None
         self.setWindowTitle(APP_NAME)
         # Like the Tk window, there is nothing to maximize to: the window is as big as what it shows
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
@@ -78,6 +80,16 @@ class MainWindow(QWidget):
         self.clip_margin.hide()
         # Asking for the window's handle makes it now, so the title bar is dark from the first frame shown
         set_title_bar_colors_for_handle(int(self.winId()))
+
+    def enterEvent(self, event) -> None:
+        super().enterEvent(event)
+        if self.on_hover is not None:
+            self.on_hover()
+
+    def leaveEvent(self, event) -> None:
+        super().leaveEvent(event)
+        if self.on_hover is not None:
+            self.on_hover()
 
     def set_top(self, header: QWidget, controls: QWidget) -> None:
         """The header, and the module checkboxes under it"""
