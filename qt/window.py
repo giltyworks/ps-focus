@@ -16,6 +16,21 @@ from windows_startup import set_title_bar_colors_for_handle
 
 from .theme import color
 
+# The item added to the menu of the window's title bar, by the command number Windows reports when it is chosen
+ALWAYS_ON_TOP_COMMAND = 0x0010
+WM_SYSCOMMAND = 0x0112
+MF_STRING, MF_SEPARATOR, MF_CHECKED = 0x0000, 0x0800, 0x0008
+
+
+def _title_bar_menu(window: QWidget) -> int:
+    """The menu Windows shows on a right click on the window's title bar"""
+    user32 = ctypes.windll.user32
+    user32.GetSystemMenu.argtypes = [wintypes.HWND, wintypes.BOOL]
+    user32.GetSystemMenu.restype = wintypes.HMENU
+    user32.AppendMenuW.argtypes = [wintypes.HMENU, wintypes.UINT, ctypes.c_size_t, wintypes.LPCWSTR]
+    user32.CheckMenuItem.argtypes = [wintypes.HMENU, wintypes.UINT, wintypes.UINT]
+    return user32.GetSystemMenu(int(window.winId()), False)
+
 # Space between the header and the module checkboxes under it
 HEADER_GAP = 2
 
@@ -77,6 +92,9 @@ class MainWindow(QWidget):
 
     def __init__(self, on_close: Callable[[], None], on_resized_by_user: Callable[[int], None] | None = None) -> None:
         super().__init__()
+        # Told when Always on top is chosen in the title bar's menu. Set first, as Windows sends the window messages
+        # from the moment it is made
+        self.on_always_on_top: Callable[[], None] | None = None
         self.on_close = on_close
         self.on_resized_by_user = on_resized_by_user
         # Told when the window moves, and when it is minimized or brought back, for the floating modules
@@ -112,6 +130,24 @@ class MainWindow(QWidget):
         self.clip_margin.hide()
         # Asking for the window's handle makes it now, so the title bar is dark from the first frame shown
         set_title_bar_colors_for_handle(int(self.winId()))
+        if os.name == "nt":
+            menu = _title_bar_menu(self)
+            ctypes.windll.user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
+            ctypes.windll.user32.AppendMenuW(menu, MF_STRING, ALWAYS_ON_TOP_COMMAND, "Always on top")
+
+    def show_always_on_top(self, on: bool) -> None:
+        """Tick Always on top in the title bar's menu, or not"""
+        if os.name == "nt":
+            menu = _title_bar_menu(self)
+            ctypes.windll.user32.CheckMenuItem(menu, ALWAYS_ON_TOP_COMMAND, MF_CHECKED if on else 0)
+
+    def nativeEvent(self, event_type, message):
+        if event_type == b"windows_generic_MSG" and getattr(self, "on_always_on_top", None) is not None:
+            msg = wintypes.MSG.from_address(int(message))
+            if msg.message == WM_SYSCOMMAND and (msg.wParam & 0xFFF0) == ALWAYS_ON_TOP_COMMAND:
+                self.on_always_on_top()
+                return True, 0
+        return super().nativeEvent(event_type, message)
 
     def enterEvent(self, event) -> None:
         super().enterEvent(event)

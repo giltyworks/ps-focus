@@ -11,7 +11,7 @@ import time
 import webbrowser
 from datetime import date, datetime, timedelta
 
-from PySide6.QtCore import QPoint, Qt, QTimer
+from PySide6.QtCore import QPoint, QTimer
 from PySide6.QtGui import QAction, QCursor, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
@@ -108,14 +108,8 @@ class PSFocusQt:
         self.module_ticked = {name: bool(self.settings.get(f"show_{name}", True)) for name in MODULE_NAMES}
         self.module_controls = ModuleControls(self.fonts, self.module_ticked, self._module_toggled)
         self.window.set_top(self.header, self.module_controls)
-        # Right-clicking the window, a floating panel or the tray icon offers Always on top. A right click on any part
-        # of the window that has no menu of its own reaches the window
-        self.always_on_top_action = QAction("Always on top", checkable=True, checked=bool(self.settings.get("always_on_top")))
-        self.always_on_top_action.toggled.connect(self._always_on_top_chosen)
-        self.context_menu = QMenu()
-        self.context_menu.addAction(self.always_on_top_action)
-        self.window.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        self.window.customContextMenuRequested.connect(self.show_context_menu)
+        # Always on top is chosen in the menu of the window's title bar
+        self.window.on_always_on_top = self._toggle_always_on_top
         self.header.on_settings = self._toggle_settings
         self.header.on_level = self._level_clicked
         self.header.on_version = self._open_update_page
@@ -267,19 +261,16 @@ class PSFocusQt:
             # A floating program panel shows or hides at once; one in the window does on leaving Settings
             self.docking.sync_visibility()
 
-    def _always_on_top_chosen(self, on: bool) -> None:
-        self.settings["always_on_top"] = on
+    def _toggle_always_on_top(self) -> None:
+        self.settings["always_on_top"] = not self.settings.get("always_on_top")
         self._save_settings()
         self.apply_always_on_top()
-
-    def show_context_menu(self, _point=None) -> None:
-        """Right-clicking anywhere on the window or a floating panel"""
-        self.context_menu.exec(QCursor.pos())
 
     def apply_always_on_top(self) -> None:
         """Keep the window and its floating panels above other programs, or not, as the setting says"""
         on = bool(self.settings.get("always_on_top"))
         set_topmost(self.window, on)
+        self.window.show_always_on_top(on)
         for panel in self.docking.floating.values():
             if panel is not None:
                 set_topmost(panel, on)
@@ -490,7 +481,6 @@ class PSFocusQt:
         show = QAction("Show PS Focus", self.tray_menu, triggered=self.show_window)
         self.tray_menu.addAction(show)
         self.tray_menu.setDefaultAction(show)
-        self.tray_menu.addAction(self.always_on_top_action)
         self.tray_menu.addAction(QAction("Exit", self.tray_menu, triggered=self.close))
         self.tray_icon = QSystemTrayIcon(QIcon(str(resource_path("assets/icons/PSFocus_Settings_64.png"))))
         self.tray_icon.setToolTip(APP_NAME)

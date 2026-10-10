@@ -326,8 +326,6 @@ class Docking:
         panel.setVisible(self._panel_should_show(name))
         if self.app.settings.get("always_on_top"):
             set_topmost(panel, True)
-        panel.setContextMenuPolicy(Qt.ContextMenuPolicy.CustomContextMenu)
-        panel.customContextMenuRequested.connect(self.app.show_context_menu)
         self.update_glass(name)
         self.app._refresh_module(name)
 
