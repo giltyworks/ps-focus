@@ -707,9 +707,9 @@ class FriendsModule(ModuleBlock):
                 _kind, x, y, anchor, text, tone, font = item
                 draw_outline_text(painter, *anchored_top_left(x, y, anchor, text, font), text, color(tone), font)
             elif kind == "zzz":
-                # Three z's, each smaller and higher than the last
+                # Three z's of one size, each a little higher than the last
                 _kind, x, y = item
-                for offset, rise, font in ((0, 3, self.fonts.caption), (6, -1, self.fonts.tiny), (11, -4, self.fonts.tiny)):
+                for offset, rise, font in ((0, 3, self.fonts.tiny), (5, 0, self.fonts.tiny), (10, -3, self.fonts.tiny)):
                     draw_anchored(painter, x + offset, y + rise, "w", "z", color("muted"), font)
             elif kind == "dot":
                 _kind, x, y, dot_color = item
