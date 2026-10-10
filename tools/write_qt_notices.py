@@ -1,4 +1,9 @@
-"""Collect the exact installed Qt package notices, with matching wheels as a fallback."""
+"""Collect the exact installed Qt package notices for the release, with matching wheels as a fallback
+
+Run by tools/build_release.py. Where PySide6 was installed without its package details, download the matching
+wheels without installing them:
+`py -m pip download --no-deps --dest build/qt-preview/wheels PySide6==6.11.2 PySide6_Essentials==6.11.2 shiboken6==6.11.2`
+"""
 
 from __future__ import annotations
 
@@ -15,7 +20,6 @@ PACKAGES = ('PySide6', 'PySide6_Essentials', 'shiboken6')
 OPTIONAL = {'PySide6'}
 
 
-PREVIEW_HEADER = 'PS Focus Qt Preview - bundled software notices.\nThis preview is for testing; public release packaging remains pending.'
 RELEASE_HEADER = (
     'PS Focus includes the following third-party software. Each is provided under its own licence, reproduced below.\n'
     'Qt and Qt for Python (PySide6, Shiboken) are used under the GNU Lesser General Public License version 3. Their '
@@ -24,7 +28,7 @@ RELEASE_HEADER = (
 )
 
 
-def write_notices(header: str = PREVIEW_HEADER, output: Path | None = None) -> Path:
+def write_notices(header: str = RELEASE_HEADER, output: Path | None = None) -> Path:
     sections = [header]
     sections.append((Path(sys.base_prefix) / 'LICENSE.txt').read_text(encoding='utf-8', errors='replace'))
     for package in PACKAGES:

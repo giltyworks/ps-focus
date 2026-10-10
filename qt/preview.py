@@ -1,4 +1,4 @@
-"""A separate data folder for the Qt version while it is built, so it never touches the real activity history
+"""A separate data folder for a copy run from source, so it never touches the real activity history
 
 The installed app and a copy run from source would otherwise both count the same seconds into one database. Each
 start copies the real history and settings into the preview folder, so the preview shows real figures. The Google

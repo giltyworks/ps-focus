@@ -6,7 +6,6 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-import ui_uninstall
 import uninstall
 
 
@@ -187,52 +186,11 @@ class UninstallTests(unittest.TestCase):
         self.assertFalse((desktop / "PS Focus.lnk").exists())
         self.assertTrue((desktop / "Other.lnk").exists())
 
-    def test_keeping_data_uninstalls_without_the_data_warning(self):
-        with patch("ui_uninstall.messagebox") as messagebox, patch("ui_uninstall.uninstall", return_value=[]) as run_uninstall:
-            self.assertTrue(ui_uninstall.confirm_and_uninstall(False))
-
-        messagebox.askyesno.assert_not_called()
-        run_uninstall.assert_called_once_with(False)
-        self.assertIn("were kept", messagebox.showinfo.call_args.args[1])
-
-    def test_deleting_data_shows_one_warning_and_stops_when_declined(self):
-        parent = Mock()
-        with patch("ui_uninstall.messagebox") as messagebox, patch("ui_uninstall.uninstall") as run_uninstall:
-            messagebox.askyesno.return_value = False
-            self.assertFalse(ui_uninstall.confirm_and_uninstall(True, parent))
-
-        messagebox.askyesno.assert_called_once()
-        self.assertEqual(messagebox.askyesno.call_args.args[1], "This will permanently delete all user data. Continue?")
-        run_uninstall.assert_not_called()
-        parent.withdraw.assert_not_called()
-
-    def test_deleting_data_runs_after_the_warning_is_accepted(self):
-        with patch("ui_uninstall.messagebox") as messagebox, patch("ui_uninstall.uninstall", return_value=[]) as run_uninstall:
-            messagebox.askyesno.return_value = True
-            self.assertTrue(ui_uninstall.confirm_and_uninstall(True))
-
-        messagebox.askyesno.assert_called_once()
-        run_uninstall.assert_called_once_with(True)
-
-    def test_uninstaller_opens_its_dialog_without_requesting_admin_rights(self):
-        with patch("ui_uninstall.tk.Tk") as create_window, patch("ui_uninstall.UninstallDialog") as dialog:
-            ui_uninstall.main()
-
-        dialog.assert_called_once_with(create_window.return_value)
+    def test_the_release_never_asks_for_administrator_rights(self):
+        # Everything the uninstall removes belongs to the current user
+        spec = (Path(uninstall.__file__).resolve().parent / "PS Focus.spec").read_text(encoding="utf-8")
+        self.assertNotIn("uac_admin", spec)
         self.assertFalse(hasattr(uninstall, "relaunch_as_admin"))
-        self.assertNotIn("uac_admin", Path(uninstall.__file__).with_name("PS Focus.spec").read_text(encoding="utf-8"))
-
-    def test_app_started_with_the_uninstall_option_only_uninstalls(self):
-        import main
-
-        with patch("main.sys.argv", ["PS Focus.exe", "--uninstall"]), patch("main.ui_uninstall.main") as run_uninstaller, patch(
-            "main.set_app_user_model_id"
-        ) as start_app, patch("main.tk.Tk") as create_window:
-            main.main()
-
-        run_uninstaller.assert_called_once_with()
-        start_app.assert_not_called()
-        create_window.assert_not_called()
 
 
 if __name__ == "__main__":

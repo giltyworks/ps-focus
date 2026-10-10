@@ -11,7 +11,7 @@ Run `PS-Focus-Setup-<version>.exe`. It installs PS Focus for the current Windows
 
 ## Run from source
 
-Requires Windows and Python 3.10 or newer. Install the Python dependencies first:
+Requires Windows and Python 3.14. PS Focus is built with Qt (PySide6). Install the dependencies first:
 
 ```powershell
 py -m pip install -r requirements.txt
@@ -20,12 +20,12 @@ py -m pip install -r requirements.txt
 From this folder run:
 
 ```powershell
-py main.py
+py -m qt
 ```
 
-Activity data and preferences are stored under `%APPDATA%\PS Focus`. Data from earlier releases is migrated on first launch
+Run from source, PS Focus works on a copy of your real history and settings in `%APPDATA%\PS Focus Qt Preview`, made afresh at each start, so a copy under development never counts the same seconds into the installed app's history; its Google backups use separate file names in Drive. Add `--real-data` to use `%APPDATA%\PS Focus` itself. The installed app stores its activity data and preferences under `%APPDATA%\PS Focus`; data from earlier releases is carried over on first launch
 
-Only one copy of PS Focus runs at a time for each Windows user, because two would each count the same seconds into the one history. Starting it again brings up the window of the copy already running. **Exit**, in the tray menu and on the Settings page, takes a final backup and closes the app; closing the window only hides it in the tray. Windows signing out or shutting down closes it the same way as Exit. The installer asks a running copy to close itself through a named signal before replacing its files, which takes about a second; closed by Windows' Restart Manager instead, as versions before 1.0.4 are, the launcher at the front of the packaged app waits about 30 seconds to be ended by force. While the window is hidden or minimized the app keeps counting time but redraws nothing
+Only one copy of PS Focus runs at a time for each Windows user, because two would each count the same seconds into the one history. Starting it again brings up the window of the copy already running. **Exit**, in the tray menu and on the Settings page, takes a final backup and closes the app; closing the window only hides it in the tray. Windows signing out or shutting down closes it the same way as Exit. The installer asks a running copy to close itself through a named signal before replacing its files, which takes about a second; versions before 1.0.4 are closed by Windows' Restart Manager instead. While the window is hidden or minimized the app keeps counting time but redraws nothing
 
 ## Google sign-in
 
@@ -34,7 +34,7 @@ Google sign-in is optional. Packaged releases include PS Focus's Google Desktop 
 For development or to supply a different client:
 
 - Create an OAuth client ID of type **Desktop app** in Google Cloud Console and enable the Google Drive API
-- Download the client JSON and place it beside `main.py` as `credentials.json`
+- Download the client JSON and place it in this folder as `credentials.json`
 - An external `credentials.json` in `%APPDATA%\PS Focus` or beside the executable overrides the bundled configuration. Only Desktop app clients are accepted; Google sign-in uses PKCE (S256).
 - In PS Focus, choose **Connect Google**. The browser requests access to PS Focus's private Drive app-data area and your Google account email, which PS Focus displays in the header
 - Double-click the name in the header to replace the email with a name of your choice. Each Google account keeps its own name on this PC, so switching accounts shows that account's name, or its email if none was chosen
@@ -43,15 +43,11 @@ The app uploads settings when connected and when preferences change. Activity ba
 
 ## Windows startup
 
-The **Start with Windows** setting adds or removes PS Focus in the current user's Windows Run registry key. A new installation turns on both **Start with Windows** and **Start minimized** the first time it runs. **Start minimized** takes effect when launched by that entry. Each time a packaged build starts with the setting on, it points the entry at its own location, so a moved or reinstalled copy keeps starting with Windows. Running from source never changes the entry unless the setting is toggled. Preferences, including the chart period last viewed, are saved locally as they change and restored on later launches
+The **Start with Windows** setting adds or removes PS Focus in the current user's Windows Run registry key. A new installation turns on both **Start with Windows** and **Start minimized** the first time it runs. **Start minimized** takes effect when launched by that entry. Each time a packaged build starts with the setting on, it points the entry at its own location, so a moved or reinstalled copy keeps starting with Windows. A copy run from source never changes the entry: the two settings are greyed out there. Preferences, including the chart period last viewed, are saved locally as they change and restored on later launches
 
 ## Levels
 
-Lifetime tracked time across all programs sets a level from 1 to 99, shown beside **Level** in the top left. The hours each level needs are fixed in `app_config.py` (`LEVEL_ANCHORS`) and cannot be changed from the settings file. Reaching a new level plays a trumpet fanfare with fireworks over the window; with the window hidden or minimized only the sound plays, and **Disable fanfare sound** in Settings silences it. To preview the celebrations without touching real data, run:
-
-```powershell
-py tools/simulate_level_ups.py 15
-```
+Lifetime tracked time across all programs sets a level from 1 to 99, shown beside **Level** in the top left. The hours each level needs are fixed in `app_config.py` (`LEVEL_ANCHORS`) and cannot be changed from the settings file. Reaching a new level plays a trumpet fanfare with fireworks over the window; with the window hidden or minimized only the sound plays, and **Disable fanfare sound** in Settings silences it.
 
 ## Stats
 
@@ -61,9 +57,9 @@ The Stats module lists each figure as a label on the left and its value in a col
 
 Choose PS Focus under **Settings > Apps > Installed apps** and then **Uninstall**. This runs the app itself as `PS Focus.exe --uninstall`, which opens a dialog; there is no separate uninstaller program. It runs as the current user without administrator rights, because everything it removes belongs to that user.
 
-**Uninstall** closes any running PS Focus and removes the Windows startup entry, the Installed apps entry, the shortcuts, the installed documents, and the temporary folder the closed app had unpacked itself into. It keeps activity history, settings, and backups. `PS Focus.exe` cannot delete itself while it is running, so a helper removes it, and then the installation folder if it is empty, as soon as the dialog has closed. Ticking **Also delete all user data** shows a warning and, once accepted, also signs out of Google and deletes `%APPDATA%\PS Focus` and the `PS Focus Backups` folders in Documents and OneDrive. The activity backup stored in Google Drive's private app-data area is never deleted.
+**Uninstall** closes any running PS Focus and removes the Windows startup entry, the Installed apps entry, the shortcuts and the installed documents. It keeps activity history, settings, and backups. `PS Focus.exe` and its `_internal` folder cannot be deleted while the uninstall runs, so a helper removes them, and then the installation folder if it is empty, as soon as the dialog has closed. Ticking **Also delete all user data** shows a warning and, once accepted, also signs out of Google and deletes `%APPDATA%\PS Focus` and the `PS Focus Backups` folders in Documents and OneDrive. The activity backup stored in Google Drive's private app-data area is never deleted.
 
-Run from source (`py main.py --uninstall`), the dialog removes the startup entry and, if asked, the data, but no program files.
+Run from source (`py -m qt --uninstall`), the dialog removes the startup entry and, if asked, the data, but no program files.
 
 ## Feedback
 
@@ -88,21 +84,20 @@ See [PRIVACY.md](PRIVACY.md) for the full policy. The tracker checks the foregro
 
 ## Source layout
 
-- `main.py`: the application window, tracking loop, header, program panels, and tray icon
-- `ui_chart.py`, `ui_calendar.py`, `ui_modules.py`, `ui_settings.py`, `ui_google.py`, `ui_backup.py`, `ui_feedback.py`, `ui_celebration.py`: one area of the window each, as mixins of the main application class
+- `qt/`: the app, built with Qt. `app.py` runs it: the tracking loop, the tray icon, Settings, backups, feedback, updates and level-ups. `window.py` lays the blocks out by hand, in portrait or landscape. Each block paints itself: `today_panel.py` (a program's panel), `chart.py`, `calendar_module.py`, `stats_module.py`, with what they share in `module.py` (the name strip, buttons and glass). `header.py`, `settings_page.py`, `day_overview.py`, `feedback_dialog.py` and `uninstall_window.py` are the other parts of the interface; `theme.py` holds the colours, fonts and text measuring, laid out by Windows' own font metrics
+- `qt/docking.py` and `qt/block_drag.py`: floating panels. A block's title strip puts it in a new order, or out of the window into a window of its own; anything else moves the window or panel with everything snapped to it. Windows move together in one step, and see-through glass is worked out per group of snapped windows
+- `qt/google_sync.py`: Google sign-in, settings upload and activity backups for the app, run on background threads with the results handled on the interface's own
+- `qt/preview.py`: the copy of your data a run from source works on
 - `app_config.py`: paths, constants, colours, and default settings
-- `rendering.py`: Pillow drawing of the level badge and line chart
-- `windows_startup.py`: the Windows startup entry, taskbar identity, and the single-running-copy claim
-- `tracker.py`: activity database and foreground-window detection
-- `google_drive.py`, `feedback.py`: Google sign-in and Drive sync, and the feedback outbox
-- `uninstall.py`: the uninstall mode, run as `PS Focus.exe --uninstall`
-- `unpack_cleanup.py`: removes the temporary folders left by runs that were ended by force. The packaged app unpacks itself into a `_MEI…` folder in the temporary folder at each launch, about 36 MB, and its launcher deletes it on exit; a run ended by the uninstaller, Task Manager, a crash, or a power cut leaves it behind. At each launch, and when uninstalling, the app deletes those folders. It touches only folders that hold its own icon, and it starts by deleting the Python library inside, which Windows refuses while any running copy has it loaded, so a folder in use is left whole. Do not test for use by renaming the folder: Windows allows that while it is in use
-- `ui_header.py`: the header row, drawn on one canvas
-- `widgets.py`: the rounded button, and text and buttons drawn on a canvas. Tk repaints every widget separately while the window is resized, and drawn text and frames that stretch with the window cost the most. So each panel and module is one canvas rather than many labels and frames, the calendar and stats are shown as a single picture taken from a hidden canvas (`drawing_surface` and `show_drawing`, which need Tk 9), and the pages do not stretch. Add to a canvas rather than adding widgets, and compare screenshots before and after any layout change
-- `update_check.py`, `ui_updates.py`: the daily check for a newer version and the version line in Settings
+- `tracker.py`: activity database and foreground-window detection. The database keeps a write-ahead log, so recording each second is a short append; backups are plain single files
+- `stat_lines.py`: the Stats module's figures
+- `google_drive.py`, `feedback.py`, `update_check.py`: Google Drive sync, the feedback outbox, and the daily check for a newer version
+- `web.py`: HTTPS through Windows' own WinHTTP, so the app needs no copy of OpenSSL
+- `windows_startup.py`: the Windows startup entry, taskbar identity, dark title bar, and the single-running-copy claim
+- `uninstall.py`: what the uninstall mode removes, run as `PS Focus.exe --uninstall`
+- `unpack_cleanup.py`: removes the temporary `_MEI…` folders that versions before 1.1 left behind when ended by force; they unpacked themselves there at each launch. It touches only folders that hold its own icon, and a folder in use is left whole
 - `installer/PS Focus.iss`: the Inno Setup installer script
-- `tools/`: release build, credential check, checksums, and executable version information
-- `tools/simulate_level_ups.py`: a preview tool that plays the level-up celebrations against a throwaway data folder; not part of the app
+- `tools/`: release build, credential check, checksums, licence notices, executable version information, disk-use measuring, and the website's screenshots (`site_screenshots.py`, the real app on sample data)
 - `assets/sounds/make_celebration.py`: generates `celebration.wav`; rerun it and rebuild after changing the sound
 
 ## Test
@@ -116,19 +111,19 @@ py -m unittest discover -v
 To publish a version:
 
 1. Raise `APP_VERSION` in `app_config.py`.
-2. Close PS Focus and run `py tools/build_release.py`. It needs PyInstaller and Inno Setup 6 (`winget install --id JRSoftware.InnoSetup -e --scope user`). It runs the tests and builds `dist/PS Focus.exe`, stamping the version into its file properties. It then runs the credential check, generates the third-party licence notices, builds `dist/installer/PS-Focus-Setup-<version>.exe`, and writes `dist/installer/PS-Focus-<version>-SHA256SUMS.txt`. Finally it tidies up, leaving the installer and its checksum as the only build files: it deletes `dist/PS Focus.exe`, which is now inside the installer, the installers of earlier versions, and the `build` folder, which is only a cache and holds a copy of the sign-in client configuration. To try a build, install it; a loose packaged copy would point the Windows startup entry at itself.
-3. Upload the installer and publish the checksum lines beside it.
+2. Build the installer, either with the **Build installer** workflow on GitHub (started by hand from the Actions tab, or by pushing a `v1.2.3` tag), which is how releases are made, or locally with `py tools/build_release.py`. It needs PyInstaller and Inno Setup 6 (`winget install --id JRSoftware.InnoSetup -e --scope user`). It runs the tests, writes the third-party licence notices, and builds the app as a folder, `dist/PS Focus` (the program and its `_internal` runtime), stamping the version into its file properties. It then runs the credential checks, starts the built app twice with throwaway data to check that it draws everything, switches layouts and Settings, sets up Google sign-in's local listener, and closes, builds `dist/installer/PS-Focus-Setup-<version>.exe`, and writes `dist/installer/PS-Focus-<version>-SHA256SUMS.txt`. Finally it tidies up, leaving the installer and its checksum as the only build files. To try a build, install it; a loose packaged copy would point the Windows startup entry at itself.
+3. Publish the installer and its checksum file as a GitHub release, then download the installer back and compare its checksum.
 4. Set `LATEST_VERSION` and `DOWNLOAD_URL` in `feedback_endpoint/Code.gs`, then deploy a new web app version so existing installations are told about it.
 
-The executable is built without UPX compression, because UPX-packed files are flagged by antivirus far more often. Parts of Pillow the app never uses, such as its AVIF and WebP decoders, are left out to keep it small; see `excludes` in `PS Focus.spec` before using a new Pillow feature.
+The executable is built without UPX compression, because UPX-packed files are flagged by antivirus far more often. To keep it small, it is built with Qt's essential modules only (`PySide6_Essentials`), and parts of Qt and Python the app never uses are left out: OpenGL, SVG, Qt's networking and translations, OpenSSL, and some archive formats; see `excludes` and `needed_file` in `PS Focus.spec` before using one of them. The installer has Windows compress the program files once installed, which roughly halves the space they take. Where PySide6 was installed without its package details, the licence notices are read from its wheels: `py -m pip download --no-deps --dest build/qt-preview/wheels PySide6==6.11.2 PySide6_Essentials==6.11.2 shiboken6==6.11.2`.
 
 ## Release security
 
 The steps below are what `tools/build_release.py` runs; they are listed here to explain each check.
 
-Build with `py -m PyInstaller --noconfirm "PS Focus.spec"`. Supply a local Desktop app `credentials.json` or the `PSFOCUS_OAUTH_CREDENTIALS` environment variable. The build generates only the client ID and client secret in `assets/oauth/desktop-client.json` inside the executable. This Desktop OAuth configuration is extractable public-client configuration, not a confidential server credential. Never supply a Web client or service account. A build without configuration is for development and cannot provide Google sign-in.
+Build with `py -m PyInstaller --noconfirm --clean "PS Focus.spec"`. Supply a local Desktop app `credentials.json` or the `PSFOCUS_OAUTH_CREDENTIALS` environment variable. The build generates only the client ID and client secret in `assets/oauth/desktop-client.json` inside the executable. This Desktop OAuth configuration is extractable public-client configuration, not a confidential server credential. Never supply a Web client or service account. A build without configuration is for development and cannot provide Google sign-in.
 
-Before distribution, run `py tools/check_credentials.py --archive "dist/PS Focus.exe"`. The release scanner permits only the minimal Desktop configuration at that exact archive path; source scanning continues to reject OAuth secrets. User tokens, environment files, private/signing keys, and server credentials remain prohibited. Build directories and executables remain excluded from Git. For GitHub Actions builds, configure the repository secret `PSFOCUS_OAUTH_CREDENTIALS` with the Desktop client JSON.
+Before distribution, run `py tools/check_credentials.py --archive "dist/PS Focus/PS Focus.exe" --verify-qt-binaries` and `py tools/check_credentials.py --directory "dist/PS Focus/_internal" --verify-qt-binaries`. The release scanner permits only the minimal Desktop configuration at that exact archive path; source scanning continues to reject OAuth secrets. User tokens, environment files, private/signing keys, and server credentials remain prohibited. Build directories and executables remain excluded from Git. For GitHub Actions builds, configure the repository secret `PSFOCUS_OAUTH_CREDENTIALS` with the Desktop client JSON.
 
 After the credential check, write the checksum for the installer, the one file that is published:
 
