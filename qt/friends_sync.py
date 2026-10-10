@@ -25,6 +25,8 @@ from .status_menu import PopupMenu, StatusMenu
 # hundreds of people a day. Starting or stopping drawing, and the mouse coming onto the module, check in sooner
 SEEN_SYNC_SECONDS = 60
 UNSEEN_SYNC_SECONDS = 10 * 60
+# With no friends and no requests either way nobody sees the figures, so only now and then, for a request arriving
+LONELY_SYNC_SECONDS = 30 * 60
 # Drawing counts as going on for this long after the last tracked second, so a moment in another window does not
 # tell friends the user stopped
 ACTIVE_LINGER_SECONDS = 120
@@ -55,6 +57,8 @@ class FriendsSync:
         self.last_active_time = 0.0
         self.active_program: str | None = None
         self.reported_active: str | None = None
+        # Whether anyone has used the PC in the last few minutes, see sync_interval
+        self.present = True
         # Whether friends have been told the user went offline, after which nothing more is sent
         self.offline_announced = False
         # Answers to requests waiting for a check-in to finish; the requests a popup has been shown for this session,
@@ -144,10 +148,12 @@ class FriendsSync:
         self.refresh_view()
         self.sync()
 
-    def tick(self, program: str | None) -> None:
-        """Called every second with the program being drawn in, if any; a change in what friends would see as drawing
-        now is sent once it has lasted, and no sooner than a minute after the last check-in"""
+    def tick(self, program: str | None, present: bool = True) -> None:
+        """Called every second with the program being drawn in, if any, and whether anyone has used the PC lately; a
+        change in what friends would see as drawing now is sent once it has lasted, and no sooner than a minute after
+        the last check-in"""
         now = time.monotonic()
+        self.present = present
         if program:
             self.last_active_time = now
             self.active_program = program
@@ -156,7 +162,9 @@ class FriendsSync:
         if not self.enabled():
             return
         since = now - self.last_sync
-        if (self.shown_program() != self.reported_active and since >= MIN_SYNC_GAP_SECONDS) or since >= self.sync_interval():
+        # Starting or stopping drawing is told to friends, if there are any to tell
+        drawing_changed = self.shown_program() != self.reported_active and self.has_friends()
+        if (drawing_changed and since >= MIN_SYNC_GAP_SECONDS) or since >= self.sync_interval():
             self.sync()
 
     def looked_at(self) -> None:
@@ -229,8 +237,16 @@ class FriendsSync:
             self.pending_sync = False
             self.sync()
 
+    def has_friends(self) -> bool:
+        return bool(self.state and self.state.get("friends"))
+
     def sync_interval(self) -> int:
-        """Seconds between check-ins now, see SEEN_SYNC_SECONDS"""
+        """Seconds between check-ins now, see SEEN_SYNC_SECONDS. With nobody at the PC, as when PS Focus is left on
+        screen, every ten minutes; coming back, the next tick checks in at once"""
+        if self.state is not None and not self.has_friends() and not self.state.get("incoming") and not self.state.get("outgoing"):
+            return LONELY_SYNC_SECONDS
+        if not self.present:
+            return UNSEEN_SYNC_SECONDS
         module = self.module
         seen = module.isVisible() and not module.window().isMinimized()
         waiting = bool(self.state and self.state.get("outgoing"))

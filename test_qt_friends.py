@@ -220,8 +220,9 @@ class QtFriendsTests(unittest.TestCase):
     def test_starting_and_stopping_drawing_is_sent_once_it_has_lasted(self):
         from qt import friends_sync
 
-        # Out of sight, so only the change in drawing is due
+        # Out of sight, so only the change in drawing is due, told to a friend
         self.app.window.hide()
+        self.service.answer = server_state(friends=[{"code": "BBBB2222", "name": "Bo", "stats": {}, "updated_at": 1000}])
         self._turn_on()
         self.sync.last_sync -= friends_sync.MIN_SYNC_GAP_SECONDS
         self.sync.tick("Krita")
@@ -283,9 +284,21 @@ class QtFriendsTests(unittest.TestCase):
         self._settle()
         self.assertEqual([call[0] for call in self.service.calls], ["sync", "sync", "accept"])
 
+    def test_with_no_friends_or_requests_check_ins_are_rare(self):
+        from qt import friends_sync
+
+        self._turn_on()
+        self.assertEqual(self.sync.sync_interval(), friends_sync.LONELY_SYNC_SECONDS)
+        # Nobody to tell about drawing
+        self.sync.last_sync -= friends_sync.MIN_SYNC_GAP_SECONDS
+        self.sync.tick("Krita")
+        self._settle()
+        self.assertEqual(len(self.service.calls), 1)
+
     def test_check_ins_come_every_minute_while_friends_are_seen_or_a_request_waits(self):
         from qt import friends_sync
 
+        self.service.answer = server_state(friends=[{"code": "BBBB2222", "name": "Bo", "stats": {}, "updated_at": 1000}])
         self._turn_on()
         self.app.window.hide()
         self.assertEqual(self.sync.sync_interval(), friends_sync.UNSEEN_SYNC_SECONDS)
@@ -293,6 +306,10 @@ class QtFriendsTests(unittest.TestCase):
         self.application.processEvents()
         self.assertTrue(self.app.friends.isVisible())
         self.assertEqual(self.sync.sync_interval(), friends_sync.SEEN_SYNC_SECONDS)
+        # Nobody at the PC, every ten minutes even with friends on screen
+        self.sync.tick(None, present=False)
+        self.assertEqual(self.sync.sync_interval(), friends_sync.UNSEEN_SYNC_SECONDS)
+        self.sync.present = True
         # Due, a tick checks in
         self.sync.last_sync -= friends_sync.SEEN_SYNC_SECONDS
         self.sync.tick(None)

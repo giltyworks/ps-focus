@@ -578,7 +578,7 @@ class PSFocusQt:
         self.update_glass()
         self._celebrate_level_up(level)
         self._set_feedback_unlocked(lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS)
-        self.friends_sync.tick(foreground_app if self.active else None)
+        self.friends_sync.tick(foreground_app if self.active else None, user_is_active(IDLE_TIMEOUT_SECONDS))
         # Tracking continues in the tray and Settings; drawing the modules out of sight waits for them to show.
         # Floating ones stay in view with Settings open, so they keep up
         if self.window.isVisible() and not self.window.isMinimized() and self.settings_shown:
