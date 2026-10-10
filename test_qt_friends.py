@@ -394,6 +394,19 @@ class QtFriendsTests(unittest.TestCase):
         # As tall as the columns beside it, inside their borders
         self.assertEqual(module.height(), self.app._landscape_height(self.app._anchor_panel()) + 2)
 
+    def test_the_code_field_stays_open_for_its_paste_menu(self):
+        from PySide6.QtCore import Qt
+        from PySide6.QtGui import QFocusEvent
+        from PySide6.QtCore import QEvent
+
+        self._turn_on()
+        module = self.app.friends
+        module._toggle_entry()
+        module.entry.focusOutEvent(QFocusEvent(QEvent.Type.FocusOut, Qt.FocusReason.PopupFocusReason))
+        self.assertTrue(module.entry.isVisible())
+        module.entry.focusOutEvent(QFocusEvent(QEvent.Type.FocusOut, Qt.FocusReason.MouseFocusReason))
+        self.assertFalse(module.entry.isVisible())
+
     def test_the_code_is_copied_and_typed_codes_are_added(self):
         self._turn_on()
         module = self.app.friends

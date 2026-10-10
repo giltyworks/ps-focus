@@ -151,7 +151,9 @@ class CodeEntry(QLineEdit):
 
     def focusOutEvent(self, event) -> None:
         super().focusOutEvent(event)
-        self._finish(None)
+        # The field's own right-click menu, for pasting a code, leaves it open
+        if event.reason() != Qt.FocusReason.PopupFocusReason:
+            self._finish(None)
 
 
 class FriendsModule(ModuleBlock):

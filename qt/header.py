@@ -154,7 +154,9 @@ class NameEntry(QLineEdit):
 
     def focusOutEvent(self, event: QFocusEvent) -> None:
         super().focusOutEvent(event)
-        self._finish(self.text())
+        # The field's own right-click menu, for pasting, leaves it open
+        if event.reason() != Qt.FocusReason.PopupFocusReason:
+            self._finish(self.text())
 
 
 class Header(QWidget):
