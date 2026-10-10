@@ -321,7 +321,8 @@ class SettingsPage(QWidget):
     def _paint_slider(self, painter: QPainter) -> None:
         """A track filled in blue up to the knob, as far as the panels are see-through"""
         middle = self.slider_top + SLIDER_KNOB / 2
-        knob_x = self.slider_left + SLIDER_KNOB / 2 + (SLIDER_WIDTH - SLIDER_KNOB) * self.transparency() / 100
+        # Fully right is fully solid; leftwards it turns more see-through
+        knob_x = self.slider_left + SLIDER_KNOB / 2 + (SLIDER_WIDTH - SLIDER_KNOB) * (100 - self.transparency()) / 100
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(Qt.PenStyle.NoPen)
@@ -340,7 +341,7 @@ class SettingsPage(QWidget):
 
     def _slide_to(self, point: QPoint, done: bool) -> None:
         span = SLIDER_WIDTH - SLIDER_KNOB
-        value = round(max(0, min(span, point.x() - self.slider_left - SLIDER_KNOB / 2)) * 100 / span)
+        value = 100 - round(max(0, min(span, point.x() - self.slider_left - SLIDER_KNOB / 2)) * 100 / span)
         self.on_transparency(value, done)
         self.update()
 
