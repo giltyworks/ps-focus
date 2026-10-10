@@ -309,39 +309,40 @@ class FriendsModule(ModuleBlock):
             y += accept.height + ROW_GAP
         if incoming:
             y += GROUP_GAP - ROW_GAP
-        rank_width = text_width(fonts.small, "00") + 6
+        # Each friend's level stands at the left of their name, in a column as wide as two digits
+        level_width = text_width(fonts.small, "00") + 6
+        star_width = text_width(fonts.small, "\u2605") + 4
         name_line = line_height(fonts.account) + LINE_PADDING
         self.name_rects = {}
-        rank = 0
         for name, stats, presence, active, code, favourite in view.people:
             top = y
             hours = f"{stats.get('two_weeks', 0):.1f} hrs past 2 weeks"
             hours_left = right - text_width(fonts.small, hours)
             middle = y + name_line // 2
-            # A favourite has a gold star in place of a rank; the others are ranked among themselves
-            if favourite:
-                self.items.append(("anchored", left - 1, middle, "w", "\u2605", "gold", fonts.small))
-            else:
-                rank += 1
-                self.items.append(("anchored", left, middle, "w", str(rank), "muted", fonts.small))
+            self.items.append(("anchored", left, middle, "w", str(stats.get("level", 0)), "muted", fonts.small))
             self.items.append(("anchored", right, middle, "e", hours, "text", fonts.small))
-            name_left = left + rank_width
+            name_left = left + level_width
             # Beside the name: what they are drawing in, or that they are away
             label = PROGRAM_SHORT_NAMES.get(active, active) if active else "Away" if presence == "away" else ""
             dot_color = PRESENCE_COLORS.get(presence)
             label_room = (ACTIVE_DOT_SIZE + 6 if dot_color else 0) + (text_width(fonts.small, label) + 4 if label else 0)
-            name_room = hours_left - 8 - name_left - label_room
+            name_room = hours_left - 8 - name_left - label_room - (star_width if favourite else 0)
             shown_name = fit_text(name, fonts.account, name_room)
             self.items.append(("anchored", name_left, middle, "w", shown_name, "text", fonts.account))
             self.name_rects[code] = QRect(name_left - 4, top, hours_left - 8 - name_left + 4, name_line)
+            after_name = name_left + text_width(fonts.account, shown_name)
+            # A favourite has a gold star after their name
+            if favourite:
+                self.items.append(("anchored", after_name + 4, middle, "w", "\u2605", "gold", fonts.small))
+                after_name += star_width
             if dot_color:
-                dot_left = name_left + text_width(fonts.account, shown_name) + 6
+                dot_left = after_name + 6
                 self.items.append(("dot", dot_left, middle, dot_color))
                 if label:
                     self.items.append(("anchored", dot_left + ACTIVE_DOT_SIZE + 4, middle, "w", label, dot_color, fonts.small))
             y += name_line
             total = f"{stats.get('total', 0):.1f} hrs total"
-            details = f"Lv {stats.get('level', 0)} · {stats.get('streak', 0)} wk streak · {stats.get('today', 0):.1f}h today"
+            details = f"{stats.get('streak', 0)} wk streak · {stats.get('today', 0):.1f}h today"
             details_room = right - text_width(fonts.small, total) - 8 - name_left
             middle = y + small_line // 2
             self.items.append(("anchored", name_left, middle, "w", fit_text(details, fonts.small, details_room), "muted", fonts.small))
