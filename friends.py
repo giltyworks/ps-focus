@@ -14,7 +14,7 @@ from typing import Callable
 from web import urlopen
 
 # Address of the deployed friends server; friends cannot be turned on while this is empty
-FRIENDS_SERVER_URL = ""
+FRIENDS_SERVER_URL = "https://ps-focus-friends.ps-focus-friends.workers.dev"
 
 
 class FriendsError(RuntimeError):

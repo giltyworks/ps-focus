@@ -13,5 +13,5 @@ GOOGLE_CLIENT_ID = "91542726083-94m9n4iaq14cn44rjuad4drtbd6dinku.apps.googleuser
 [[d1_databases]]
 binding = "DB"
 database_name = "ps-focus-friends"
-# Filled in by the first deploy, see README.md
-database_id = "00000000-0000-0000-0000-000000000000"
+# Made by the first deploy, see README.md
+database_id = "592ee39a-ca73-4999-bd14-1a4472af4fd5"
