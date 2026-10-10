@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, QTimer
-from PySide6.QtGui import QAction, QColor, QIcon, QKeyEvent, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen, QPixmap
+from PySide6.QtGui import QColor, QKeyEvent, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen
 from PySide6.QtWidgets import QLineEdit, QWidget
 
 from app_config import EDGE_PADDING, LINE_PADDING, MODULE_MARGIN, TODAY_PANEL_WIDTH
@@ -122,23 +122,42 @@ def wrap(text: str, font, width: int) -> list[str]:
     return lines + [line] if line else lines
 
 
-def _tick_icon() -> QIcon:
-    """A green tick, drawn sharp at the screen's scale"""
-    icon = QIcon()
-    for ratio in (1, 1.5, 2):
-        pixmap = QPixmap(round(16 * ratio), round(16 * ratio))
-        pixmap.setDevicePixelRatio(ratio)
-        pixmap.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pixmap)
+class TickButton(QWidget):
+    """The green tick at the end of a field, which keeps what is typed as Enter does; under the mouse a faint rounded box
+    shows behind it, as the app's other buttons do. It never takes the keyboard, so the field stays open"""
+
+    def __init__(self, parent: QWidget, on_click: Callable[[], None]) -> None:
+        super().__init__(parent)
+        self.on_click = on_click
+        self.hovered = False
+        self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setToolTip("Add")
+
+    def enterEvent(self, _event) -> None:
+        self.hovered = True
+        self.update()
+
+    def leaveEvent(self, _event) -> None:
+        self.hovered = False
+        self.update()
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self.rect().contains(event.position().toPoint()):
+            self.on_click()
+
+    def paintEvent(self, _event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        if self.hovered:
+            paint_hover_box(painter, QRectF(self.rect()).adjusted(1, 1, -1, -1), color("border").lighter(130))
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         pen = QPen(color("active_green"), 2)
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
-        painter.drawPolyline([QPointF(3.5, 8.5), QPointF(6.5, 11.5), QPointF(12.5, 4.5)])
+        x, y = (self.width() - 10) / 2, (self.height() - 8) / 2
+        painter.drawPolyline([QPointF(x, y + 4), QPointF(x + 3.2, y + 7.2), QPointF(x + 10, y)])
         painter.end()
-        icon.addPixmap(pixmap)
-    return icon
 
 
 class CodeEntry(QLineEdit):
@@ -155,13 +174,18 @@ class CodeEntry(QLineEdit):
             f"QLineEdit {{ background: {color('panel_alt').name()}; color: {color('text').name()};"
             f" selection-background-color: {color('accent_dark').name()}; padding: 0 4px; border-radius: 4px; }}"
         )
-        # A tick at the end, which keeps what is typed as Enter does; shown once there is something to keep
-        self.confirm = QAction(_tick_icon(), "Add", self)
-        self.confirm.triggered.connect(lambda: self._finish(self.text()))
-        self.addAction(self.confirm, QLineEdit.ActionPosition.TrailingPosition)
+        # A tick at the end, shown once there is something to keep
+        self.confirm = TickButton(self, lambda: self._finish(self.text()))
         self.confirm.setVisible(False)
         self.textChanged.connect(lambda text: self.confirm.setVisible(bool(text.strip())))
         self.hide()
+
+    def resizeEvent(self, event) -> None:
+        super().resizeEvent(event)
+        # A square at the right end, with the text kept clear of it
+        side = self.height()
+        self.confirm.setGeometry(self.width() - side, 0, side, side)
+        self.setTextMargins(0, 0, side - 4, 0)
 
     def _finish(self, code: str | None) -> None:
         if self.isVisible():
@@ -199,6 +223,8 @@ class FriendsModule(ModuleBlock):
         self.hovered_icon: str | None = None
         # The code shows, copied, for a few seconds after Copy code is clicked
         self.code_shown = False
+        # A word shown there for a few seconds instead, such as Request sent
+        self.strip_note = ""
         self.code_timer = QTimer(self, singleShot=True, interval=CODE_SHOWN_MS, timeout=self._hide_code)
         # Whether the requests, sent and received, are shown above the friends; opened from their icon
         self.requests_open = False
@@ -417,6 +443,8 @@ class FriendsModule(ModuleBlock):
 
     def _copy_texts(self) -> list[tuple[str, str, object]]:
         """What Copy code shows, as pieces of (text, colour, font): the words, or for a while the code, copied"""
+        if self.strip_note:
+            return [(self.strip_note, "active_green", self.fonts.small)]
         if self.code_shown:
             return [(format_code(self.view.code), "text", self.fonts.bold), (" copied", "active_green", self.fonts.small)]
         return [("Copy code", "muted", self.fonts.small)]
@@ -461,12 +489,18 @@ class FriendsModule(ModuleBlock):
         if not self.view.code:
             return
         self.actions.copy_code(self.view.code)
-        self.code_shown = True
+        self.code_shown, self.strip_note = True, ""
+        self.code_timer.start()
+        self.update()
+
+    def flash(self, note: str) -> None:
+        """Show a word in Copy code's place for a few seconds, such as Request sent"""
+        self.code_shown, self.strip_note = False, note
         self.code_timer.start()
         self.update()
 
     def _hide_code(self) -> None:
-        self.code_shown = False
+        self.code_shown, self.strip_note = False, ""
         self.update()
 
     def toggle_requests(self) -> None:

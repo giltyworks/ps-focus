@@ -429,9 +429,12 @@ class QtFriendsTests(unittest.TestCase):
         module.entry.setText("bbbb-2222")
         # The tick at the end of the field adds them, as Enter does
         self.assertTrue(module.entry.confirm.isVisible())
-        module.entry.confirm.trigger()
+        self.service.answer = server_state(outgoing=[{"code": "BBBB2222", "name": "Bo"}])
+        module.entry.confirm.on_click()
         self._settle()
         self.assertEqual(self.service.calls[-1], ("add", "bbbb-2222"))
+        self.assertEqual(module.strip_note, "Request sent")
+        self.assertEqual(module._copy_texts()[0][0], "Request sent")
 
 
 class FriendsServiceTests(unittest.TestCase):

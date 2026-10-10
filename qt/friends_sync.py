@@ -213,7 +213,8 @@ class FriendsSync:
                 else:
                     self.state, self.state_account = value, account
                     if kind == "add":
-                        self.message = ("Request sent", "muted") if value.get("outgoing") else None
+                        # Sent, or with a request from them already waiting, friends at once
+                        self.module.flash("Request sent" if value.get("outgoing") else "Added")
             elif isinstance(value, GoogleAccountAccessRequired):
                 self.message = ("Reconnect Google in Settings to use friends", "orange")
             else:
