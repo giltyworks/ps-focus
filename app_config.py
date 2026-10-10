@@ -130,6 +130,8 @@ COLORS = {
     # The boxes of the Accept and Decline buttons of friend requests
     "accept_fill": "#1b4a2d",
     "decline_fill": "#5a211d",
+    # The badge counting friend requests waiting, as a phone's notification badge
+    "notification": "#e5484d",
 }
 DEFAULT_SETTINGS = {
     "tracking_enabled": True,

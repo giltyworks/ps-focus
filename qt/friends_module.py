@@ -10,11 +10,11 @@ from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
 from PySide6.QtGui import QColor, QKeyEvent, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen
 from PySide6.QtWidgets import QLineEdit, QWidget
 
-from app_config import EDGE_PADDING, LINE_PADDING, MODULE_MARGIN, TODAY_PANEL_WIDTH
+from app_config import EDGE_PADDING, LINE_PADDING, TODAY_PANEL_WIDTH
 from friends import format_code
 
 from .header import fit_text
-from .module import DOCK_CONTROL_SIZE, MODULE_TITLE_PADDING, ModuleBlock, PaintedButton, paint_hover_box
+from .module import DOCK_CONTROL_SIZE, ModuleBlock, PaintedButton, paint_hover_box
 from .theme import Fonts, color, draw_anchored, draw_text, line_height, text_width
 
 # Space between the module's border and its text, as the stats keep
@@ -36,7 +36,7 @@ PROGRAM_SHORT_NAMES = {"Clip Studio Paint": "Clip Studio"}
 PORTRAIT_LIST_ROWS = 4
 SCROLL_STEP = 36
 SCROLL_BAR_WIDTH = 3
-# The friend requests and add friend icons at the right of the name strip, each in a square as the dock icon is, with
+# The friend requests and add friend icons at the right of the bottom row, each in a square as the dock icon is, with
 # this much between them
 ICON_GAP = 2
 # The code field takes a code typed with or without its dash
@@ -73,7 +73,7 @@ class FriendsActions:
     looked_at: Callable[[], None] = lambda: None
 
 
-def paint_person_icon(painter: QPainter, rect: QRect, icon_color: QColor, plus: bool = False) -> None:
+def paint_person_icon(painter: QPainter, rect: QRect, icon_color: QColor, background: QColor, plus: bool = False) -> None:
     """A person's head and shoulders, filled; with plus, smaller and to the left, a circled plus at their lower right,
     for adding a friend"""
     painter.save()
@@ -91,9 +91,12 @@ def paint_person_icon(painter: QPainter, rect: QRect, icon_color: QColor, plus: 
     painter.drawPath(shoulders)
     if plus:
         center = QPointF(x + size * 0.92, y + size * 0.78)
-        # A ring of the name strip's black cut round the badge, so it stands apart from the shoulders
-        painter.setBrush(color("background"))
+        # A ring of the background cut round the badge, so it stands apart from the shoulders
+        painter.save()
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        painter.setBrush(background)
         painter.drawEllipse(center, 4.6, 4.6)
+        painter.restore()
         painter.setBrush(Qt.BrushStyle.NoBrush)
         pen = QPen(icon_color, 1.2)
         painter.setPen(pen)
@@ -231,6 +234,7 @@ class FriendsModule(ModuleBlock):
         small_line = line_height(fonts.small) + 2 * LINE_PADDING
         self.buttons, self.items, self.person_areas, self.code_area = [], [], [], QRect()
         self.clipped_buttons, self.list_rect, self.list_items, self.max_scroll = [], QRect(), range(0), 0
+        self.icon_areas: dict[str, QRect] = {}
         y = self.content_top
 
         def text_block(text: str, tone: str = "muted") -> None:
@@ -286,11 +290,10 @@ class FriendsModule(ModuleBlock):
         # The list is laid out whole, then moved up by how far it is scrolled and cut to the room it has
         list_top = y
         first_item, first_button, first_area = len(self.items), len(self.buttons), len(self.person_areas)
+        # With none waiting, the requests icon goes, and the list it opened closes
+        if not view.incoming:
+            self.requests_open = False
         incoming = view.incoming if self.requests_open else []
-        outgoing = view.outgoing if self.requests_open else []
-        if self.requests_open and not incoming and not outgoing:
-            self.items.append(("text", left, y, "No friend requests", "muted", fonts.small))
-            y += small_line + GROUP_GAP
         for code, name in incoming:
             decline = self._answer_button("Decline", lambda code=code: self.actions.decline(code), "red", "decline_fill")
             accept = self._answer_button("Accept", lambda code=code: self.actions.accept(code), "active_green", "accept_fill")
@@ -300,16 +303,10 @@ class FriendsModule(ModuleBlock):
             text = fit_text(f"{name} wants to be friends", fonts.small, accept.left - BUTTON_GAP - left)
             self.items.append(("anchored", left, middle, "w", text, "text", fonts.small))
             y += accept.height + ROW_GAP
-        for code, name in outgoing:
-            cancel = self._button("Cancel", lambda code=code: self.actions.cancel(code))
-            cancel.place(right - cancel.width, y)
-            text = fit_text(f"Waiting for {name} to accept", fonts.small, cancel.left - BUTTON_GAP - left)
-            self.items.append(("anchored", left, y + cancel.height // 2, "w", text, "muted", fonts.small))
-            y += cancel.height + ROW_GAP
-        if incoming or outgoing:
+        if incoming:
             y += GROUP_GAP - ROW_GAP
         rank_width = text_width(fonts.small, "00") + 6
-        name_line = line_height(fonts.normal) + LINE_PADDING
+        name_line = line_height(fonts.account) + LINE_PADDING
         for rank, (name, stats, presence, active, code) in enumerate(view.people, 1):
             top = y
             hours = f"{stats.get('two_weeks', 0):.1f} hrs past 2 weeks"
@@ -323,10 +320,10 @@ class FriendsModule(ModuleBlock):
             dot_color = PRESENCE_COLORS.get(presence)
             label_room = (ACTIVE_DOT_SIZE + 6 if dot_color else 0) + (text_width(fonts.small, label) + 4 if label else 0)
             name_room = hours_left - 8 - name_left - label_room
-            shown_name = fit_text(name, fonts.normal, name_room)
-            self.items.append(("anchored", name_left, middle, "w", shown_name, "text", fonts.normal))
+            shown_name = fit_text(name, fonts.account, name_room)
+            self.items.append(("anchored", name_left, middle, "w", shown_name, "text", fonts.account))
             if dot_color:
-                dot_left = name_left + text_width(fonts.normal, shown_name) + 6
+                dot_left = name_left + text_width(fonts.account, shown_name) + 6
                 self.items.append(("dot", dot_left, middle, dot_color))
                 if label:
                     self.items.append(("anchored", dot_left + ACTIVE_DOT_SIZE + 4, middle, "w", label, dot_color, fonts.small))
@@ -341,12 +338,18 @@ class FriendsModule(ModuleBlock):
             self.person_areas.append((QRect(left - 4, top - 2, right - left + 8, y - top + 4), code, name))
             y += ROW_GAP
         if not view.people:
-            for line in wrap("No friends yet. Share your code, or add a friend's with the icon above.", fonts.small, right - left):
+            for line in wrap("No friends yet. Share your code, or add a friend's with the icon below.", fonts.small, right - left):
                 self.items.append(("text", left, y, line, "muted", fonts.small))
                 y += small_line
             y += ROW_GAP
+        for code, name in view.outgoing:
+            cancel = self._button("Cancel", lambda code=code: self.actions.cancel(code))
+            cancel.place(right - cancel.width, y)
+            text = fit_text(f"Waiting for {name} to accept", fonts.small, cancel.left - BUTTON_GAP - left)
+            self.items.append(("anchored", left, y + cancel.height // 2, "w", text, "muted", fonts.small))
+            y += cancel.height + ROW_GAP
         full = y - ROW_GAP - list_top
-        person_height = line_height(fonts.normal) + LINE_PADDING + small_line
+        person_height = line_height(fonts.account) + LINE_PADDING + small_line
         visible = min(full, self._list_room(list_top, small_line, person_height))
         self.max_scroll = max(0, full - visible)
         self.scroll = max(0, min(self.scroll, self.max_scroll))
@@ -367,11 +370,18 @@ class FriendsModule(ModuleBlock):
             if area.translated(0, -shift).intersects(self.list_rect)
         ]
         y = list_top + visible + GROUP_GAP
-        # The bottom row: the user's own code, which a click copies, or while adding a friend the field for their code
-        row_height = line_height(fonts.small) + 2 * BUTTON_PADY
+        # The bottom row: the user's own code, which a click copies, or while adding a friend the field for their code; at
+        # the right the add friend icon, and before it, like a phone's notification, the requests icon while any wait
+        row_height = max(line_height(fonts.small) + 2 * BUTTON_PADY, DOCK_CONTROL_SIZE)
         middle = y + row_height // 2
+        icon_top = middle - DOCK_CONTROL_SIZE // 2
+        add_icon = QRect(right + 4 - DOCK_CONTROL_SIZE, icon_top, DOCK_CONTROL_SIZE, DOCK_CONTROL_SIZE)
+        self.icon_areas = {"add": add_icon}
+        if view.incoming:
+            self.icon_areas["requests"] = add_icon.translated(-DOCK_CONTROL_SIZE - ICON_GAP, 0)
+        icons_left = min(area.left() for area in self.icon_areas.values())
         if self.entry.isVisible():
-            self.entry.setGeometry(left, y, right - left, row_height)
+            self.entry.setGeometry(left, y, icons_left - BUTTON_GAP - left, row_height)
         else:
             label = "Your code "
             code_text = "Copied" if self.code_copied else format_code(view.code)
@@ -381,25 +391,10 @@ class FriendsModule(ModuleBlock):
             self.code_area = QRect(code_left - 4, y, text_width(fonts.bold, code_text) + 8, row_height)
         return y + row_height
 
-    # ----- The icons in the name strip -----
-
-    def icon_rects(self) -> dict[str, QRect]:
-        """The requests and add friend icons, at the right of the name strip, left of the dock icon while floating"""
-        if self.view.mode != "on":
-            return {}
-        top = 1 + MODULE_TITLE_PADDING + (line_height(self.fonts.bold) - DOCK_CONTROL_SIZE) // 2
-        dock = self.dock_rect()
-        right = dock.left() - ICON_GAP if dock is not None else self.width() - 1 - MODULE_MARGIN + 4
-        add = QRect(right - DOCK_CONTROL_SIZE, top, DOCK_CONTROL_SIZE, DOCK_CONTROL_SIZE)
-        requests = add.translated(-DOCK_CONTROL_SIZE - ICON_GAP, 0)
-        return {"requests": requests, "add": add}
+    # ----- The icons in the bottom row -----
 
     def _icon_at(self, point: QPoint) -> str | None:
-        return next((name for name, rect in self.icon_rects().items() if rect.contains(point)), None)
-
-    def control_at(self, point: QPoint) -> str | None:
-        # The icons are clicked, not taken to move the module
-        return None if self._icon_at(point) else super().control_at(point)
+        return next((name for name, rect in self.icon_areas.items() if rect.contains(point)), None)
 
     def toggle_requests(self) -> None:
         self.requests_open = not self.requests_open
@@ -407,25 +402,25 @@ class FriendsModule(ModuleBlock):
         self._layout()
 
     def _paint_icons(self, painter: QPainter) -> None:
-        for name, rect in self.icon_rects().items():
+        for name, rect in self.icon_areas.items():
             hovered = self.hovered_icon == name
             open_now = (name == "requests" and self.requests_open) or (name == "add" and self.entry.isVisible())
             if hovered or open_now:
                 fill = color("border")
                 fill.setAlpha(self.glass_alpha)
                 paint_hover_box(painter, QRectF(rect), fill)
-            paint_person_icon(painter, rect, color("text" if open_now else "muted"), plus=name == "add")
+            paint_person_icon(painter, rect, color("text" if open_now else "muted"), self.surface("panel"), plus=name == "add")
             count = len(self.view.incoming)
             if name == "requests" and count:
-                # How many requests wait, on a blue badge at the icon's top right
+                # How many requests wait, on a red badge at the icon's top right, as a phone shows notifications
                 text = str(count) if count < 10 else "9+"
-                width = max(10, text_width(self.fonts.tiny, text) + 4)
-                badge = QRectF(rect.right() - width + 5, rect.top() - 3, width, 10)
+                width = max(11, text_width(self.fonts.tiny, text) + 5)
+                badge = QRectF(rect.right() - width + 5, rect.top() - 3, width, 11)
                 painter.save()
                 painter.setRenderHint(QPainter.RenderHint.Antialiasing)
                 painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(color("calendar_blue"))
-                painter.drawRoundedRect(badge, 5, 5)
+                painter.setBrush(color("notification"))
+                painter.drawRoundedRect(badge, 5.5, 5.5)
                 painter.restore()
                 draw_anchored(painter, badge.center().x(), badge.center().y(), "center", text, color("text"), self.fonts.tiny)
 
