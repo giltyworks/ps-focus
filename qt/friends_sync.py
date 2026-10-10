@@ -18,7 +18,8 @@ from google_drive import GoogleAccountAccessRequired
 
 from .friends_module import FriendsModule, FriendsView
 from .request_popup import RequestPopup
-from .status_menu import StatusMenu
+from .header import NAME_MAX_LENGTH
+from .status_menu import PopupMenu, StatusMenu
 
 # How often the figures are handed over while nothing changes. Kept to every ten minutes, so the free server allowance
 # covers well over a thousand people a day
@@ -67,7 +68,7 @@ class FriendsSync:
         actions.accept = lambda code: self._start("accept", lambda: self.service.accept(code))
         actions.decline = lambda code: self._start("decline", lambda: self.service.decline(code))
         actions.cancel = lambda code: self._start("cancel", lambda: self.service.remove(code))
-        actions.remove = self.remove
+        actions.person_menu = self.person_menu
         actions.copy_code = lambda code: QGuiApplication.clipboard().setText(code)
         app.header.on_status = self.open_status_menu
         actions.looked_at = self.looked_at
@@ -237,6 +238,58 @@ class FriendsSync:
         if answer == QMessageBox.StandardButton.Yes:
             self._start("leave", self.service.leave)
 
+    def _local(self, key: str):
+        """What the user keeps about their friends on this PC alone, for the connected account: favourites, a list of
+        codes, and nicknames, by code"""
+        saved = self.app.settings.get(key)
+        value = saved.get(self.account()) if isinstance(saved, dict) else None
+        if key == "friends_favourites":
+            return [code for code in value if isinstance(code, str)] if isinstance(value, list) else []
+        return {code: name for code, name in value.items() if isinstance(name, str)} if isinstance(value, dict) else {}
+
+    def _set_local(self, key: str, value) -> None:
+        saved = self.app.settings.get(key)
+        saved = dict(saved) if isinstance(saved, dict) else {}
+        saved[self.account()] = value
+        self.app.settings[key] = saved
+        self.app._save_settings()
+        self.refresh_view()
+
+    def person_menu(self, code: str, name: str, point) -> None:
+        """The menu a friend's row opens: favourite or not, a nickname, and removing them"""
+        favourite = code in self._local("friends_favourites")
+        nickname = self._local("friends_nicknames").get(code)
+        choices = [
+            ("favourite", "Remove from favourites" if favourite else "Add to favourites", ""),
+            ("nickname", "Change nickname" if nickname else "Set nickname", ""),
+        ]
+        if nickname:
+            choices.append(("clear_nickname", "Clear nickname", ""))
+        choices.append(("danger_remove", "Remove friend", ""))
+        PopupMenu(self.app.window, self.app.fonts, choices, None, lambda key: self._person_chosen(key, code, name)).show_at(point)
+
+    def _person_chosen(self, key: str, code: str, name: str) -> None:
+        if key == "favourite":
+            favourites = self._local("friends_favourites")
+            self._set_local("friends_favourites", [other for other in favourites if other != code] if code in favourites else favourites + [code])
+        elif key == "nickname":
+            self.module.edit_nickname(code, name, lambda nickname: self._nickname_chosen(code, nickname))
+        elif key == "clear_nickname":
+            self._nickname_chosen(code, "")
+        elif key == "danger_remove":
+            self.remove(code, name)
+
+    def _nickname_chosen(self, code: str, nickname: str | None) -> None:
+        if nickname is None:
+            return
+        nicknames = self._local("friends_nicknames")
+        nickname = nickname.strip()[:NAME_MAX_LENGTH]
+        if nickname:
+            nicknames[code] = nickname
+        else:
+            nicknames.pop(code, None)
+        self._set_local("friends_nicknames", nicknames)
+
     def remove(self, code: str, name: str) -> None:
         answer = QMessageBox.question(self.app.window, APP_NAME, f"Remove {name} from your friends?")
         if answer == QMessageBox.StandardButton.Yes:
@@ -264,8 +317,12 @@ class FriendsSync:
             status = stats.get("status", "online") if fresh else "offline"
             program = stats.get("active") if status == "online" else None
             presence = "drawing" if program else status
-            people.append((friend.get("name", ""), stats, presence, program, friend.get("code", "")))
-        people.sort(key=lambda person: -float(person[1].get("two_weeks", 0) or 0))
+            code = friend.get("code", "")
+            # A nickname the user gave them shows in place of their name
+            name = self._local("friends_nicknames").get(code) or friend.get("name", "")
+            people.append((name, stats, presence, program, code, code in self._local("friends_favourites")))
+        # Favourites first, then by hours over the past two weeks
+        people.sort(key=lambda person: (not person[5], -float(person[1].get("two_weeks", 0) or 0)))
         return FriendsView(
             "on", me.get("code", ""), people,
             [(request["code"], request["name"]) for request in state.get("incoming", [])],

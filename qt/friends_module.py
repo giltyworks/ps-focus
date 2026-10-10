@@ -13,7 +13,7 @@ from PySide6.QtWidgets import QLineEdit, QWidget
 from app_config import EDGE_PADDING, LINE_PADDING, TODAY_PANEL_WIDTH
 from friends import format_code
 
-from .header import fit_text
+from .header import NAME_MAX_LENGTH, fit_text
 from .module import DOCK_CONTROL_SIZE, ModuleBlock, PaintedButton, paint_hover_box
 from .theme import Fonts, color, draw_anchored, draw_text, line_height, text_width
 
@@ -49,8 +49,9 @@ class FriendsView:
 
     mode: str = "unavailable"
     code: str = ""
-    # The friends ranked, as (name, stats, presence, program or None, code). Presence is drawing, online, away or offline
-    people: list[tuple[str, dict, str, str | None, str]] = field(default_factory=list)
+    # The friends ranked, favourites first, as (name, stats, presence, program or None, code, favourite). Presence is
+    # drawing, online, away or offline
+    people: list[tuple[str, dict, str, str | None, str, bool]] = field(default_factory=list)
     incoming: list[tuple[str, str]] = field(default_factory=list)
     outgoing: list[tuple[str, str]] = field(default_factory=list)
     # A message under the list, and its colour
@@ -65,8 +66,8 @@ class FriendsActions:
     add: Callable[[str], None] = lambda _code: None
     accept: Callable[[str], None] = lambda _code: None
     decline: Callable[[str], None] = lambda _code: None
-    # Unfriend someone (given their name, for asking first), or cancel a request sent
-    remove: Callable[[str, str], None] = lambda _code, _name: None
+    # A click on a friend's row opens their menu, given their code, the name shown and where to open it
+    person_menu: Callable[[str, str, QPoint], None] = lambda _code, _name, _point: None
     cancel: Callable[[str], None] = lambda _code: None
     copy_code: Callable[[str], None] = lambda _code: None
     # The mouse came onto the module, the moment someone looks at their friends
@@ -120,15 +121,15 @@ def wrap(text: str, font, width: int) -> list[str]:
 
 
 class CodeEntry(QLineEdit):
-    """Where a friend's code is typed. Enter adds them, Escape or clicking elsewhere closes it"""
+    """Where a friend's code, or a nickname, is typed. Enter keeps it, Escape or clicking elsewhere closes it"""
 
-    def __init__(self, parent: QWidget, fonts: Fonts) -> None:
+    def __init__(self, parent: QWidget, font, max_length: int = CODE_ENTRY_CHARACTERS, placeholder: str = "Friend's code") -> None:
         super().__init__(parent)
         self.on_finished: Callable[[str | None], None] = lambda _code: None
-        self.setFont(fonts.small)
+        self.setFont(font)
         self.setFrame(False)
-        self.setMaxLength(CODE_ENTRY_CHARACTERS)
-        self.setPlaceholderText("Friend's code")
+        self.setMaxLength(max_length)
+        self.setPlaceholderText(placeholder)
         self.setStyleSheet(
             f"QLineEdit {{ background: {color('panel_alt').name()}; color: {color('text').name()};"
             f" selection-background-color: {color('accent_dark').name()}; padding: 0 4px; border-radius: 4px; }}"
@@ -178,7 +179,10 @@ class FriendsModule(ModuleBlock):
         self.list_items = range(0)
         # Buttons in the list scrolled partly out of view: drawn cut off, but not clickable
         self.clipped_buttons: list[PaintedButton] = []
-        self.entry = CodeEntry(self, fonts)
+        self.entry = CodeEntry(self, fonts.small)
+        # The field a nickname is typed in, over the friend's name, and where each friend's name is
+        self.nickname_entry = CodeEntry(self, fonts.account, NAME_MAX_LENGTH, "Nickname")
+        self.name_rects: dict[str, QRect] = {}
         self.entry.on_finished = self._code_entered
         # What paintEvent draws: (kind, arguments), worked out by _layout
         self.items: list[tuple] = []
@@ -307,12 +311,19 @@ class FriendsModule(ModuleBlock):
             y += GROUP_GAP - ROW_GAP
         rank_width = text_width(fonts.small, "00") + 6
         name_line = line_height(fonts.account) + LINE_PADDING
-        for rank, (name, stats, presence, active, code) in enumerate(view.people, 1):
+        self.name_rects = {}
+        rank = 0
+        for name, stats, presence, active, code, favourite in view.people:
             top = y
             hours = f"{stats.get('two_weeks', 0):.1f} hrs past 2 weeks"
             hours_left = right - text_width(fonts.small, hours)
             middle = y + name_line // 2
-            self.items.append(("anchored", left, middle, "w", str(rank), "muted", fonts.small))
+            # A favourite has a gold star in place of a rank; the others are ranked among themselves
+            if favourite:
+                self.items.append(("anchored", left - 1, middle, "w", "\u2605", "gold", fonts.small))
+            else:
+                rank += 1
+                self.items.append(("anchored", left, middle, "w", str(rank), "muted", fonts.small))
             self.items.append(("anchored", right, middle, "e", hours, "text", fonts.small))
             name_left = left + rank_width
             # Beside the name: what they are drawing in, or that they are away
@@ -322,6 +333,7 @@ class FriendsModule(ModuleBlock):
             name_room = hours_left - 8 - name_left - label_room
             shown_name = fit_text(name, fonts.account, name_room)
             self.items.append(("anchored", name_left, middle, "w", shown_name, "text", fonts.account))
+            self.name_rects[code] = QRect(name_left - 4, top, hours_left - 8 - name_left + 4, name_line)
             if dot_color:
                 dot_left = name_left + text_width(fonts.account, shown_name) + 6
                 self.items.append(("dot", dot_left, middle, dot_color))
@@ -437,6 +449,20 @@ class FriendsModule(ModuleBlock):
             self.entry.setFocus()
         self._layout()
 
+    def edit_nickname(self, code: str, name: str, on_done: Callable[[str | None], None]) -> None:
+        """Show the nickname field over this friend's name, holding it selected; on_done gets the nickname typed, or
+        None when Escape drops it"""
+        rect = self.name_rects.get(code)
+        if rect is None or not self.list_rect.contains(rect):
+            return
+        entry = self.nickname_entry
+        entry.on_finished = on_done
+        entry.setText(name)
+        entry.selectAll()
+        entry.setGeometry(rect)
+        entry.show()
+        entry.setFocus()
+
     def _code_entered(self, code: str | None) -> None:
         self._layout()
         if code and code.strip():
@@ -465,9 +491,10 @@ class FriendsModule(ModuleBlock):
                 self.code_copied = True
                 self._layout()
                 return
+        if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton) and not any(button.contains(point) for button in self.buttons):
             for area, code, name in self.person_areas:
                 if area.contains(point):
-                    self.actions.remove(code, name)
+                    self.actions.person_menu(code, name, event.globalPosition().toPoint() + QPoint(2, 2))
                     return
         super().mousePressEvent(event)
 

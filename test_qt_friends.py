@@ -293,6 +293,44 @@ class QtFriendsTests(unittest.TestCase):
         self._settle()
         self.assertEqual(len(self.service.calls), count)
 
+    def test_a_friends_menu_sets_favourites_and_nicknames(self):
+        from PySide6.QtCore import QPoint
+
+        self.service.answer = server_state(friends=[
+            {"code": "BBBB2222", "name": "Bo", "stats": {"two_weeks": 9}, "updated_at": 1000},
+            {"code": "CCCC3333", "name": "Cy", "stats": {"two_weeks": 3}, "updated_at": 1000},
+        ])
+        self._turn_on()
+        self.assertEqual([person[0] for person in self.app.friends.view.people], ["Bo", "Cy"])
+        # A favourite goes to the top
+        self.sync._person_chosen("favourite", "CCCC3333", "Cy")
+        self.assertEqual([(person[0], person[5]) for person in self.app.friends.view.people], [("Cy", True), ("Bo", False)])
+        # A nickname shows in place of their name, typed over it
+        self.sync._person_chosen("nickname", "BBBB2222", "Bo")
+        entry = self.app.friends.nickname_entry
+        self.assertTrue(entry.isVisible())
+        self.assertEqual(entry.text(), "Bo")
+        entry.setText("Bobby")
+        entry._finish(entry.text())
+        self.assertEqual(self.app.friends.view.people[1][0], "Bobby")
+        self.sync._person_chosen("clear_nickname", "BBBB2222", "Bobby")
+        self.assertEqual(self.app.friends.view.people[1][0], "Bo")
+        self.sync._person_chosen("favourite", "CCCC3333", "Cy")
+        self.assertFalse(self.app.friends.view.people[1][5])
+        # Kept per account, on this PC alone: nothing was sent
+        self.assertEqual([call[0] for call in self.service.calls], ["sync"])
+        # The menu opens from a click on the row
+        opened = []
+        self.app.friends.actions.person_menu = lambda code, name, point: opened.append((code, name))
+        area, code, name = self.app.friends.person_areas[0]
+        from PySide6.QtCore import QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+        from PySide6.QtCore import QEvent
+
+        press = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(area.center()), QPointF(area.center()), Qt.MouseButton.RightButton, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier)
+        self.app.friends.mousePressEvent(press)
+        self.assertEqual(opened, [("BBBB2222", "Bo")])
+
     def test_removing_a_friend_asks_first(self):
         self._turn_on()
         with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.No):
@@ -340,7 +378,7 @@ class QtFriendsTests(unittest.TestCase):
         from qt.friends_module import PORTRAIT_LIST_ROWS, FriendsView
 
         module = self.app.friends
-        people = [(f"Friend {index}", {"two_weeks": 10}, "online", None, f"AAAA22{index:02d}") for index in range(12)]
+        people = [(f"Friend {index}", {"two_weeks": 10}, "online", None, f"AAAA22{index:02d}", False) for index in range(12)]
         module.show_view(FriendsView("on", "ABCD2345", people))
         self.assertGreater(module.max_scroll, 0)
         self.assertEqual(len(module.person_areas), PORTRAIT_LIST_ROWS)
