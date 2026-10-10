@@ -6,15 +6,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
-from PySide6.QtCore import QPoint, QRect, QRectF, Qt
-from PySide6.QtGui import QKeyEvent, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
+from PySide6.QtGui import QColor, QKeyEvent, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen
 from PySide6.QtWidgets import QLineEdit, QWidget
 
-from app_config import EDGE_PADDING, LINE_PADDING, TODAY_PANEL_WIDTH
+from app_config import EDGE_PADDING, LINE_PADDING, MODULE_MARGIN, TODAY_PANEL_WIDTH
 from friends import format_code
 
 from .header import fit_text
-from .module import ModuleBlock, PaintedButton, paint_hover_box
+from .module import DOCK_CONTROL_SIZE, MODULE_TITLE_PADDING, ModuleBlock, PaintedButton, paint_hover_box
 from .theme import Fonts, color, draw_anchored, draw_text, line_height, text_width
 
 # Space between the module's border and its text, as the stats keep
@@ -36,13 +36,16 @@ PROGRAM_SHORT_NAMES = {"Clip Studio Paint": "Clip Studio"}
 PORTRAIT_LIST_ROWS = 4
 SCROLL_STEP = 36
 SCROLL_BAR_WIDTH = 3
+# The friend requests and add friend icons at the right of the name strip, each in a square as the dock icon is, with
+# this much between them
+ICON_GAP = 2
 # The code field takes a code typed with or without its dash
 CODE_ENTRY_CHARACTERS = 11
 
 
 @dataclass
 class FriendsView:
-    """What the module shows. mode is one of: unavailable, signed_out, off, offline, loading, on"""
+    """What the module shows. mode is one of: unavailable, signed_out, offline, loading, on"""
 
     mode: str = "unavailable"
     code: str = ""
@@ -58,8 +61,7 @@ class FriendsView:
 @dataclass
 class FriendsActions:
     sign_in: Callable[[], None] = lambda: None
-    turn_on: Callable[[], None] = lambda: None
-    turn_off: Callable[[], None] = lambda: None
+    delete_data: Callable[[], None] = lambda: None
     add: Callable[[str], None] = lambda _code: None
     accept: Callable[[str], None] = lambda _code: None
     decline: Callable[[str], None] = lambda _code: None
@@ -69,6 +71,36 @@ class FriendsActions:
     copy_code: Callable[[str], None] = lambda _code: None
     # The mouse came onto the module, the moment someone looks at their friends
     looked_at: Callable[[], None] = lambda: None
+
+
+def paint_person_icon(painter: QPainter, rect: QRect, icon_color: QColor, plus: bool = False) -> None:
+    """A person's head and shoulders, filled; with plus, smaller and to the left, a circled plus at their lower right,
+    for adding a friend"""
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    size = 12
+    x = rect.x() + (rect.width() - size) / 2 - (1.5 if plus else 0)
+    y = rect.y() + (rect.height() - size) / 2
+    painter.setPen(Qt.PenStyle.NoPen)
+    painter.setBrush(icon_color)
+    painter.drawEllipse(QPointF(x + size * 0.5, y + size * 0.27), size * 0.24, size * 0.24)
+    shoulders = QPainterPath()
+    shoulders.moveTo(x + size * 0.06, y + size)
+    shoulders.cubicTo(x + size * 0.06, y + size * 0.52, x + size * 0.94, y + size * 0.52, x + size * 0.94, y + size)
+    shoulders.closeSubpath()
+    painter.drawPath(shoulders)
+    if plus:
+        center = QPointF(x + size * 0.92, y + size * 0.78)
+        # A ring of the name strip's black cut round the badge, so it stands apart from the shoulders
+        painter.setBrush(color("background"))
+        painter.drawEllipse(center, 4.6, 4.6)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        pen = QPen(icon_color, 1.2)
+        painter.setPen(pen)
+        painter.drawEllipse(center, 3.4, 3.4)
+        painter.drawLine(QPointF(center.x() - 1.7, center.y()), QPointF(center.x() + 1.7, center.y()))
+        painter.drawLine(QPointF(center.x(), center.y() - 1.7), QPointF(center.x(), center.y() + 1.7))
+    painter.restore()
 
 
 def wrap(text: str, font, width: int) -> list[str]:
@@ -132,7 +164,10 @@ class FriendsModule(ModuleBlock):
         self.person_areas: list[tuple[QRect, str, str]] = []
         self.code_area = QRect()
         self.hovered_area: QRect | None = None
+        self.hovered_icon: str | None = None
         self.code_copied = False
+        # Whether the requests, sent and received, are shown above the friends; opened from their icon
+        self.requests_open = False
         # How far the list is scrolled, the most it can be, and where it shows
         self.scroll = 0
         self.max_scroll = 0
@@ -181,6 +216,13 @@ class FriendsModule(ModuleBlock):
         self.buttons.append(button)
         return button
 
+    def _answer_button(self, text: str, command: Callable[[], None], text_color: str, fill: str) -> PaintedButton:
+        button = PaintedButton(text, command, self.fonts, BUTTON_PADX, BUTTON_PADY, text_color=text_color, fill=fill, solid=True)
+        button.enabled = not self.view.busy
+        button.alpha = self.glass_alpha
+        self.buttons.append(button)
+        return button
+
     def _layout(self) -> None:
         """Work out where everything goes, from the top of the contents down, and how tall that makes the module"""
         fonts, view = self.fonts, self.view
@@ -206,16 +248,16 @@ class FriendsModule(ModuleBlock):
         if view.mode == "unavailable":
             text_block("Friends are coming soon.")
         elif view.mode == "signed_out":
-            text_block("Sign in with Google to add friends and see each other's hours.")
+            text_block("Sign in with Google to add friends and see each other's hours. Friends see your name, your hours, "
+                       "level and streak, and the program you're drawing in.")
             y += ROW_GAP
             centred_button("Sign in with Google", self.actions.sign_in)
-        elif view.mode == "off":
-            text_block("Add friends with a code to see each other's hours. Friends see your name, your hours, level and "
-                       "streak, and the program you're drawing in.")
-            y += ROW_GAP
-            centred_button("Turn on friends", self.actions.turn_on)
         elif view.mode == "offline":
-            text_block("You're offline. Friends don't see your hours change until you go online, from the menu next to your name.")
+            text_block("You're offline, so friends don't see your hours change. Go online from the menu next to your name.")
+            y += ROW_GAP
+            button = self._button("Delete my friends data", self.actions.delete_data)
+            button.place((TODAY_PANEL_WIDTH - button.width) // 2, y)
+            y += button.height
         elif view.mode == "loading":
             text_block("Connecting…")
         else:
@@ -244,16 +286,27 @@ class FriendsModule(ModuleBlock):
         # The list is laid out whole, then moved up by how far it is scrolled and cut to the room it has
         list_top = y
         first_item, first_button, first_area = len(self.items), len(self.buttons), len(self.person_areas)
-        for code, name in view.incoming:
-            decline = self._button("Decline", lambda code=code: self.actions.decline(code))
-            accept = self._button("Accept", lambda code=code: self.actions.accept(code), main=True)
+        incoming = view.incoming if self.requests_open else []
+        outgoing = view.outgoing if self.requests_open else []
+        if self.requests_open and not incoming and not outgoing:
+            self.items.append(("text", left, y, "No friend requests", "muted", fonts.small))
+            y += small_line + GROUP_GAP
+        for code, name in incoming:
+            decline = self._answer_button("Decline", lambda code=code: self.actions.decline(code), "red", "decline_fill")
+            accept = self._answer_button("Accept", lambda code=code: self.actions.accept(code), "active_green", "accept_fill")
             decline.place(right - decline.width, y)
             accept.place(decline.left - BUTTON_GAP - accept.width, y)
             middle = y + accept.height // 2
             text = fit_text(f"{name} wants to be friends", fonts.small, accept.left - BUTTON_GAP - left)
             self.items.append(("anchored", left, middle, "w", text, "text", fonts.small))
             y += accept.height + ROW_GAP
-        if view.incoming:
+        for code, name in outgoing:
+            cancel = self._button("Cancel", lambda code=code: self.actions.cancel(code))
+            cancel.place(right - cancel.width, y)
+            text = fit_text(f"Waiting for {name} to accept", fonts.small, cancel.left - BUTTON_GAP - left)
+            self.items.append(("anchored", left, y + cancel.height // 2, "w", text, "muted", fonts.small))
+            y += cancel.height + ROW_GAP
+        if incoming or outgoing:
             y += GROUP_GAP - ROW_GAP
         rank_width = text_width(fonts.small, "00") + 6
         name_line = line_height(fonts.normal) + LINE_PADDING
@@ -287,17 +340,11 @@ class FriendsModule(ModuleBlock):
             y += small_line
             self.person_areas.append((QRect(left - 4, top - 2, right - left + 8, y - top + 4), code, name))
             y += ROW_GAP
-        if not view.people and not view.incoming and not view.outgoing:
-            for line in wrap("No friends yet. Share your code, or add a friend's.", fonts.small, right - left):
+        if not view.people:
+            for line in wrap("No friends yet. Share your code, or add a friend's with the icon above.", fonts.small, right - left):
                 self.items.append(("text", left, y, line, "muted", fonts.small))
                 y += small_line
             y += ROW_GAP
-        for code, name in view.outgoing:
-            cancel = self._button("Cancel", lambda code=code: self.actions.cancel(code))
-            cancel.place(right - cancel.width, y)
-            text = fit_text(f"Waiting for {name} to accept", fonts.small, cancel.left - BUTTON_GAP - left)
-            self.items.append(("anchored", left, y + cancel.height // 2, "w", text, "muted", fonts.small))
-            y += cancel.height + ROW_GAP
         full = y - ROW_GAP - list_top
         person_height = line_height(fonts.normal) + LINE_PADDING + small_line
         visible = min(full, self._list_room(list_top, small_line, person_height))
@@ -320,22 +367,67 @@ class FriendsModule(ModuleBlock):
             if area.translated(0, -shift).intersects(self.list_rect)
         ]
         y = list_top + visible + GROUP_GAP
-        # The bottom row: the user's own code, which a click copies, and the buttons
-        turn_off = self._button("Turn off", self.actions.turn_off)
-        add = self._button("Cancel" if self.entry.isVisible() else "Add friend", self._toggle_entry, main=not self.entry.isVisible())
-        turn_off.place(right - turn_off.width, y)
-        add.place(turn_off.left - BUTTON_GAP - add.width, y)
-        middle = y + add.height // 2
+        # The bottom row: the user's own code, which a click copies, or while adding a friend the field for their code
+        row_height = line_height(fonts.small) + 2 * BUTTON_PADY
+        middle = y + row_height // 2
         if self.entry.isVisible():
-            self.entry.setGeometry(left, y, add.left - BUTTON_GAP - left, add.height)
+            self.entry.setGeometry(left, y, right - left, row_height)
         else:
             label = "Your code "
             code_text = "Copied" if self.code_copied else format_code(view.code)
             self.items.append(("anchored", left, middle, "w", label, "muted", fonts.small))
             code_left = left + text_width(fonts.small, label)
             self.items.append(("anchored", code_left, middle, "w", code_text, "text", fonts.bold))
-            self.code_area = QRect(code_left - 4, y, text_width(fonts.bold, code_text) + 8, add.height)
-        return y + add.height
+            self.code_area = QRect(code_left - 4, y, text_width(fonts.bold, code_text) + 8, row_height)
+        return y + row_height
+
+    # ----- The icons in the name strip -----
+
+    def icon_rects(self) -> dict[str, QRect]:
+        """The requests and add friend icons, at the right of the name strip, left of the dock icon while floating"""
+        if self.view.mode != "on":
+            return {}
+        top = 1 + MODULE_TITLE_PADDING + (line_height(self.fonts.bold) - DOCK_CONTROL_SIZE) // 2
+        dock = self.dock_rect()
+        right = dock.left() - ICON_GAP if dock is not None else self.width() - 1 - MODULE_MARGIN + 4
+        add = QRect(right - DOCK_CONTROL_SIZE, top, DOCK_CONTROL_SIZE, DOCK_CONTROL_SIZE)
+        requests = add.translated(-DOCK_CONTROL_SIZE - ICON_GAP, 0)
+        return {"requests": requests, "add": add}
+
+    def _icon_at(self, point: QPoint) -> str | None:
+        return next((name for name, rect in self.icon_rects().items() if rect.contains(point)), None)
+
+    def control_at(self, point: QPoint) -> str | None:
+        # The icons are clicked, not taken to move the module
+        return None if self._icon_at(point) else super().control_at(point)
+
+    def toggle_requests(self) -> None:
+        self.requests_open = not self.requests_open
+        self.scroll = 0
+        self._layout()
+
+    def _paint_icons(self, painter: QPainter) -> None:
+        for name, rect in self.icon_rects().items():
+            hovered = self.hovered_icon == name
+            open_now = (name == "requests" and self.requests_open) or (name == "add" and self.entry.isVisible())
+            if hovered or open_now:
+                fill = color("border")
+                fill.setAlpha(self.glass_alpha)
+                paint_hover_box(painter, QRectF(rect), fill)
+            paint_person_icon(painter, rect, color("text" if open_now else "muted"), plus=name == "add")
+            count = len(self.view.incoming)
+            if name == "requests" and count:
+                # How many requests wait, on a blue badge at the icon's top right
+                text = str(count) if count < 10 else "9+"
+                width = max(10, text_width(self.fonts.tiny, text) + 4)
+                badge = QRectF(rect.right() - width + 5, rect.top() - 3, width, 10)
+                painter.save()
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                painter.setPen(Qt.PenStyle.NoPen)
+                painter.setBrush(color("calendar_blue"))
+                painter.drawRoundedRect(badge, 5, 5)
+                painter.restore()
+                draw_anchored(painter, badge.center().x(), badge.center().y(), "center", text, color("text"), self.fonts.tiny)
 
     # ----- Clicks -----
 
@@ -361,11 +453,18 @@ class FriendsModule(ModuleBlock):
         return next((area for area, _code, _name in self.person_areas if area.contains(point)), None)
 
     def interactive_at(self, point: QPoint) -> bool:
-        return super().interactive_at(point) or self._area_at(point) is not None
+        return super().interactive_at(point) or self._area_at(point) is not None or self._icon_at(point) is not None
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
         if event.button() == Qt.MouseButton.LeftButton and not any(button.contains(point) for button in self.buttons):
+            icon = self._icon_at(point)
+            if icon == "requests":
+                self.toggle_requests()
+                return
+            if icon == "add":
+                self._toggle_entry()
+                return
             if self.code_area.contains(point) and self.view.code:
                 self.actions.copy_code(self.view.code)
                 self.code_copied = True
@@ -380,10 +479,12 @@ class FriendsModule(ModuleBlock):
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
         area = self._area_at(point)
-        if area != self.hovered_area:
-            self.hovered_area = area
+        icon = self._icon_at(point)
+        if area != self.hovered_area or icon != self.hovered_icon:
+            self.hovered_area, self.hovered_icon = area, icon
+            self.setToolTip({"requests": "Friend requests", "add": "Add friend"}.get(icon, ""))
             self.update()
-        self.update_cursor(point, area is not None or any(button.contains(point) for button in self.buttons))
+        self.update_cursor(point, area is not None or icon is not None or any(button.contains(point) for button in self.buttons))
 
     def wheelEvent(self, event) -> None:
         if not self.max_scroll:
@@ -401,8 +502,8 @@ class FriendsModule(ModuleBlock):
 
     def leaveEvent(self, event) -> None:
         super().leaveEvent(event)
-        if self.hovered_area is not None:
-            self.hovered_area = None
+        if self.hovered_area is not None or self.hovered_icon is not None:
+            self.hovered_area = self.hovered_icon = None
             self.update()
         if self.code_copied:
             self.code_copied = False
@@ -446,5 +547,6 @@ class FriendsModule(ModuleBlock):
         painter.setClipping(False)
         for button in self.buttons:
             button.paint(painter)
+        self._paint_icons(painter)
         self.paint_dock_controls(painter)
         painter.end()

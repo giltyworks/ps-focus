@@ -96,6 +96,8 @@ class QtFriendsTests(unittest.TestCase):
         self.addCleanup(self.app.window.hide)
         self.service = FakeService()
         self.sync = self.app.friends_sync
+        # Popups are windows of their own, which must not outlive the app they belong to
+        self.addCleanup(self.sync.close_popups)
         self.sync.service = self.service
         self.app.google_sync.email = self.account
 
@@ -107,7 +109,8 @@ class QtFriendsTests(unittest.TestCase):
         self.application.processEvents()
 
     def _turn_on(self):
-        self.sync.turn_on()
+        """Friends are on whenever signed in; the first check-in follows the account being known"""
+        self.sync.account_changed()
         self._settle()
 
     def test_starts_in_landscape(self):
@@ -128,17 +131,16 @@ class QtFriendsTests(unittest.TestCase):
         self.service.configured = True
         self.account = ""
         self.assertEqual(self.sync.view().mode, "signed_out")
-        self.account = "amy@example.com"
-        self.assertEqual(self.sync.view().mode, "off")
-        # Nothing is sent before friends are turned on
+        # Nothing is sent while signed out
         self.sync.sync()
         self.sync.tick("Krita")
         self.assertEqual(self.service.calls, [])
+        self.account = "amy@example.com"
+        self.assertEqual(self.sync.view().mode, "loading")
 
-    def test_turning_on_sends_the_name_and_figures(self):
+    def test_signing_in_sends_the_name_and_figures(self):
         self.app.store.record_active_second(application="Krita")
         self._turn_on()
-        self.assertEqual(self.app.settings["friends_accounts"], ["amy@example.com"])
         (kind, name, stats), = self.service.calls
         self.assertEqual((kind, name), ("sync", "amy"))
         self.assertEqual(set(stats), {"two_weeks", "total", "today", "week", "level", "streak", "status", "active"})
@@ -222,6 +224,40 @@ class QtFriendsTests(unittest.TestCase):
         self._settle()
         self.assertEqual(len(self.service.calls), 2)
 
+    def test_a_new_request_pops_up_once_and_can_be_answered_there(self):
+        self.service.answer = server_state(incoming=[{"code": "BBBB2222", "name": "Bo"}])
+        self._turn_on()
+        popup = self.sync.popups["BBBB2222"]
+        self.addCleanup(lambda: [open_popup.close() for open_popup in list(self.sync.popups.values())])
+        self.assertTrue(popup.isVisible())
+        # Checking in again does not show it twice
+        self.sync.sync()
+        self._settle()
+        self.assertEqual(list(self.sync.popups), ["BBBB2222"])
+        self.service.answer = server_state()
+        popup.accept_button.command()
+        self._settle()
+        self.assertEqual(self.service.calls[-1], ("accept", "BBBB2222"))
+        self.assertEqual(self.sync.popups, {})
+
+    def test_a_request_answered_elsewhere_closes_its_popup(self):
+        self.service.answer = server_state(incoming=[{"code": "BBBB2222", "name": "Bo"}, {"code": "CCCC3333", "name": "Cy"}])
+        self._turn_on()
+        self.assertEqual(len(self.sync.popups), 2)
+        self.service.answer = server_state(incoming=[{"code": "CCCC3333", "name": "Cy"}])
+        self.app.friends.actions.decline("BBBB2222")
+        self._settle()
+        self.assertEqual(list(self.sync.popups), ["CCCC3333"])
+        self.sync.popups["CCCC3333"].close()
+        self.assertEqual(self.sync.popups, {})
+
+    def test_an_answer_made_during_a_check_in_waits_its_turn(self):
+        self._turn_on()
+        self.sync.sync()
+        self.app.friends.actions.accept("BBBB2222")
+        self._settle()
+        self.assertEqual([call[0] for call in self.service.calls], ["sync", "sync", "accept"])
+
     def test_a_refused_request_is_explained(self):
         self._turn_on()
         self.service.error = FriendsError("No one has that friend code")
@@ -238,17 +274,24 @@ class QtFriendsTests(unittest.TestCase):
         self.sync.sync()
         self.account = "someone@example.com"
         self._settle()
-        self.app.settings["friends_accounts"].append(self.account)
         self.assertEqual(self.sync.view().mode, "loading")
 
-    def test_turning_off_deletes_and_forgets(self):
+    def test_deleting_friends_data_is_offered_while_offline(self):
         self._turn_on()
+        self.sync.set_status("offline")
+        self._settle()
+        self.assertEqual(self.app.friends.view.mode, "offline")
+        self.assertEqual([button.text for button in self.app.friends.buttons], ["Delete my friends data"])
         with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
-            self.app.friends.actions.turn_off()
+            self.app.friends.actions.delete_data()
         self._settle()
         self.assertEqual(self.service.calls[-1], ("leave",))
-        self.assertEqual(self.app.settings["friends_accounts"], [])
-        self.assertEqual(self.sync.view().mode, "off")
+        # Nothing is sent again until the user goes online
+        self.assertEqual(self.app.friends.view.message, ("Your friends list and code were deleted", "muted"))
+        count = len(self.service.calls)
+        self.sync.sync()
+        self._settle()
+        self.assertEqual(len(self.service.calls), count)
 
     def test_removing_a_friend_asks_first(self):
         self._turn_on()
@@ -268,7 +311,7 @@ class QtFriendsTests(unittest.TestCase):
             outgoing=[{"code": "EEEE5555", "name": long_name}],
         )
         module = self.app.friends
-        for mode in ("unavailable", "signed_out", "off", "loading"):
+        for mode in ("unavailable", "signed_out", "offline", "loading"):
             from qt.friends_module import FriendsView
 
             module.show_view(FriendsView(mode, message=("Could not reach the friends server", "orange")))

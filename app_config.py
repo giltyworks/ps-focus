@@ -127,6 +127,9 @@ COLORS = {
     "silver": "#c3cbd1",
     "bronze": "#d0874a",
     "red": "#e07e75",
+    # The boxes of the Accept and Decline buttons of friend requests
+    "accept_fill": "#1b4a2d",
+    "decline_fill": "#5a211d",
 }
 DEFAULT_SETTINGS = {
     "tracking_enabled": True,
@@ -141,10 +144,10 @@ DEFAULT_SETTINGS = {
     "show_calendar": False,
     "show_stats": False,
     "show_friends": False,
-    # Google accounts, by email, that have friends turned on on this PC, see qt/friends_sync.py
-    "friends_accounts": [],
     # online, away, invisible or offline, chosen in the menu next to the account name
     "friends_status": "online",
+    # For each Google account, the friend requests already popped up for, so they pop up only once
+    "friends_seen_requests": {},
     # Program panels and modules side by side instead of one under another, see PSFocusApp._apply_layout
     "landscape": False,
     # Programs whose panel the user has shown or hidden, or that switched on by itself at first use, see

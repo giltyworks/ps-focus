@@ -116,12 +116,15 @@ class PaintedButton:
         width_in_digits: int = 0,
         text_color: str = "muted",
         fill: str = "panel_alt",
+        solid: bool = False,
     ) -> None:
         self.text = text
         self.command = command
         self.font = fonts.small
         self.text_color = text_color
         self.fill = fill
+        # A solid button shows its box in its fill colour all the time, such as Accept and Decline
+        self.solid = solid
         self.enabled = True
         # How solid its fill is, lower on a see-through panel
         self.alpha = 255
@@ -155,9 +158,12 @@ class PaintedButton:
 
     def paint(self, painter: QPainter) -> None:
         active = self.enabled and (self.hovered or self.pressed)
-        if self.selected or active:
-            fill = color("accent_dark" if self.fill == "accent_dark" else "border")
-            if self.pressed or (self.selected and active):
+        if self.selected or active or self.solid:
+            if self.solid:
+                fill = color(self.fill)
+            else:
+                fill = color("accent_dark" if self.fill == "accent_dark" else "border")
+            if self.pressed or ((self.selected or self.solid) and active):
                 fill = fill.lighter(140)
             fill.setAlpha(self.alpha)
             paint_hover_box(painter, QRectF(self.left, self.top, self.width, self.height), fill)

@@ -31,15 +31,17 @@ PS Focus's use and transfer of information received from Google APIs adheres to 
 
 ## Friends (optional)
 
-Friends is off until you choose **Turn on friends** in the Friends module, and it needs Google sign-in. While it is on, PS Focus checks in with a web service run by Giltyworks on Cloudflare about every ten minutes, and when you start or stop drawing. Each check-in sends:
+Friends works whenever you are signed in to Google. Unless you choose **Offline** in the menu next to your name, PS Focus checks in with a web service run by Giltyworks on Cloudflare about every ten minutes, and when you start or stop drawing. Each check-in sends:
 
 - **Proof of your Google account.** This is a short-lived token from Google that confirms who you are. The service checks it and keeps only your Google account's ID number. It does not store your email address.
 - **Your name.** This is the display name you chose for your Google account in PS Focus or, if you have not chosen one, the part of your email address before the @.
 - **Your figures.** These are your hours over the past two weeks, this week, today, and in total, your level, your week streak, and which supported program you are drawing in at the moment, if any.
 
+Choosing **Invisible** in that menu makes you appear offline to friends: your status and the program you're drawing in are not sent, but your figures still are. Choosing **Offline** tells friends you went offline and then sends nothing until you go online again.
+
 The service keeps these, a random friend code, your friends list, and friend requests you sent or received. Your name and figures are shown only to people you have accepted as friends. Someone who has your friend code sees your name only when they send you a request. No activity history, ratings, or session times are sent.
 
-Turning Friends off in the Friends module deletes everything the service keeps about you straight away. If PS Focus has not checked in for six months, for example because you uninstalled it with Friends on, the service deletes it all automatically. Cloudflare runs the service under its own [privacy policy](https://www.cloudflare.com/privacypolicy/) and processes your IP address to deliver requests. PS Focus does not log IP addresses itself.
+While you are offline, **Delete my friends data** in the Friends module deletes everything the service keeps about you straight away. If PS Focus has not checked in for six months, for example because you uninstalled it, the service deletes it all automatically. Cloudflare runs the service under its own [privacy policy](https://www.cloudflare.com/privacypolicy/) and processes your IP address to deliver requests. PS Focus does not log IP addresses itself.
 
 ## Feedback
 
@@ -60,7 +62,7 @@ PS Focus has no advertising, analytics, or tracking services. Giltyworks does no
 - **Uninstall PS Focus** (Windows **Settings > Apps > Installed apps**) and tick **Also delete all user data**. This signs out of Google and deletes the folders listed above.
 - **Remove Google access** at any time from PS Focus Settings (**Log out**) or from your Google Account's [third-party connections page](https://myaccount.google.com/connections).
 - **Delete the Drive backup.** In Google Drive on the web, open **Settings > Manage apps**. Find PS Focus, then choose **Options > Delete hidden app data**.
-- **Delete your Friends data** by choosing **Turn off** in the Friends module, or by emailing giltyworks@gmail.com.
+- **Delete your Friends data** by choosing **Offline** in the menu next to your name and then **Delete my friends data** in the Friends module, or by emailing giltyworks@gmail.com.
 - **Delete feedback you sent** by emailing giltyworks@gmail.com.
 
 ## Children
