@@ -28,7 +28,12 @@ GROUP_GAP = 8
 BOTTOM_PADDING = 6
 # The dot beside someone's name: green drawing, blue online, orange away; none offline
 ACTIVE_DOT_SIZE = 6
-PRESENCE_COLORS = {"drawing": "active_green", "away": "orange"}
+PRESENCE_COLORS = {"drawing": "active_green"}
+# Away friends have a small zzz after their name, this wide, which shows Away under the mouse
+AWAY_MARK_WIDTH = 15
+# The arrow at the end of a friend's name, which opens their menu: the square it takes, and its half-width
+NAME_ARROW_SIZE = 16
+NAME_ARROW_ARM = 3
 # A friend's name: green drawing, blue online or away, grey offline
 NAME_COLORS = {"drawing": "active_green", "online": "friend_online", "away": "friend_online", "offline": "muted"}
 # Short names for the programs, which share a line with the person's name
@@ -225,6 +230,7 @@ class FriendsModule(ModuleBlock):
         self.person_areas: list[tuple[QRect, str, str]] = []
         self.hovered_area: QRect | None = None
         self.hovered_icon: str | None = None
+        self.hovered_arrow: str | None = None
         # The code shows, copied, for a few seconds after Copy code is clicked
         self.code_shown = False
         # A word shown there for a few seconds instead, such as Request sent
@@ -298,6 +304,9 @@ class FriendsModule(ModuleBlock):
         small_line = line_height(fonts.small) + 2 * LINE_PADDING
         self.buttons, self.items, self.person_areas = [], [], []
         self.clipped_buttons, self.list_rect, self.list_items, self.max_scroll = [], QRect(), range(0), 0
+        # Where each away friend's zzz is, and each friend's menu arrow, as laid out before the list is scrolled
+        self.away_areas: list[QRect] = []
+        self.arrow_rects: list[tuple[QRect, str]] = []
         y = self.content_top
 
         def text_block(text: str, tone: str = "muted") -> None:
@@ -389,10 +398,13 @@ class FriendsModule(ModuleBlock):
             self.items.append(("anchored", left, middle, "w", str(stats.get("level", 0)), "muted", fonts.small))
             self.items.append(("anchored", right, middle, "e", hours, "muted" if offline else "text", fonts.small))
             name_left = left + level_width
-            # Beside the name: what they are drawing in, or that they are away
-            label = PROGRAM_SHORT_NAMES.get(active, active) if active else "Away" if presence == "away" else ""
+            # Beside the name: what they are drawing in, or a zzz while they are away
+            label = PROGRAM_SHORT_NAMES.get(active, active) if active else ""
             dot_color = PRESENCE_COLORS.get(presence)
             label_room = (ACTIVE_DOT_SIZE + 6 if dot_color else 0) + (text_width(fonts.small, label) + 4 if label else 0)
+            if presence == "away":
+                label_room += AWAY_MARK_WIDTH + 4
+            label_room += NAME_ARROW_SIZE + 2
             name_room = hours_left - 8 - name_left - label_room - (star_width if favourite else 0)
             shown_name = fit_text(name, fonts.account, name_room)
             self.items.append(("anchored", name_left, middle, "w", shown_name, NAME_COLORS.get(presence, "text"), fonts.account))
@@ -402,11 +414,19 @@ class FriendsModule(ModuleBlock):
             if favourite:
                 self.items.append(("outline", after_name + 4, middle, "w", FAVOURITE_STAR, "gold", fonts.rating))
                 after_name += star_width
+            if presence == "away":
+                self.items.append(("zzz", after_name + 5, middle))
+                self.away_areas.append(QRect(after_name + 3, middle - 8, AWAY_MARK_WIDTH + 4, 14))
+                after_name += AWAY_MARK_WIDTH + 4
             if dot_color:
                 dot_left = after_name + 6
                 self.items.append(("dot", dot_left, middle, dot_color))
+                after_name = dot_left + ACTIVE_DOT_SIZE
                 if label:
                     self.items.append(("anchored", dot_left + ACTIVE_DOT_SIZE + 4, middle, "w", label, dot_color, fonts.small))
+                    after_name += 4 + text_width(fonts.small, label)
+            # Last, the arrow that opens their menu, as a click anywhere on their rows does
+            self.arrow_rects.append((QRect(after_name + 2, middle - NAME_ARROW_SIZE // 2, NAME_ARROW_SIZE, NAME_ARROW_SIZE), code))
             y += name_line
             total = f"{stats.get('total', 0):.1f} hrs total"
             details = f"{stats.get('today', 0):.1f}h today"
@@ -616,11 +636,17 @@ class FriendsModule(ModuleBlock):
         point = event.position().toPoint()
         area = self._area_at(point)
         icon = self._icon_at(point)
-        if area != self.hovered_area or icon != self.hovered_icon:
-            self.hovered_area, self.hovered_icon = area, icon
-            self.setToolTip({"requests": "Friend requests", "add": "Add friend", "copy": "Copy your friend code"}.get(icon, ""))
+        arrow = next((code for rect, code in self.arrow_rects if self._shown(rect).contains(point)), None)
+        if area != self.hovered_area or icon != self.hovered_icon or arrow != self.hovered_arrow:
+            self.hovered_area, self.hovered_icon, self.hovered_arrow = area, icon, arrow
             self.update()
+        away = any(self._shown(rect).contains(point) for rect in self.away_areas)
+        self.setToolTip("Away" if away else {"requests": "Friend requests", "add": "Add friend", "copy": "Copy your friend code"}.get(icon, ""))
         self.update_cursor(point, area is not None or icon is not None or any(button.contains(point) for button in self.buttons))
+
+    def _shown(self, rect: QRect) -> QRect:
+        """Where something laid out in the list is, as it is scrolled, cut to the list's room"""
+        return rect.translated(0, -self.scroll).intersected(self.list_rect)
 
     def wheelEvent(self, event) -> None:
         if not self.max_scroll:
@@ -638,11 +664,27 @@ class FriendsModule(ModuleBlock):
 
     def leaveEvent(self, event) -> None:
         super().leaveEvent(event)
-        if self.hovered_area is not None or self.hovered_icon is not None:
-            self.hovered_area = self.hovered_icon = None
+        if self.hovered_area is not None or self.hovered_icon is not None or self.hovered_arrow is not None:
+            self.hovered_area = self.hovered_icon = self.hovered_arrow = None
             self.update()
 
     # ----- Drawing -----
+
+    def _paint_name_arrow(self, painter: QPainter, rect: QRect, hovered: bool) -> None:
+        """A small downward chevron in the muted grey; under the mouse a faint box shows behind it"""
+        if hovered:
+            fill = color("border")
+            fill.setAlpha(self.glass_alpha)
+            paint_hover_box(painter, QRectF(rect), fill)
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(color("muted"), 1.4)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        x, y, arm = rect.x() + rect.width() / 2, rect.y() + rect.height() / 2, NAME_ARROW_ARM
+        painter.drawPolyline([QPointF(x - arm, y - arm / 2), QPointF(x, y + arm / 2), QPointF(x + arm, y - arm / 2)])
+        painter.restore()
 
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
@@ -664,6 +706,11 @@ class FriendsModule(ModuleBlock):
                 # An emoji drawn as a plain shape in one colour, as the ratings are
                 _kind, x, y, anchor, text, tone, font = item
                 draw_outline_text(painter, *anchored_top_left(x, y, anchor, text, font), text, color(tone), font)
+            elif kind == "zzz":
+                # Three z's, each smaller and higher than the last
+                _kind, x, y = item
+                for offset, rise, font in ((0, 3, self.fonts.caption), (6, -1, self.fonts.tiny), (11, -4, self.fonts.tiny)):
+                    draw_anchored(painter, x + offset, y + rise, "w", "z", color("muted"), font)
             elif kind == "dot":
                 _kind, x, y, dot_color = item
                 painter.save()
@@ -673,6 +720,8 @@ class FriendsModule(ModuleBlock):
                 painter.drawEllipse(QRectF(x, y - ACTIVE_DOT_SIZE / 2, ACTIVE_DOT_SIZE, ACTIVE_DOT_SIZE))
                 painter.restore()
         painter.setClipRect(self.list_rect)
+        for rect, code in self.arrow_rects:
+            self._paint_name_arrow(painter, rect.translated(0, -self.scroll), code == self.hovered_arrow)
         for button in self.clipped_buttons:
             button.paint(painter)
         if self.max_scroll:
