@@ -113,7 +113,8 @@ class CodeEntry(QLineEdit):
 class FriendsModule(ModuleBlock):
     def __init__(self, fonts: Fonts, on_height_changed: Callable[[], None]) -> None:
         super().__init__("Friends", fonts)
-        self.on_height_changed = on_height_changed
+        # Not told of its first size, worked out below while the app is still being put together
+        self.on_height_changed: Callable[[], None] = lambda: None
         self.actions = FriendsActions()
         self.view = FriendsView()
         # Height of what is shown, and in landscape the height the modules share, inside the border
@@ -129,6 +130,7 @@ class FriendsModule(ModuleBlock):
         # What paintEvent draws: (kind, arguments), worked out by _layout
         self.items: list[tuple] = []
         self._layout()
+        self.on_height_changed = on_height_changed
 
     def landscape_height(self) -> int:
         return self.content_top - 1 + self.lines_height

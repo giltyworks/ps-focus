@@ -110,6 +110,18 @@ class QtFriendsTests(unittest.TestCase):
         self.sync.turn_on()
         self._settle()
 
+    def test_starts_in_landscape(self):
+        import app_config
+        from qt.app import PSFocusQt
+
+        with patch("qt.app.load_settings", return_value={**app_config.DEFAULT_SETTINGS, "show_friends": True, "landscape": True}):
+            app = PSFocusQt(self.application)
+        for timer in (app.tick_timer, app.poll_timer, app.backup_timer, app.friends_sync.timer):
+            timer.stop()
+        self.addCleanup(app.store.close)
+        self.addCleanup(app.window.hide)
+        self.assertTrue(app.landscape)
+
     def test_needs_a_server_and_a_google_account(self):
         self.service.configured = False
         self.assertEqual(self.sync.view().mode, "unavailable")
