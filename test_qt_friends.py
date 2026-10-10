@@ -394,6 +394,14 @@ class QtFriendsTests(unittest.TestCase):
         press = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(area.center()), QPointF(area.center()), Qt.MouseButton.RightButton, Qt.MouseButton.RightButton, Qt.KeyboardModifier.NoModifier)
         self.app.friends.mousePressEvent(press)
         self.assertEqual(opened, [("BBBB2222", "Bo")])
+        # A left click on the row does nothing; on the arrow after the name it opens the menu
+        left = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(area.center()), QPointF(area.center()), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+        self.app.friends.mousePressEvent(left)
+        self.assertEqual(len(opened), 1)
+        arrow = self.app.friends.arrow_rects[0][0].translated(0, -self.app.friends.scroll).center()
+        on_arrow = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(arrow), QPointF(arrow), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+        self.app.friends.mousePressEvent(on_arrow)
+        self.assertEqual(len(opened), 2)
 
     def test_removing_a_friend_asks_first(self):
         self._turn_on()

@@ -609,10 +609,16 @@ class FriendsModule(ModuleBlock):
             self.actions.add(code.strip())
 
     def _area_at(self, point: QPoint) -> QRect | None:
-        return next((area for area, _code, _name in self.person_areas if area.contains(point)), None)
+        """Nothing in the list is clicked as a whole any more; kept for the hover box, which no row now shows"""
+        return None
+
+    def _arrow_at(self, point: QPoint) -> str | None:
+        """The friend whose menu arrow is here, if any"""
+        return next((code for rect, code in self.arrow_rects if self._shown(rect).contains(point)), None)
 
     def interactive_at(self, point: QPoint) -> bool:
-        return super().interactive_at(point) or self._area_at(point) is not None or self._icon_at(point) is not None
+        # A friend's row moves the window like any other part; only their arrow is clicked
+        return super().interactive_at(point) or self._arrow_at(point) is not None or self._icon_at(point) is not None
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
@@ -627,9 +633,11 @@ class FriendsModule(ModuleBlock):
             if icon == "copy":
                 self.copy_code()
                 return
-        if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton) and not any(button.contains(point) for button in self.buttons):
+        if not any(button.contains(point) for button in self.buttons):
+            # A friend's menu opens from a right click on their rows, or a click on the arrow after their name
+            arrow = self._arrow_at(point) if event.button() == Qt.MouseButton.LeftButton else None
             for area, code, name in self.person_areas:
-                if area.contains(point):
+                if (event.button() == Qt.MouseButton.RightButton and area.contains(point)) or code == arrow:
                     self.actions.person_menu(code, name, event.globalPosition().toPoint() + QPoint(2, 2))
                     return
         super().mousePressEvent(event)
@@ -638,13 +646,13 @@ class FriendsModule(ModuleBlock):
         point = event.position().toPoint()
         area = self._area_at(point)
         icon = self._icon_at(point)
-        arrow = next((code for rect, code in self.arrow_rects if self._shown(rect).contains(point)), None)
+        arrow = self._arrow_at(point)
         if area != self.hovered_area or icon != self.hovered_icon or arrow != self.hovered_arrow:
             self.hovered_area, self.hovered_icon, self.hovered_arrow = area, icon, arrow
             self.update()
         away = any(self._shown(rect).contains(point) for rect in self.away_areas)
         self.setToolTip("Away" if away else {"requests": "Friend requests", "add": "Add friend", "copy": "Copy your friend code"}.get(icon, ""))
-        self.update_cursor(point, area is not None or icon is not None or any(button.contains(point) for button in self.buttons))
+        self.update_cursor(point, arrow is not None or icon is not None or any(button.contains(point) for button in self.buttons))
 
     def _shown(self, rect: QRect) -> QRect:
         """Where something laid out in the list is, as it is scrolled, cut to the list's room"""
