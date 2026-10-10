@@ -370,7 +370,7 @@ class FriendsModule(ModuleBlock):
                     self.items.append(("anchored", dot_left + ACTIVE_DOT_SIZE + 4, middle, "w", label, dot_color, fonts.small))
             y += name_line
             total = f"{stats.get('total', 0):.1f} hrs total"
-            details = f"{stats.get('streak', 0)} wk streak · {stats.get('today', 0):.1f}h today"
+            details = f"{stats.get('today', 0):.1f}h today"
             details_room = right - text_width(fonts.small, total) - 8 - name_left
             middle = y + small_line // 2
             self.items.append(("anchored", name_left, middle, "w", fit_text(details, fonts.small, details_room), "muted", fonts.small))
