@@ -6,15 +6,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable
 
-from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
-from PySide6.QtGui import QColor, QKeyEvent, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, QTimer
+from PySide6.QtGui import QAction, QColor, QIcon, QKeyEvent, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen, QPixmap
 from PySide6.QtWidgets import QLineEdit, QWidget
 
-from app_config import EDGE_PADDING, LINE_PADDING, TODAY_PANEL_WIDTH
+from app_config import EDGE_PADDING, LINE_PADDING, MODULE_MARGIN, TODAY_PANEL_WIDTH
 from friends import format_code
 
 from .header import NAME_MAX_LENGTH, fit_text
-from .module import DOCK_CONTROL_SIZE, ModuleBlock, PaintedButton, paint_hover_box
+from .module import DOCK_CONTROL_SIZE, MODULE_TITLE_PADDING, ModuleBlock, PaintedButton, paint_hover_box
 from .theme import Fonts, color, draw_anchored, draw_text, line_height, text_width
 
 # Space between the module's border and its text, as the stats keep
@@ -36,9 +36,11 @@ PROGRAM_SHORT_NAMES = {"Clip Studio Paint": "Clip Studio"}
 PORTRAIT_LIST_ROWS = 4
 SCROLL_STEP = 36
 SCROLL_BAR_WIDTH = 3
-# The friend requests and add friend icons at the right of the bottom row, each in a square as the dock icon is, with
-# this much between them
+# At the right of the name strip: Copy code, then the friend requests icon while any wait, and the add friend icon, each
+# icon in a square as the dock icon is, with this much between them; and how long a copied code stays shown
 ICON_GAP = 2
+COPY_PADDING = 4
+CODE_SHOWN_MS = 4000
 # The code field takes a code typed with or without its dash
 CODE_ENTRY_CHARACTERS = 11
 
@@ -120,6 +122,25 @@ def wrap(text: str, font, width: int) -> list[str]:
     return lines + [line] if line else lines
 
 
+def _tick_icon() -> QIcon:
+    """A green tick, drawn sharp at the screen's scale"""
+    icon = QIcon()
+    for ratio in (1, 1.5, 2):
+        pixmap = QPixmap(round(16 * ratio), round(16 * ratio))
+        pixmap.setDevicePixelRatio(ratio)
+        pixmap.fill(Qt.GlobalColor.transparent)
+        painter = QPainter(pixmap)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(color("active_green"), 2)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        painter.drawPolyline([QPointF(3.5, 8.5), QPointF(6.5, 11.5), QPointF(12.5, 4.5)])
+        painter.end()
+        icon.addPixmap(pixmap)
+    return icon
+
+
 class CodeEntry(QLineEdit):
     """Where a friend's code, or a nickname, is typed. Enter keeps it, Escape or clicking elsewhere closes it"""
 
@@ -134,6 +155,12 @@ class CodeEntry(QLineEdit):
             f"QLineEdit {{ background: {color('panel_alt').name()}; color: {color('text').name()};"
             f" selection-background-color: {color('accent_dark').name()}; padding: 0 4px; border-radius: 4px; }}"
         )
+        # A tick at the end, which keeps what is typed as Enter does; shown once there is something to keep
+        self.confirm = QAction(_tick_icon(), "Add", self)
+        self.confirm.triggered.connect(lambda: self._finish(self.text()))
+        self.addAction(self.confirm, QLineEdit.ActionPosition.TrailingPosition)
+        self.confirm.setVisible(False)
+        self.textChanged.connect(lambda text: self.confirm.setVisible(bool(text.strip())))
         self.hide()
 
     def _finish(self, code: str | None) -> None:
@@ -166,12 +193,13 @@ class FriendsModule(ModuleBlock):
         # Height of what is shown, and in landscape the height the modules share, inside the border
         self.lines_height = 1
         self.shared_height = 0
-        # Clickable areas other than buttons: each person's rows (their code and name) and the user's own code
+        # Each friend's rows, which open their menu
         self.person_areas: list[tuple[QRect, str, str]] = []
-        self.code_area = QRect()
         self.hovered_area: QRect | None = None
         self.hovered_icon: str | None = None
-        self.code_copied = False
+        # The code shows, copied, for a few seconds after Copy code is clicked
+        self.code_shown = False
+        self.code_timer = QTimer(self, singleShot=True, interval=CODE_SHOWN_MS, timeout=self._hide_code)
         # Whether the requests, sent and received, are shown above the friends; opened from their icon
         self.requests_open = False
         # How far the list is scrolled, the most it can be, and where it shows
@@ -211,7 +239,7 @@ class FriendsModule(ModuleBlock):
         if view == self.view:
             return
         if view.code != self.view.code:
-            self.code_copied = False
+            self.code_shown = False
         self.view = view
         self._layout()
 
@@ -238,9 +266,8 @@ class FriendsModule(ModuleBlock):
         width = TODAY_PANEL_WIDTH
         left, right = SIDE, width - SIDE
         small_line = line_height(fonts.small) + 2 * LINE_PADDING
-        self.buttons, self.items, self.person_areas, self.code_area = [], [], [], QRect()
+        self.buttons, self.items, self.person_areas = [], [], []
         self.clipped_buttons, self.list_rect, self.list_items, self.max_scroll = [], QRect(), range(0), 0
-        self.icon_areas: dict[str, QRect] = {}
         y = self.content_top
 
         def text_block(text: str, tone: str = "muted") -> None:
@@ -286,9 +313,8 @@ class FriendsModule(ModuleBlock):
         if not self.shared_height:
             return PORTRAIT_LIST_ROWS * (person_height + ROW_GAP) - ROW_GAP
         message = ROW_GAP + len(wrap(view.message[0], fonts.small, TODAY_PANEL_WIDTH - 2 * SIDE)) * small_line if view.message else 0
-        code_row = line_height(fonts.small) + 2 * BUTTON_PADY
         # The contents end at the shared height, the module's border taking a pixel below it
-        room = self.shared_height + 1 - BOTTOM_PADDING - list_top - GROUP_GAP - code_row - message
+        room = self.shared_height + 1 - BOTTOM_PADDING - list_top - message
         return max(person_height, room)
 
     def _layout_friends(self, y: int, left: int, right: int, small_line: int) -> int:
@@ -353,7 +379,7 @@ class FriendsModule(ModuleBlock):
             self.person_areas.append((QRect(left - 4, top - 2, right - left + 8, y - top + 4), code, name))
             y += ROW_GAP
         if not view.people:
-            for line in wrap("No friends yet. Share your code, or add a friend's with the icon below.", fonts.small, right - left):
+            for line in wrap("No friends yet. Copy your code to share it, or add a friend's with the icon above.", fonts.small, right - left):
                 self.items.append(("text", left, y, line, "muted", fonts.small))
                 y += small_line
             y += ROW_GAP
@@ -384,32 +410,64 @@ class FriendsModule(ModuleBlock):
             (area.translated(0, -shift).intersected(self.list_rect), code, name) for area, code, name in self.person_areas[first_area:]
             if area.translated(0, -shift).intersects(self.list_rect)
         ]
-        y = list_top + visible + GROUP_GAP
-        # The bottom row: the user's own code, which a click copies, or while adding a friend the field for their code; at
-        # the right the add friend icon, and before it, like a phone's notification, the requests icon while any wait
-        row_height = max(line_height(fonts.small) + 2 * BUTTON_PADY, DOCK_CONTROL_SIZE)
-        middle = y + row_height // 2
-        icon_top = middle - DOCK_CONTROL_SIZE // 2
-        add_icon = QRect(right + 4 - DOCK_CONTROL_SIZE, icon_top, DOCK_CONTROL_SIZE, DOCK_CONTROL_SIZE)
-        self.icon_areas = {"add": add_icon}
-        if view.incoming:
-            self.icon_areas["requests"] = add_icon.translated(-DOCK_CONTROL_SIZE - ICON_GAP, 0)
-        icons_left = min(area.left() for area in self.icon_areas.values())
-        if self.entry.isVisible():
-            self.entry.setGeometry(left, y, icons_left - BUTTON_GAP - left, row_height)
-        else:
-            label = "Your code "
-            code_text = "Copied" if self.code_copied else format_code(view.code)
-            self.items.append(("anchored", left, middle, "w", label, "muted", fonts.small))
-            code_left = left + text_width(fonts.small, label)
-            self.items.append(("anchored", code_left, middle, "w", code_text, "text", fonts.bold))
-            self.code_area = QRect(code_left - 4, y, text_width(fonts.bold, code_text) + 8, row_height)
-        return y + row_height
+        self._place_entry()
+        return list_top + visible
 
-    # ----- The icons in the bottom row -----
+    # ----- The name strip's controls -----
+
+    def _copy_texts(self) -> list[tuple[str, str, object]]:
+        """What Copy code shows, as pieces of (text, colour, font): the words, or for a while the code, copied"""
+        if self.code_shown:
+            return [(format_code(self.view.code), "text", self.fonts.bold), (" copied", "active_green", self.fonts.small)]
+        return [("Copy code", "muted", self.fonts.small)]
+
+    def strip_controls(self) -> dict[str, QRect]:
+        """Copy code, the requests icon while any wait, and the add friend icon, from the right of the name strip,
+        left of the dock icon while floating"""
+        if self.view.mode != "on":
+            return {}
+        top = 1 + MODULE_TITLE_PADDING + (line_height(self.fonts.bold) - DOCK_CONTROL_SIZE) // 2
+        dock = self.dock_rect()
+        right = dock.left() - ICON_GAP if dock is not None else self.width() - 1 - MODULE_MARGIN + 4
+        controls = {"add": QRect(right - DOCK_CONTROL_SIZE, top, DOCK_CONTROL_SIZE, DOCK_CONTROL_SIZE)}
+        right -= DOCK_CONTROL_SIZE + ICON_GAP
+        if self.view.incoming:
+            controls["requests"] = QRect(right - DOCK_CONTROL_SIZE, top, DOCK_CONTROL_SIZE, DOCK_CONTROL_SIZE)
+            right -= DOCK_CONTROL_SIZE + ICON_GAP
+        if not self.entry.isVisible():
+            width = sum(text_width(font, text) for text, _tone, font in self._copy_texts()) + 2 * COPY_PADDING
+            controls["copy"] = QRect(right - 2 - width, top, width, DOCK_CONTROL_SIZE)
+        return controls
+
+    def _place_entry(self) -> None:
+        """The code field, while adding a friend, fills the name strip between the module's name and the icons"""
+        if not self.entry.isVisible():
+            return
+        controls = self.strip_controls()
+        icons_left = min(rect.left() for rect in controls.values()) if controls else self.width() - MODULE_MARGIN
+        left = 1 + MODULE_MARGIN + text_width(self.fonts.bold, self.title) + 10
+        top = 1 + MODULE_TITLE_PADDING + (line_height(self.fonts.bold) - DOCK_CONTROL_SIZE) // 2
+        self.entry.setGeometry(left, top, icons_left - 4 - left, DOCK_CONTROL_SIZE)
 
     def _icon_at(self, point: QPoint) -> str | None:
-        return next((name for name, rect in self.icon_areas.items() if rect.contains(point)), None)
+        return next((name for name, rect in self.strip_controls().items() if rect.contains(point)), None)
+
+    def control_at(self, point: QPoint) -> str | None:
+        # The strip's controls are clicked, not taken to move the module
+        return None if self._icon_at(point) else super().control_at(point)
+
+    def copy_code(self) -> None:
+        """Copy the code to the clipboard, and show it, copied, for a few seconds"""
+        if not self.view.code:
+            return
+        self.actions.copy_code(self.view.code)
+        self.code_shown = True
+        self.code_timer.start()
+        self.update()
+
+    def _hide_code(self) -> None:
+        self.code_shown = False
+        self.update()
 
     def toggle_requests(self) -> None:
         self.requests_open = not self.requests_open
@@ -417,14 +475,24 @@ class FriendsModule(ModuleBlock):
         self._layout()
 
     def _paint_icons(self, painter: QPainter) -> None:
-        for name, rect in self.icon_areas.items():
+        for name, rect in self.strip_controls().items():
             hovered = self.hovered_icon == name
+            if name == "copy":
+                if hovered:
+                    fill = color("border")
+                    fill.setAlpha(self.glass_alpha)
+                    paint_hover_box(painter, QRectF(rect), fill)
+                x = rect.left() + COPY_PADDING
+                for text, tone, font in self._copy_texts():
+                    draw_anchored(painter, x, rect.center().y() + 1, "w", text, color(tone), font)
+                    x += text_width(font, text)
+                continue
             open_now = (name == "requests" and self.requests_open) or (name == "add" and self.entry.isVisible())
             if hovered or open_now:
                 fill = color("border")
                 fill.setAlpha(self.glass_alpha)
                 paint_hover_box(painter, QRectF(rect), fill)
-            paint_person_icon(painter, rect, color("text" if open_now else "muted"), self.surface("panel"), plus=name == "add")
+            paint_person_icon(painter, rect, color("text" if open_now else "muted"), self.surface("background"), plus=name == "add")
             count = len(self.view.incoming)
             if name == "requests" and count:
                 # How many requests wait, on a red badge at the icon's top right, as a phone shows notifications
@@ -472,8 +540,6 @@ class FriendsModule(ModuleBlock):
             self.actions.add(code.strip())
 
     def _area_at(self, point: QPoint) -> QRect | None:
-        if self.code_area.contains(point):
-            return self.code_area
         return next((area for area, _code, _name in self.person_areas if area.contains(point)), None)
 
     def interactive_at(self, point: QPoint) -> bool:
@@ -489,10 +555,8 @@ class FriendsModule(ModuleBlock):
             if icon == "add":
                 self._toggle_entry()
                 return
-            if self.code_area.contains(point) and self.view.code:
-                self.actions.copy_code(self.view.code)
-                self.code_copied = True
-                self._layout()
+            if icon == "copy":
+                self.copy_code()
                 return
         if event.button() in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton) and not any(button.contains(point) for button in self.buttons):
             for area, code, name in self.person_areas:
@@ -507,7 +571,7 @@ class FriendsModule(ModuleBlock):
         icon = self._icon_at(point)
         if area != self.hovered_area or icon != self.hovered_icon:
             self.hovered_area, self.hovered_icon = area, icon
-            self.setToolTip({"requests": "Friend requests", "add": "Add friend"}.get(icon, ""))
+            self.setToolTip({"requests": "Friend requests", "add": "Add friend", "copy": "Copy your friend code"}.get(icon, ""))
             self.update()
         self.update_cursor(point, area is not None or icon is not None or any(button.contains(point) for button in self.buttons))
 
@@ -530,9 +594,6 @@ class FriendsModule(ModuleBlock):
         if self.hovered_area is not None or self.hovered_icon is not None:
             self.hovered_area = self.hovered_icon = None
             self.update()
-        if self.code_copied:
-            self.code_copied = False
-            self._layout()
 
     # ----- Drawing -----
 

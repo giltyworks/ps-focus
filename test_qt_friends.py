@@ -410,13 +410,26 @@ class QtFriendsTests(unittest.TestCase):
     def test_the_code_is_copied_and_typed_codes_are_added(self):
         self._turn_on()
         module = self.app.friends
-        self.assertFalse(module.code_area.isEmpty())
-        module.actions.copy_code("ABCD2345")
+        # Copy code, in the name strip, copies the code and shows it for a few seconds
+        self.assertIn("copy", module.strip_controls())
+        module.copy_code()
         self.assertEqual(QApplication.clipboard().text(), "ABCD2345")
+        self.assertTrue(module.code_shown)
+        self.assertTrue(module.code_timer.isActive())
+        module._hide_code()
+        self.assertFalse(module.code_shown)
+        # No requests waiting, no requests icon
+        self.assertNotIn("requests", module.strip_controls())
+        # The code field takes Copy code's place in the strip
         module._toggle_entry()
         self.assertTrue(module.entry.isVisible())
+        self.assertNotIn("copy", module.strip_controls())
+        self.assertLess(module.entry.geometry().bottom(), module.content_top)
+        self.assertFalse(module.entry.confirm.isVisible())
         module.entry.setText("bbbb-2222")
-        module.entry._finish(module.entry.text())
+        # The tick at the end of the field adds them, as Enter does
+        self.assertTrue(module.entry.confirm.isVisible())
+        module.entry.confirm.trigger()
         self._settle()
         self.assertEqual(self.service.calls[-1], ("add", "bbbb-2222"))
 
