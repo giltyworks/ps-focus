@@ -41,6 +41,13 @@ YEAR_MONTH_HEIGHT = 82
 YEAR_DAY_SIZE = (11, 8)
 YEAR_DAY_PITCH = (13, 9)
 YEAR_DAY_RADIUS = 2
+# In landscape, four months to a row in three rows, so the year is no taller than the other columns: the gap under a
+# month's name, and the least space between one row of months and the next
+LANDSCAPE_YEAR_GRID = (4, 3)
+LANDSCAPE_YEAR_LABEL_GAP = 1
+LANDSCAPE_YEAR_ROW_GAP = 4
+# Space above the first row of month names, clear of the module's border
+LANDSCAPE_YEAR_TOP = 3
 # Gaps between the buttons of the title row: before the step buttons, and between them
 TOGGLE_GAP = 4
 STEP_BUTTON_GAP = 5
@@ -354,29 +361,47 @@ class CalendarModule(ModuleBlock):
         return bottom
 
     def _draw_year(self, painter: QPainter, top: int, width: int, active_days: tuple, today: date, offset: int = 0) -> int:
-        """Twelve small months, three to a row; return where the year ends"""
+        """Twelve small months, three to a row; return where the year ends. In landscape they are four to a row in
+        three rows, with the squares sized so the year fits the height the modules share"""
         year = self.month.year
-        column_edges = [offset + column * width // 3 for column in range(4)]
-        day_width, day_height = YEAR_DAY_SIZE
+        if self.landscape:
+            columns, rows = LANDSCAPE_YEAR_GRID
+            label_font = self.fonts.caption
+            month_height = max(self.shared_height - LANDSCAPE_YEAR_TOP, 1) // rows
+            label_height = line_height(label_font) + LANDSCAPE_YEAR_LABEL_GAP
+            pitch_y = max(4, (month_height - label_height - LANDSCAPE_YEAR_ROW_GAP + 2) // 6)
+            # A pixel narrower than the space allows, which leaves a clear gap between neighbouring months
+            pitch_x = min(width // columns // 7 - 1, YEAR_DAY_PITCH[0])
+            pitch = (pitch_x, pitch_y)
+            day_width, day_height = pitch_x - 2, pitch_y - 2
+            first_week_offset, label_offset = label_height, line_height(label_font) // 2
+        else:
+            columns, rows = 3, 4
+            label_font = self.fonts.bold
+            month_height = YEAR_MONTH_HEIGHT
+            pitch = YEAR_DAY_PITCH
+            day_width, day_height = YEAR_DAY_SIZE
+            first_week_offset, label_offset = 22, 7
+        column_edges = [offset + column * width // columns for column in range(columns + 1)]
         for index in range(12):
             month = index + 1
-            # Each small month is centred in its third of the width
-            left = column_edges[index % 3] + (width // 3 - 7 * YEAR_DAY_PITCH[0]) // 2
-            month_top = top + (index // 3) * YEAR_MONTH_HEIGHT + 2
-            draw_anchored(painter, left + 1 + (7 * YEAR_DAY_PITCH[0] - 2) // 2, month_top + 7, "center", calendar.month_abbr[month], color("text"), self.fonts.bold)
+            # Each small month is centred in its share of the width
+            left = column_edges[index % columns] + (width // columns - 7 * pitch[0]) // 2
+            month_top = top + (index // columns) * month_height + (LANDSCAPE_YEAR_TOP if self.landscape else 2)
+            draw_anchored(painter, left + 1 + (7 * pitch[0] - 2) // 2, month_top + label_offset, "center", calendar.month_abbr[month], color("text"), label_font)
             for row, week in enumerate(calendar.monthcalendar(year, month)):
                 for column, day in enumerate(week):
                     if not day:
                         continue
-                    x = left + 1 + column * YEAR_DAY_PITCH[0]
-                    y = month_top + 22 + row * YEAR_DAY_PITCH[1]
+                    x = left + 1 + column * pitch[0]
+                    y = month_top + first_week_offset + row * pitch[1]
                     fill = self._day_fill(date(year, month, day), day in active_days[index])
-                    self._cell(painter, x, y, x + day_width, y + day_height, fill, YEAR_DAY_RADIUS)
+                    self._cell(painter, x, y, x + day_width, y + day_height, fill, min(YEAR_DAY_RADIUS, day_height // 2))
                     # As in the month view, days still to come cannot be opened. A pixel of slack makes the small
                     # squares easier to hit and covers the thin gaps between them
                     if date(year, month, day) <= today:
                         self.day_boxes.append((x - 1, y - 1, x + day_width + 1, y + day_height + 1, date(year, month, day)))
-        return top + 4 * YEAR_MONTH_HEIGHT
+        return top + rows * month_height + (LANDSCAPE_YEAR_TOP if self.landscape else 0)
 
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
