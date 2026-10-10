@@ -28,7 +28,9 @@ GROUP_GAP = 8
 BOTTOM_PADDING = 6
 # The dot beside someone's name: green drawing, blue online, orange away; none offline
 ACTIVE_DOT_SIZE = 6
-PRESENCE_COLORS = {"drawing": "active_green", "online": "calendar_blue", "away": "orange"}
+PRESENCE_COLORS = {"drawing": "active_green", "away": "orange"}
+# A friend's name: green drawing, blue online or away, grey offline
+NAME_COLORS = {"drawing": "active_green", "online": "friend_online", "away": "friend_online", "offline": "muted"}
 # Short names for the programs, which share a line with the person's name
 PROGRAM_SHORT_NAMES = {"Clip Studio Paint": "Clip Studio"}
 # The list of requests and friends scrolls beyond this many friends' rows in portrait, and beyond the height the
@@ -371,13 +373,21 @@ class FriendsModule(ModuleBlock):
         star_width = text_width(fonts.rating, FAVOURITE_STAR) + 4
         name_line = line_height(fonts.account) + LINE_PADDING
         self.name_rects = {}
-        for name, stats, presence, active, code, favourite in view.people:
+        offline_count = sum(1 for person in view.people if person[2] == "offline")
+        for index, (name, stats, presence, active, code, favourite) in enumerate(view.people):
+            offline = presence == "offline"
+            # Friends offline, or invisible, follow the others under a heading of their own
+            if offline and (index == 0 or view.people[index - 1][2] != "offline"):
+                if index:
+                    y += GROUP_GAP - ROW_GAP
+                self.items.append(("text", left, y, f"Offline \u2014 {offline_count}", "muted", fonts.small))
+                y += small_line
             top = y
             hours = f"{stats.get('two_weeks', 0):.1f} hrs past 2 weeks"
             hours_left = right - text_width(fonts.small, hours)
             middle = y + name_line // 2
             self.items.append(("anchored", left, middle, "w", str(stats.get("level", 0)), "muted", fonts.small))
-            self.items.append(("anchored", right, middle, "e", hours, "text", fonts.small))
+            self.items.append(("anchored", right, middle, "e", hours, "muted" if offline else "text", fonts.small))
             name_left = left + level_width
             # Beside the name: what they are drawing in, or that they are away
             label = PROGRAM_SHORT_NAMES.get(active, active) if active else "Away" if presence == "away" else ""
@@ -385,7 +395,7 @@ class FriendsModule(ModuleBlock):
             label_room = (ACTIVE_DOT_SIZE + 6 if dot_color else 0) + (text_width(fonts.small, label) + 4 if label else 0)
             name_room = hours_left - 8 - name_left - label_room - (star_width if favourite else 0)
             shown_name = fit_text(name, fonts.account, name_room)
-            self.items.append(("anchored", name_left, middle, "w", shown_name, "text", fonts.account))
+            self.items.append(("anchored", name_left, middle, "w", shown_name, NAME_COLORS.get(presence, "text"), fonts.account))
             self.name_rects[code] = QRect(name_left - 4, top, hours_left - 8 - name_left + 4, name_line)
             after_name = name_left + text_width(fonts.account, shown_name)
             # A favourite has a gold star after their name

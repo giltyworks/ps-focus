@@ -72,7 +72,10 @@ class QtFriendsTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         folder = Path(self.temporary.name)
         self.account = "amy@example.com"
+        # The stand-in server from the start, so no test ever reaches the real one
+        self.service = FakeService()
         self.patches = [
+            patch("qt.app.FriendsService", lambda _identity_token: self.service),
             patch.object(app_config, "APP_DATA", folder),
             patch.object(app_config, "DATABASE_PATH", folder / "activity.sqlite3"),
             patch.object(app_config, "SETTINGS_PATH", folder / "settings.json"),
@@ -90,16 +93,21 @@ class QtFriendsTests(unittest.TestCase):
         for item in self.patches:
             self.addCleanup(item.stop)
         self.app = PSFocusQt(self.application)
-        for timer in (self.app.tick_timer, self.app.poll_timer, self.app.backup_timer, self.app.friends_sync.timer):
+        for timer in (self.app.tick_timer, self.app.poll_timer, self.app.backup_timer):
             timer.stop()
         self.addCleanup(lambda: self.app.store.close())
         self.addCleanup(self.app.window.hide)
-        self.service = FakeService()
         self.sync = self.app.friends_sync
         # Popups are windows of their own, which must not outlive the app they belong to
         self.addCleanup(self.sync.close_popups)
-        self.sync.service = self.service
         self.app.google_sync.email = self.account
+        # Whatever the start-up check-in did is forgotten, so each test counts its own
+        self._settle()
+        self.service.calls.clear()
+        self.sync.asked_account = ""
+        self.sync.state, self.sync.state_account = None, ""
+        self.sync.seen_requests.clear()
+        self.sync.refresh_view()
 
     def _settle(self):
         deadline = time.monotonic() + 5
@@ -119,7 +127,7 @@ class QtFriendsTests(unittest.TestCase):
 
         with patch("qt.app.load_settings", return_value={**app_config.DEFAULT_SETTINGS, "show_friends": True, "landscape": True}):
             app = PSFocusQt(self.application)
-        for timer in (app.tick_timer, app.poll_timer, app.backup_timer, app.friends_sync.timer):
+        for timer in (app.tick_timer, app.poll_timer, app.backup_timer):
             timer.stop()
         self.addCleanup(app.store.close)
         self.addCleanup(app.window.hide)
@@ -158,9 +166,12 @@ class QtFriendsTests(unittest.TestCase):
         self._turn_on()
         people = self.app.friends.view.people
         # The user is not among them
-        self.assertEqual([person[0] for person in people], ["Cy", "Dee", "Bo", "Ev"])
-        self.assertEqual([person[2] for person in people], ["offline", "away", "drawing", "online"])
-        self.assertEqual([person[3] for person in people], [None, None, "Krita", None])
+        # Those offline last
+        self.assertEqual([person[0] for person in people], ["Dee", "Bo", "Ev", "Cy"])
+        self.assertEqual([person[2] for person in people], ["away", "drawing", "online", "offline"])
+        texts = [item[3] for item in self.app.friends.items if item[0] == "text"]
+        self.assertIn("Offline \u2014 1", texts)
+        self.assertEqual([person[3] for person in people], [None, "Krita", None, None])
 
     def test_status_menu_sets_what_friends_see(self):
         from qt import friends_sync
@@ -197,6 +208,8 @@ class QtFriendsTests(unittest.TestCase):
     def test_starting_and_stopping_drawing_is_sent_once_it_has_lasted(self):
         from qt import friends_sync
 
+        # Out of sight, so only the change in drawing is due
+        self.app.window.hide()
         self._turn_on()
         self.sync.last_sync -= friends_sync.MIN_SYNC_GAP_SECONDS
         self.sync.tick("Krita")
@@ -258,16 +271,27 @@ class QtFriendsTests(unittest.TestCase):
         self._settle()
         self.assertEqual([call[0] for call in self.service.calls], ["sync", "sync", "accept"])
 
-    def test_check_ins_come_every_minute_while_a_request_sent_waits(self):
+    def test_check_ins_come_every_minute_while_friends_are_seen_or_a_request_waits(self):
         from qt import friends_sync
 
-        self.service.answer = server_state(outgoing=[{"code": "BBBB2222", "name": "Bo"}])
         self._turn_on()
-        self.assertEqual(self.sync.timer.interval(), friends_sync.WAITING_SYNC_INTERVAL_MS)
-        self.service.answer = server_state(friends=[{"code": "BBBB2222", "name": "Bo", "stats": {}, "updated_at": 1000}])
+        self.app.window.hide()
+        self.assertEqual(self.sync.sync_interval(), friends_sync.UNSEEN_SYNC_SECONDS)
+        self.app.window.show()
+        self.application.processEvents()
+        self.assertTrue(self.app.friends.isVisible())
+        self.assertEqual(self.sync.sync_interval(), friends_sync.SEEN_SYNC_SECONDS)
+        # Due, a tick checks in
+        self.sync.last_sync -= friends_sync.SEEN_SYNC_SECONDS
+        self.sync.tick(None)
+        self._settle()
+        self.assertEqual(len(self.service.calls), 2)
+        # Out of sight, a request waiting for an answer keeps it every minute
+        self.app.window.hide()
+        self.service.answer = server_state(outgoing=[{"code": "BBBB2222", "name": "Bo"}])
         self.sync.sync()
         self._settle()
-        self.assertEqual(self.sync.timer.interval(), friends_sync.SYNC_INTERVAL_MS)
+        self.assertEqual(self.sync.sync_interval(), friends_sync.SEEN_SYNC_SECONDS)
 
     def test_a_refused_request_is_explained(self):
         self._turn_on()

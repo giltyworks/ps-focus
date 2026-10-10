@@ -132,6 +132,8 @@ COLORS = {
     "decline_fill": "#5a211d",
     # The badge counting friend requests waiting, as a phone's notification badge
     "notification": "#e5484d",
+    # A friend's name while they are online: the app's blue, lightened to read on the dark panel
+    "friend_online": "#7d95f5",
 }
 DEFAULT_SETTINGS = {
     "tracking_enabled": True,

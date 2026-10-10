@@ -21,6 +21,8 @@ const REQUESTS_PER_MINUTE = 30;
 const FIGURE_LIMITS = { two_weeks: 336, total: 1000000, today: 24, week: 168, level: 99, streak: 100000 };
 // Someone not heard from in this long, such as after uninstalling with friends on, is deleted by the daily clean-up
 const FORGET_AFTER_DAYS = 180;
+// How often an unchanged check-in is saved, well inside the fifteen minutes after which the app shows a friend offline
+const UNCHANGED_SAVE_SECONDS = 5 * 60;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -210,8 +212,12 @@ async function sync(env, sub, body) {
   const now = Math.floor(Date.now() / 1000);
   const name = cleanName(body.name);
   const stats = JSON.stringify(cleanStats(body.stats));
-  const updated = await env.DB.prepare('UPDATE users SET name = ?, stats = ?, updated_at = ? WHERE sub = ?').bind(name, stats, now, sub).run();
-  if (!updated.meta.changes) {
+  // Saved only when something changed, or every few minutes to show the person is still there, so the frequent
+  // check-ins of people looking at their friends are reads, which the free allowance has far more of
+  const updated = await env.DB.prepare('UPDATE users SET name = ?, stats = ?, updated_at = ? WHERE sub = ? AND (name != ? OR stats != ? OR updated_at <= ?)')
+    .bind(name, stats, now, sub, name, stats, now - UNCHANGED_SAVE_SECONDS).run();
+  const known = updated.meta.changes || (await env.DB.prepare('SELECT 1 FROM users WHERE sub = ?').bind(sub).first());
+  if (!known) {
     // A first check-in: a new friend code, tried again in the unlikely case it is taken
     for (let attempt = 0; ; attempt++) {
       try {

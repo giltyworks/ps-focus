@@ -8,7 +8,6 @@ import threading
 import time
 from datetime import date, timedelta
 
-from PySide6.QtCore import QTimer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QMessageBox
 
@@ -21,11 +20,11 @@ from .request_popup import RequestPopup
 from .header import NAME_MAX_LENGTH
 from .status_menu import PopupMenu, StatusMenu
 
-# How often the figures are handed over while nothing changes. Kept to every ten minutes, so the free server allowance
-# covers well over a thousand people a day
-SYNC_INTERVAL_MS = 10 * 60 * 1000
-# While a request the user sent waits for an answer, every minute, so an accept shows soon
-WAITING_SYNC_INTERVAL_MS = 60 * 1000
+# How often PS Focus checks in: every minute while the friends module is on screen, or a request the user sent waits for
+# an answer, so friends' figures and answers show soon; otherwise every ten, which keeps the free server allowance for
+# hundreds of people a day. Starting or stopping drawing, and the mouse coming onto the module, check in sooner
+SEEN_SYNC_SECONDS = 60
+UNSEEN_SYNC_SECONDS = 10 * 60
 # Drawing counts as going on for this long after the last tracked second, so a moment in another window does not
 # tell friends the user stopped
 ACTIVE_LINGER_SECONDS = 120
@@ -74,8 +73,6 @@ class FriendsSync:
         actions.copy_code = lambda code: QGuiApplication.clipboard().setText(code)
         app.header.on_status = self.open_status_menu
         actions.looked_at = self.looked_at
-        self.timer = QTimer(interval=SYNC_INTERVAL_MS, timeout=self.sync)
-        self.timer.start()
         self.refresh_view()
 
     # ----- Who, and whether friends are on -----
@@ -155,7 +152,10 @@ class FriendsSync:
             self.active_program = program
         elif self.active_program and now - self.last_active_time > ACTIVE_LINGER_SECONDS:
             self.active_program = None
-        if self.enabled() and self.shown_program() != self.reported_active and now - self.last_sync >= MIN_SYNC_GAP_SECONDS:
+        if not self.enabled():
+            return
+        since = now - self.last_sync
+        if (self.shown_program() != self.reported_active and since >= MIN_SYNC_GAP_SECONDS) or since >= self.sync_interval():
             self.sync()
 
     def looked_at(self) -> None:
@@ -214,7 +214,6 @@ class FriendsSync:
                     self.message = ("Your friends list and code were deleted", "muted")
                 else:
                     self.state, self.state_account = value, account
-                    self._pace(bool(value.get("outgoing")))
                     if kind == "add":
                         # Sent, or with a request from them already waiting, friends at once
                         self.module.flash("Request sent" if value.get("outgoing") else "Added")
@@ -229,13 +228,12 @@ class FriendsSync:
             self.pending_sync = False
             self.sync()
 
-    def _pace(self, waiting: bool) -> None:
-        """Check in every minute while a request sent waits for an answer, otherwise every ten"""
-        interval = WAITING_SYNC_INTERVAL_MS if waiting else SYNC_INTERVAL_MS
-        if self.timer.interval() != interval:
-            self.timer.setInterval(interval)
-            if self.timer.isActive():
-                self.timer.start()
+    def sync_interval(self) -> int:
+        """Seconds between check-ins now, see SEEN_SYNC_SECONDS"""
+        module = self.module
+        seen = module.isVisible() and not module.window().isMinimized()
+        waiting = bool(self.state and self.state.get("outgoing"))
+        return SEEN_SYNC_SECONDS if seen or waiting else UNSEEN_SYNC_SECONDS
 
     # ----- What the user does -----
 
@@ -333,8 +331,8 @@ class FriendsSync:
             # A nickname the user gave them shows in place of their name
             name = self._local("friends_nicknames").get(code) or friend.get("name", "")
             people.append((name, stats, presence, program, code, code in self._local("friends_favourites")))
-        # Favourites first, then by hours over the past two weeks
-        people.sort(key=lambda person: (not person[5], -float(person[1].get("two_weeks", 0) or 0)))
+        # Those offline last, then favourites first, then by hours over the past two weeks
+        people.sort(key=lambda person: (person[2] == "offline", not person[5], -float(person[1].get("two_weeks", 0) or 0)))
         return FriendsView(
             "on", me.get("code", ""), people,
             [(request["code"], request["name"]) for request in state.get("incoming", [])],

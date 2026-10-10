@@ -61,6 +61,15 @@ assert amy_seen == {"two_weeks": 12.3, "total": 456.8, "today": 1.5, "week": 6.2
 bo_seen = ok("amy", "sync", {"name": "Amy", "stats": stats})["friends"][0]
 assert bo_seen["stats"]["two_weeks"] == 336 and bo_seen["stats"]["level"] == 0 and bo_seen["stats"]["active"] is None, bo_seen
 assert call("amy", "add", {"code": code_bo})[0] == 409
+# An unchanged check-in is not saved again, so the time Bo was last heard from stays; a change is saved
+import time
+before = ok("amy", "sync", {"name": "Amy", "stats": stats})["friends"][0]["updated_at"]
+time.sleep(1.2)
+ok("bo", "sync", {"name": "Bo", "stats": odd})
+assert ok("amy", "sync", {"name": "Amy", "stats": stats})["friends"][0]["updated_at"] == before
+ok("bo", "sync", {"name": "Bo", "stats": {**odd, "today": 2}})
+changed = ok("amy", "sync", {"name": "Amy", "stats": stats})["friends"][0]
+assert changed["updated_at"] > before and changed["stats"]["today"] == 2, changed
 # Showing as offline hides drawing; an unknown status counts as online
 ok("amy", "sync", {"name": "Amy", "stats": {**stats, "status": "offline"}})
 assert ok("bo", "sync", {"name": "Bo", "stats": odd})["friends"][0]["stats"]["active"] is None
