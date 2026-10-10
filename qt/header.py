@@ -6,7 +6,7 @@ from __future__ import annotations
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
-from PySide6.QtGui import QColor, QFocusEvent, QFont, QFontMetrics, QImage, QKeyEvent, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtGui import QColor, QFocusEvent, QFont, QFontMetrics, QImage, QKeyEvent, QMouseEvent, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QLineEdit, QWidget
 
 from app_config import EDGE_PADDING, LEVEL_BADGE_SIZE, TODAY_PANEL_WIDTH
@@ -28,14 +28,16 @@ HEADER_GROUP_GAP = 6
 LABEL_TEXT_INSET = 3
 # Where the settings button starts, which leaves its three dots the usual distance from the header's edge
 SETTINGS_BUTTON_LEFT = HEADER_WIDTH - HEADER_ICON_SIZE - 2
-# The module checkboxes, as in ui_modules.py: the gap between a name and its checkbox, the square the checkbox is
-# centred in, and the space between one module's control and the next; and the rounded square of a checkbox
-MODULE_LABEL_GAP = 6
-MODULE_CHECKBOX_SIZE = 18
-MODULE_CONTROL_GAP = 8
+# The rounded square of a checkbox, as Settings draws them
 CHECKBOX_BOX_SIZE = 14
 CHECKBOX_CORNER_RADIUS = 4
 MODULE_LABELS = (("graph", "Graph"), ("calendar", "Calendar"), ("stats", "Stats"), ("friends", "Friends"))
+# The module buttons: each an icon in a square, with this much between them; a shown module's icon is bright, a hidden
+# one's dim
+MODULE_BUTTON_SIZE = 22
+MODULE_ICON_SIZE = 14
+MODULE_BUTTON_GAP = 2
+MODULE_ICON_OFF = "#4f5857"
 # The display name field is as wide as this many characters, as the Tk entry; a name may be this long
 NAME_ENTRY_CHARACTERS = 20
 NAME_MAX_LENGTH = 32
@@ -73,6 +75,47 @@ def draw_checkbox(painter: QPainter, center: QPointF, checked: bool, hovered: bo
     painter.drawRoundedRect(box, CHECKBOX_CORNER_RADIUS, CHECKBOX_CORNER_RADIUS)
     painter.setBrush(fill)
     painter.drawRoundedRect(box.adjusted(2, 2, -2, -2), CHECKBOX_CORNER_RADIUS - 2, CHECKBOX_CORNER_RADIUS - 2)
+    painter.restore()
+
+
+def paint_module_icon(painter: QPainter, kind: str, rect: QRectF, icon_color: QColor) -> None:
+    """A module's icon drawn in thin lines inside the square: a rising line for the graph, a page with rings and days
+    for the calendar, rows of figures for the stats, and two people for friends"""
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    pen = QPen(icon_color, 1.4)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.setPen(pen)
+    painter.setBrush(Qt.BrushStyle.NoBrush)
+    x, y, size = rect.x(), rect.y(), rect.width()
+
+    def at(fx: float, fy: float) -> QPointF:
+        return QPointF(x + fx * size, y + fy * size)
+
+    if kind == "graph":
+        painter.drawPolyline([at(0.05, 0.95), at(0.95, 0.95)])
+        painter.drawPolyline([at(0.08, 0.75), at(0.35, 0.45), at(0.58, 0.62), at(0.92, 0.18)])
+    elif kind == "calendar":
+        painter.drawRoundedRect(QRectF(at(0.06, 0.16), at(0.94, 0.94)), 2, 2)
+        painter.drawLine(at(0.06, 0.38), at(0.94, 0.38))
+        painter.drawLine(at(0.3, 0.04), at(0.3, 0.24))
+        painter.drawLine(at(0.7, 0.04), at(0.7, 0.24))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(icon_color)
+        for fx in (0.28, 0.5, 0.72):
+            for fy in (0.56, 0.77):
+                painter.drawEllipse(at(fx, fy), 0.065 * size, 0.065 * size)
+    elif kind == "stats":
+        for fy, length in ((0.2, 0.92), (0.5, 0.92), (0.8, 0.92)):
+            painter.drawLine(at(0.08, fy), at(0.4, fy))
+            painter.drawLine(at(0.6, fy), at(length, fy))
+    else:
+        # The friend behind, then the one in front
+        painter.drawEllipse(at(0.68, 0.28), 0.13 * size, 0.13 * size)
+        painter.drawArc(QRectF(at(0.5, 0.5), at(0.98, 1.1)), 30 * 16, 120 * 16)
+        painter.drawEllipse(at(0.36, 0.34), 0.16 * size, 0.16 * size)
+        painter.drawArc(QRectF(at(0.04, 0.58), at(0.68, 1.3)), 15 * 16, 150 * 16)
     painter.restore()
 
 
@@ -328,8 +371,8 @@ class Header(QWidget):
 
 
 class ModuleControls(QWidget):
-    """The three module names with their checkboxes in a row, laid out from the right edge; clicking a name or its
-    checkbox toggles the module"""
+    """The module buttons in a row at the right, one icon each; clicking one shows or hides its module. The mouse over
+    one shows its rounded box and its name"""
 
     def __init__(self, fonts: Fonts, ticked: dict[str, bool], on_toggle: Callable[[str], None]) -> None:
         super().__init__()
@@ -338,54 +381,52 @@ class ModuleControls(QWidget):
         self.on_toggle = on_toggle
         self.setMouseTracking(True)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
-        metrics = QFontMetrics(fonts.small)
-        self.text_height = line_height(fonts.small)
-        row_height = max(self.text_height, MODULE_CHECKBOX_SIZE)
-        # For each module, the area of its control, the left of its name and the middle of its checkbox
-        self.areas: dict[str, tuple[QRect, int, QPointF]] = {}
-        right = TODAY_PANEL_WIDTH - EDGE_PADDING
-        for name, label in reversed(MODULE_LABELS):
-            left = right - metrics.horizontalAdvance(label) - MODULE_LABEL_GAP - MODULE_CHECKBOX_SIZE
-            center = QPointF(right - MODULE_CHECKBOX_SIZE // 2, row_height // 2)
-            self.areas[name] = (QRect(left, 0, right - left, row_height), left, center)
-            right = left - MODULE_CONTROL_GAP
-        self.setFixedSize(TODAY_PANEL_WIDTH, row_height)
-        # The module whose control the mouse is over, which then shows its box
+        # Each module's square, laid out from the right edge
+        self.areas: dict[str, QRect] = {}
+        right = TODAY_PANEL_WIDTH - EDGE_PADDING + (MODULE_BUTTON_SIZE - MODULE_ICON_SIZE) // 2
+        for name, _label in reversed(MODULE_LABELS):
+            self.areas[name] = QRect(right - MODULE_BUTTON_SIZE, 0, MODULE_BUTTON_SIZE, MODULE_BUTTON_SIZE)
+            right -= MODULE_BUTTON_SIZE + MODULE_BUTTON_GAP
+        self.setFixedSize(TODAY_PANEL_WIDTH, MODULE_BUTTON_SIZE)
+        # The module whose button the mouse is over, which then shows its box
         self.hovered: str | None = None
 
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.fillRect(self.rect(), color("background"))
-        painter.setFont(self.fonts.small)
-        painter.setPen(color("muted"))
-        baseline = ascent(self.fonts.small)
-        text_top = (self.height() - self.text_height) // 2
-        for name, label in MODULE_LABELS:
-            area, left, center = self.areas[name]
-            painter.drawText(QPoint(left, text_top + baseline), label)
-            draw_checkbox(painter, center, self.ticked[name], name == self.hovered)
+        inset = (MODULE_BUTTON_SIZE - MODULE_ICON_SIZE) / 2
+        for name, _label in MODULE_LABELS:
+            area = QRectF(self.areas[name])
+            if name == self.hovered:
+                paint_hover_box(painter, area.adjusted(1, 1, -1, -1), color("border"))
+            icon_color = color("text") if self.ticked[name] else QColor(MODULE_ICON_OFF)
+            paint_module_icon(painter, name, area.adjusted(inset, inset, -inset, -inset), icon_color)
         painter.end()
 
     def interactive_at(self, point: QPoint) -> bool:
         return self._control_at(point) is not None
 
     def _control_at(self, point: QPoint) -> str | None:
-        return next((name for name, (area, _left, _center) in self.areas.items() if area.contains(point)), None)
+        return next((name for name, area in self.areas.items() if area.contains(point)), None)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         name = self._control_at(event.position().toPoint())
         if event.button() == Qt.MouseButton.LeftButton and name is not None:
             self.ticked[name] = not self.ticked[name]
-            self.update()
+            # Its name now offers the opposite
+            self.hovered = None
+            self._hover(name)
             self.on_toggle(name)
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
-        # A quick second click toggles again, as in the Tk row
+        # A quick second click toggles again
         self.mousePressEvent(event)
 
     def _hover(self, name: str | None) -> None:
         if name != self.hovered:
             self.hovered = name
+            labels = dict(MODULE_LABELS)
+            self.setToolTip(f"{'Hide' if name and self.ticked[name] else 'Show'} {labels[name]}" if name else "")
             self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
