@@ -202,6 +202,12 @@ class SettingsPage(QWidget):
         descent = line_height(fonts.title) - title_ascent
         self._text(EDGE_PADDING, TITLE_PADDING - (title_ascent - capital_height), "Settings", "text", fonts.title)
         y = TITLE_PADDING + capital_height + descent + 2 + TITLE_GAP
+        description = self._text(
+            EDGE_PADDING, y, "PS Focus counts time in Photoshop, Krita and CSP while they are in front and pauses when you're inactive",
+            "muted", fonts.normal, PAGE_TEXT_WIDTH,
+        )
+        y += description.height() + DESCRIPTION_GAP
+        y += self._checkbox_row(y, PROGRAM_CHECKBOXES) + PANEL_GAP
         # Orientation: a tall shape for portrait and a wide one for landscape, the chosen one filled
         long_side, short_side = ORIENTATION_ICON_SIZE
         choice_width = short_side + ORIENTATION_ICON_GAP + long_side
@@ -221,14 +227,7 @@ class SettingsPage(QWidget):
         )
         self.slider_left = TODAY_PANEL_WIDTH - 1 - EDGE_PADDING - SLIDER_WIDTH
         self.slider_top = control_top
-        # The description of what is counted starts the programs' part, set off from the boxes above as from the title
-        y += height + TITLE_GAP
-        description = self._text(
-            EDGE_PADDING, y, "PS Focus counts time in Photoshop, Krita and CSP while they are in front and pauses when you're inactive",
-            "muted", fonts.normal, PAGE_TEXT_WIDTH,
-        )
-        y += description.height() + DESCRIPTION_GAP
-        y += self._checkbox_row(y, PROGRAM_CHECKBOXES) + PANEL_GAP
+        y += height + PANEL_GAP
         for key, title, text in TOGGLES:
             height, control_top = self._boxed_row(y, title, text, TOGGLE_TEXT_WIDTH, CHECKBOX_SIZE)
             # The drawn box is two pixels inside its square, which puts its right side EDGE_PADDING from the edge
