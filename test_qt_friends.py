@@ -210,6 +210,18 @@ class QtFriendsTests(unittest.TestCase):
         self.assertIsNone(self.service.calls[-1][2]["active"])
         self.assertEqual(len(self.service.calls), 3)
 
+    def test_looking_at_friends_brings_them_up_to_date_once_a_minute(self):
+        from qt import friends_sync
+
+        self._turn_on()
+        self.app.friends.actions.looked_at()
+        self._settle()
+        self.assertEqual(len(self.service.calls), 1)
+        self.sync.last_sync -= friends_sync.MIN_SYNC_GAP_SECONDS
+        self.app.friends.actions.looked_at()
+        self._settle()
+        self.assertEqual(len(self.service.calls), 2)
+
     def test_a_refused_request_is_explained(self):
         self._turn_on()
         self.service.error = FriendsError("No one has that friend code")
@@ -278,6 +290,28 @@ class QtFriendsTests(unittest.TestCase):
             self.app.landscape = landscape
             self.app._arrange_blocks()
             self.application.processEvents()
+
+    def test_a_long_list_scrolls_and_stays_level_in_landscape(self):
+        from PySide6.QtCore import QPoint, QPointF, Qt
+        from PySide6.QtGui import QWheelEvent
+        from qt.friends_module import PORTRAIT_LIST_ROWS, FriendsView
+
+        module = self.app.friends
+        people = [(f"Friend {index}", {"two_weeks": 10}, "online", None, f"AAAA22{index:02d}") for index in range(12)]
+        module.show_view(FriendsView("on", "ABCD2345", people))
+        self.assertGreater(module.max_scroll, 0)
+        self.assertEqual(len(module.person_areas), PORTRAIT_LIST_ROWS)
+        tall = module.height()
+        wheel = QWheelEvent(QPointF(50, 80), QPointF(50, 80), QPoint(), QPoint(0, -120 * 50), Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False)
+        module.wheelEvent(wheel)
+        self.assertEqual(module.scroll, module.max_scroll)
+        # Scrolled to the end, the last friend's row can be clicked
+        self.assertEqual(module.person_areas[-1][1], "AAAA2211")
+        self.assertEqual(module.height(), tall)
+        self.app.landscape = True
+        self.app._arrange_blocks()
+        # As tall as the columns beside it, inside their borders
+        self.assertEqual(module.height(), self.app._landscape_height(self.app._anchor_panel()) + 2)
 
     def test_the_code_is_copied_and_typed_codes_are_added(self):
         self._turn_on()

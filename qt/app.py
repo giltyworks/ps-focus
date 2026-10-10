@@ -354,9 +354,9 @@ class PSFocusQt:
         # With no anchor panel the header stands alone: its height, less a block's border of a pixel each side
         column = today_height + overhead if anchor is not None else overhead - MODULE_GAP - 2
         stats = self.stats.landscape_height() if self._block_shown("stats") else 0
-        friends = self.friends.landscape_height() if self._block_shown("friends") else 0
         graph = self.chart.landscape_height() if not self.docking.is_floating("graph") else 0
-        return max(graph, stats, friends, today_height, column)
+        # The calendar and friends fit themselves to this height, the friends list scrolling, so neither sets it
+        return max(graph, stats, today_height, column)
 
     def _block_resized(self) -> None:
         # A module growing or shrinking, such as the stats gaining a line, changes the size the window needs, and in

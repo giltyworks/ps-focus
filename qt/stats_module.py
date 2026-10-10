@@ -20,6 +20,8 @@ from .theme import Fonts, anchored_top_left, color, draw_anchored, draw_outline_
 # the last; the medal and the gap between it and its value; the gap between a value and the column of notes
 STATS_MARGIN = EDGE_PADDING - 2
 STATS_BOTTOM_PADDING = 5
+# In landscape, where the stats stand level with the other columns, a full set of lines leaves just this under the last
+LANDSCAPE_BOTTOM_PADDING = 1
 MEDAL_SIZE = 14
 MEDAL_GAP = 4
 # The least space between a row's label and its value
@@ -42,7 +44,7 @@ class StatsModule(ModuleBlock):
 
     def landscape_height(self) -> int:
         """Height the stats need in landscape, inside their border, with their name above the lines"""
-        return self.content_top - 1 + self.lines_height
+        return self.content_top - 1 + self.lines_height + LANDSCAPE_BOTTOM_PADDING
 
     def glass_changed(self) -> None:
         # Drawn again from the lines worked out, in the new background
@@ -56,7 +58,8 @@ class StatsModule(ModuleBlock):
 
     def _fit(self) -> None:
         old_height = self.height()
-        self.set_content_height(max(self.lines_height, self.shared_height - (self.content_top - 1)))
+        padding = LANDSCAPE_BOTTOM_PADDING if self.shared_height else STATS_BOTTOM_PADDING
+        self.set_content_height(max(self.lines_height + padding, self.shared_height - (self.content_top - 1)))
         if self.height() != old_height:
             self.on_height_changed()
 
@@ -118,7 +121,8 @@ class StatsModule(ModuleBlock):
                     draw_anchored(painter, right, middle, "e", line.note, QColor(line.note_color), note_font)
         painter.end()
         self.picture = picture
-        self.lines_height = height
+        # The lines alone; the space under them depends on the layout, see _fit
+        self.lines_height = y
         self._fit()
         self.update()
 

@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QRect, QRectF, Qt
-from PySide6.QtGui import QColor, QFontMetrics, QKeyEvent, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtGui import QKeyEvent, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QLineEdit, QWidget
 
 from app_config import EDGE_PADDING, LINE_PADDING, TODAY_PANEL_WIDTH
@@ -31,6 +31,11 @@ ACTIVE_DOT_SIZE = 6
 PRESENCE_COLORS = {"drawing": "active_green", "online": "calendar_blue", "away": "orange"}
 # Short names for the programs, which share a line with the person's name
 PROGRAM_SHORT_NAMES = {"Clip Studio Paint": "Clip Studio"}
+# The list of requests and friends scrolls beyond this many friends' rows in portrait, and beyond the height the
+# modules share in landscape; a turn of the mouse wheel moves it this far
+PORTRAIT_LIST_ROWS = 4
+SCROLL_STEP = 36
+SCROLL_BAR_WIDTH = 3
 # The code field takes a code typed with or without its dash
 CODE_ENTRY_CHARACTERS = 11
 
@@ -62,6 +67,8 @@ class FriendsActions:
     remove: Callable[[str, str], None] = lambda _code, _name: None
     cancel: Callable[[str], None] = lambda _code: None
     copy_code: Callable[[str], None] = lambda _code: None
+    # The mouse came onto the module, the moment someone looks at their friends
+    looked_at: Callable[[], None] = lambda: None
 
 
 def wrap(text: str, font, width: int) -> list[str]:
@@ -126,6 +133,13 @@ class FriendsModule(ModuleBlock):
         self.code_area = QRect()
         self.hovered_area: QRect | None = None
         self.code_copied = False
+        # How far the list is scrolled, the most it can be, and where it shows
+        self.scroll = 0
+        self.max_scroll = 0
+        self.list_rect = QRect()
+        self.list_items = range(0)
+        # Buttons in the list scrolled partly out of view: drawn cut off, but not clickable
+        self.clipped_buttons: list[PaintedButton] = []
         self.entry = CodeEntry(self, fonts)
         self.entry.on_finished = self._code_entered
         # What paintEvent draws: (kind, arguments), worked out by _layout
@@ -137,8 +151,11 @@ class FriendsModule(ModuleBlock):
         return self.content_top - 1 + self.lines_height
 
     def set_layout(self, landscape: bool, height: int = 0) -> None:
-        self.shared_height = height if landscape else 0
-        self._fit()
+        shared_height = height if landscape else 0
+        if shared_height != self.shared_height:
+            # The list's room changes with the height
+            self.shared_height = shared_height
+            self._layout()
 
     def _fit(self) -> None:
         old_height = self.height()
@@ -171,6 +188,7 @@ class FriendsModule(ModuleBlock):
         left, right = SIDE, width - SIDE
         small_line = line_height(fonts.small) + 2 * LINE_PADDING
         self.buttons, self.items, self.person_areas, self.code_area = [], [], [], QRect()
+        self.clipped_buttons, self.list_rect, self.list_items, self.max_scroll = [], QRect(), range(0), 0
         y = self.content_top
 
         def text_block(text: str, tone: str = "muted") -> None:
@@ -209,8 +227,23 @@ class FriendsModule(ModuleBlock):
         self._fit()
         self.update()
 
+    def _list_room(self, list_top: int, small_line: int, person_height: int) -> int:
+        """How tall the list may be before it scrolls: some friends' rows in portrait; in landscape what is left of
+        the height the modules share under the code row and any message, and at least one friend's row"""
+        fonts, view = self.fonts, self.view
+        if not self.shared_height:
+            return PORTRAIT_LIST_ROWS * (person_height + ROW_GAP) - ROW_GAP
+        message = ROW_GAP + len(wrap(view.message[0], fonts.small, TODAY_PANEL_WIDTH - 2 * SIDE)) * small_line if view.message else 0
+        code_row = line_height(fonts.small) + 2 * BUTTON_PADY
+        # The contents end at the shared height, the module's border taking a pixel below it
+        room = self.shared_height + 1 - BOTTOM_PADDING - list_top - GROUP_GAP - code_row - message
+        return max(person_height, room)
+
     def _layout_friends(self, y: int, left: int, right: int, small_line: int) -> int:
         fonts, view = self.fonts, self.view
+        # The list is laid out whole, then moved up by how far it is scrolled and cut to the room it has
+        list_top = y
+        first_item, first_button, first_area = len(self.items), len(self.buttons), len(self.person_areas)
         for code, name in view.incoming:
             decline = self._button("Decline", lambda code=code: self.actions.decline(code))
             accept = self._button("Accept", lambda code=code: self.actions.accept(code), main=True)
@@ -265,7 +298,28 @@ class FriendsModule(ModuleBlock):
             text = fit_text(f"Waiting for {name} to accept", fonts.small, cancel.left - BUTTON_GAP - left)
             self.items.append(("anchored", left, y + cancel.height // 2, "w", text, "muted", fonts.small))
             y += cancel.height + ROW_GAP
-        y += GROUP_GAP - ROW_GAP
+        full = y - ROW_GAP - list_top
+        person_height = line_height(fonts.normal) + LINE_PADDING + small_line
+        visible = min(full, self._list_room(list_top, small_line, person_height))
+        self.max_scroll = max(0, full - visible)
+        self.scroll = max(0, min(self.scroll, self.max_scroll))
+        self.list_rect = QRect(1, list_top, TODAY_PANEL_WIDTH - 2, visible)
+        shift = self.scroll
+        self.items[first_item:] = [item[:2] + (item[2] - shift,) + item[3:] for item in self.items[first_item:]]
+        self.list_items = range(first_item, len(self.items))
+        list_buttons = self.buttons[first_button:]
+        del self.buttons[first_button:]
+        for button in list_buttons:
+            button.top -= shift
+            if self.list_rect.contains(QRect(button.left, button.top, button.width, button.height)):
+                self.buttons.append(button)
+            else:
+                self.clipped_buttons.append(button)
+        self.person_areas[first_area:] = [
+            (area.translated(0, -shift).intersected(self.list_rect), code, name) for area, code, name in self.person_areas[first_area:]
+            if area.translated(0, -shift).intersects(self.list_rect)
+        ]
+        y = list_top + visible + GROUP_GAP
         # The bottom row: the user's own code, which a click copies, and the buttons
         turn_off = self._button("Turn off", self.actions.turn_off)
         add = self._button("Cancel" if self.entry.isVisible() else "Add friend", self._toggle_entry, main=not self.entry.isVisible())
@@ -331,6 +385,20 @@ class FriendsModule(ModuleBlock):
             self.update()
         self.update_cursor(point, area is not None or any(button.contains(point) for button in self.buttons))
 
+    def wheelEvent(self, event) -> None:
+        if not self.max_scroll:
+            event.ignore()
+            return
+        steps = event.angleDelta().y() / 120
+        self.scroll = max(0, min(self.max_scroll, round(self.scroll - steps * SCROLL_STEP)))
+        self.hovered_area = None
+        self._layout()
+        event.accept()
+
+    def enterEvent(self, event) -> None:
+        super().enterEvent(event)
+        self.actions.looked_at()
+
     def leaveEvent(self, event) -> None:
         super().leaveEvent(event)
         if self.hovered_area is not None:
@@ -349,7 +417,8 @@ class FriendsModule(ModuleBlock):
             fill = color("calendar_blank")
             fill.setAlpha(self.glass_alpha)
             paint_hover_box(painter, QRectF(self.hovered_area), fill)
-        for item in self.items:
+        for index, item in enumerate(self.items):
+            painter.setClipRect(self.list_rect if index in self.list_items else self.rect())
             kind = item[0]
             if kind == "text":
                 _kind, x, top, text, tone, font = item
@@ -365,6 +434,16 @@ class FriendsModule(ModuleBlock):
                 painter.setBrush(color(dot_color))
                 painter.drawEllipse(QRectF(x, y - ACTIVE_DOT_SIZE / 2, ACTIVE_DOT_SIZE, ACTIVE_DOT_SIZE))
                 painter.restore()
+        painter.setClipRect(self.list_rect)
+        for button in self.clipped_buttons:
+            button.paint(painter)
+        if self.max_scroll:
+            # A thin bar at the list's right edge, showing how much of it is in view and where
+            full = self.list_rect.height() + self.max_scroll
+            bar = max(12, self.list_rect.height() * self.list_rect.height() // full)
+            top = self.list_rect.top() + (self.list_rect.height() - bar) * self.scroll // self.max_scroll
+            paint_hover_box(painter, QRectF(self.width() - 1 - SCROLL_BAR_WIDTH - 1, top, SCROLL_BAR_WIDTH, bar), self.border())
+        painter.setClipping(False)
         for button in self.buttons:
             button.paint(painter)
         self.paint_dock_controls(painter)

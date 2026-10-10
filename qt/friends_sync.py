@@ -25,7 +25,7 @@ SYNC_INTERVAL_MS = 10 * 60 * 1000
 # Drawing counts as going on for this long after the last tracked second, so a moment in another window does not
 # tell friends the user stopped
 ACTIVE_LINGER_SECONDS = 120
-# The least time between check-ins made for starting or stopping drawing
+# The least time between check-ins made for starting or stopping drawing, or for the mouse coming onto the module
 MIN_SYNC_GAP_SECONDS = 60
 # A friend not heard from in this long is not shown as drawing now, as their PC may have gone off mid-session
 STALE_SECONDS = 15 * 60
@@ -65,6 +65,7 @@ class FriendsSync:
         actions.remove = self.remove
         actions.copy_code = lambda code: QGuiApplication.clipboard().setText(code)
         app.header.on_status = self.open_status_menu
+        actions.looked_at = self.looked_at
         self.timer = QTimer(interval=SYNC_INTERVAL_MS, timeout=self.sync)
         self.timer.start()
         self.refresh_view()
@@ -151,6 +152,11 @@ class FriendsSync:
         elif self.active_program and now - self.last_active_time > ACTIVE_LINGER_SECONDS:
             self.active_program = None
         if self.enabled() and self.shown_program() != self.reported_active and now - self.last_sync >= MIN_SYNC_GAP_SECONDS:
+            self.sync()
+
+    def looked_at(self) -> None:
+        """Friends are brought up to date when the mouse comes onto the module, if not checked a minute ago"""
+        if time.monotonic() - self.last_sync >= MIN_SYNC_GAP_SECONDS:
             self.sync()
 
     def sync(self) -> None:
