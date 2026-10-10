@@ -136,6 +136,7 @@ DEFAULT_SETTINGS = {
     "launch_on_startup": True,
     "start_minimized": True,
     "disable_fanfare_sound": False,
+    "always_on_top": False,
     "show_graph": False,
     "show_calendar": False,
     "show_stats": False,

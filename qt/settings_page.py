@@ -45,6 +45,7 @@ OPTION_CHECKBOXES = (("tracking_paused", "Pause tracking"), ("disable_fanfare_so
 TOGGLES = (
     ("launch_on_startup", "Start with Windows", "Launch PS Focus when you sign in to Windows"),
     ("start_minimized", "Start minimized", "Open PS Focus minimized when launched at sign-in"),
+    ("always_on_top", "Always on top", "Keep PS Focus above other windows"),
 )
 
 

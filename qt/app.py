@@ -59,7 +59,7 @@ from .stats_module import StatsModule
 from .settings_page import SettingsPage
 from .theme import Fonts
 from .today_panel import TodayPanel
-from .window import MainWindow
+from .window import MainWindow, set_topmost
 from .google_sync import GoogleSync
 
 # Every block that can be put in order: the program panels and the modules, as in the Tk ui_modules
@@ -174,6 +174,7 @@ class PSFocusQt:
             self.window.show()
         # Where the window was left, and the modules floating then
         self.docking.restore()
+        self.apply_always_on_top()
 
     def _read_block_order(self) -> list[str]:
         """The saved order of the program panels and modules, with any missing added at the end; see the Tk
@@ -252,6 +253,16 @@ class PSFocusQt:
         if key in PROGRAM_PANEL_SETTINGS.values():
             # A floating program panel shows or hides at once; one in the window does on leaving Settings
             self.docking.sync_visibility()
+        if key == "always_on_top":
+            self.apply_always_on_top()
+
+    def apply_always_on_top(self) -> None:
+        """Keep the window and its floating panels above other programs, or not, as the setting says"""
+        on = bool(self.settings.get("always_on_top"))
+        set_topmost(self.window, on)
+        for panel in self.docking.floating.values():
+            if panel is not None:
+                set_topmost(panel, on)
 
     def _transparency_chosen(self, value: int, done: bool) -> None:
         """The panels follow the slider as it moves; the setting is saved once it is let go"""

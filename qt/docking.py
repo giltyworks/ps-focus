@@ -21,7 +21,7 @@ from PySide6.QtWidgets import QWidget
 from app_config import TODAY_PANEL_WIDTH
 
 from .theme import color
-from .window import frame_insets
+from .window import frame_insets, set_topmost
 
 Rect = tuple[int, int, int, int]
 # How near an edge has to come before it snaps to another
@@ -324,6 +324,8 @@ class Docking:
         self.floating[name] = panel
         panel.move(top_left)
         panel.setVisible(self._panel_should_show(name))
+        if self.app.settings.get("always_on_top"):
+            set_topmost(panel, True)
         self.update_glass(name)
         self.app._refresh_module(name)
 

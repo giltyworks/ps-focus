@@ -20,6 +20,15 @@ from .theme import color
 HEADER_GAP = 2
 
 
+def set_topmost(window: QWidget, on: bool) -> None:
+    """Keep the window above other programs' windows, or let them cover it again"""
+    if os.name != "nt":
+        return
+    # HWND_TOPMOST or HWND_NOTOPMOST, neither moving, sizing nor activating it
+    insert_after = wintypes.HWND(-1 if on else -2)
+    ctypes.windll.user32.SetWindowPos(wintypes.HWND(int(window.winId())), insert_after, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0010)
+
+
 def frame_insets(window: QWidget) -> tuple[float, float, float, float]:
     """How far the frame Windows draws lies inside the window's frame as Qt gives it, left, top, right and bottom, in
     Qt's units; negative where it lies outside, as Windows draws a pixel of outline beyond it. Windows' outer
