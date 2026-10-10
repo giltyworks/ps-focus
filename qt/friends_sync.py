@@ -24,6 +24,8 @@ from .status_menu import PopupMenu, StatusMenu
 # How often the figures are handed over while nothing changes. Kept to every ten minutes, so the free server allowance
 # covers well over a thousand people a day
 SYNC_INTERVAL_MS = 10 * 60 * 1000
+# While a request the user sent waits for an answer, every minute, so an accept shows soon
+WAITING_SYNC_INTERVAL_MS = 60 * 1000
 # Drawing counts as going on for this long after the last tracked second, so a moment in another window does not
 # tell friends the user stopped
 ACTIVE_LINGER_SECONDS = 120
@@ -212,6 +214,7 @@ class FriendsSync:
                     self.message = ("Your friends list and code were deleted", "muted")
                 else:
                     self.state, self.state_account = value, account
+                    self._pace(bool(value.get("outgoing")))
                     if kind == "add":
                         # Sent, or with a request from them already waiting, friends at once
                         self.module.flash("Request sent" if value.get("outgoing") else "Added")
@@ -225,6 +228,14 @@ class FriendsSync:
         if self.pending_sync and not self.busy:
             self.pending_sync = False
             self.sync()
+
+    def _pace(self, waiting: bool) -> None:
+        """Check in every minute while a request sent waits for an answer, otherwise every ten"""
+        interval = WAITING_SYNC_INTERVAL_MS if waiting else SYNC_INTERVAL_MS
+        if self.timer.interval() != interval:
+            self.timer.setInterval(interval)
+            if self.timer.isActive():
+                self.timer.start()
 
     # ----- What the user does -----
 

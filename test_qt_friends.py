@@ -258,6 +258,17 @@ class QtFriendsTests(unittest.TestCase):
         self._settle()
         self.assertEqual([call[0] for call in self.service.calls], ["sync", "sync", "accept"])
 
+    def test_check_ins_come_every_minute_while_a_request_sent_waits(self):
+        from qt import friends_sync
+
+        self.service.answer = server_state(outgoing=[{"code": "BBBB2222", "name": "Bo"}])
+        self._turn_on()
+        self.assertEqual(self.sync.timer.interval(), friends_sync.WAITING_SYNC_INTERVAL_MS)
+        self.service.answer = server_state(friends=[{"code": "BBBB2222", "name": "Bo", "stats": {}, "updated_at": 1000}])
+        self.sync.sync()
+        self._settle()
+        self.assertEqual(self.sync.timer.interval(), friends_sync.SYNC_INTERVAL_MS)
+
     def test_a_refused_request_is_explained(self):
         self._turn_on()
         self.service.error = FriendsError("No one has that friend code")

@@ -15,7 +15,7 @@ from friends import format_code
 
 from .header import NAME_MAX_LENGTH, fit_text
 from .module import DOCK_CONTROL_SIZE, MODULE_TITLE_PADDING, ModuleBlock, PaintedButton, paint_hover_box
-from .theme import Fonts, color, draw_anchored, draw_text, line_height, text_width
+from .theme import Fonts, anchored_top_left, color, draw_anchored, draw_outline_text, draw_text, line_height, text_width
 
 # Space between the module's border and its text, as the stats keep
 SIDE = 1 + EDGE_PADDING
@@ -41,6 +41,8 @@ SCROLL_BAR_WIDTH = 3
 ICON_GAP = 2
 COPY_PADDING = 4
 CODE_SHOWN_MS = 4000
+# The rating star of the calendar and stats, which marks a favourite
+FAVOURITE_STAR = chr(0x2B50)
 # The code field takes a code typed with or without its dash
 CODE_ENTRY_CHARACTERS = 11
 
@@ -365,7 +367,8 @@ class FriendsModule(ModuleBlock):
             y += GROUP_GAP - ROW_GAP
         # Each friend's level stands at the left of their name, in a column as wide as two digits
         level_width = text_width(fonts.small, "00") + 6
-        star_width = text_width(fonts.small, "\u2605") + 4
+        # The favourite star is the rating star drawn on calendar days and in the stats
+        star_width = text_width(fonts.rating, FAVOURITE_STAR) + 4
         name_line = line_height(fonts.account) + LINE_PADDING
         self.name_rects = {}
         for name, stats, presence, active, code, favourite in view.people:
@@ -387,7 +390,7 @@ class FriendsModule(ModuleBlock):
             after_name = name_left + text_width(fonts.account, shown_name)
             # A favourite has a gold star after their name
             if favourite:
-                self.items.append(("anchored", after_name + 4, middle, "w", "\u2605", "gold", fonts.small))
+                self.items.append(("outline", after_name + 4, middle, "w", FAVOURITE_STAR, "gold", fonts.rating))
                 after_name += star_width
             if dot_color:
                 dot_left = after_name + 6
@@ -647,6 +650,10 @@ class FriendsModule(ModuleBlock):
             elif kind == "anchored":
                 _kind, x, y, anchor, text, tone, font = item
                 draw_anchored(painter, x, y, anchor, text, color(tone), font)
+            elif kind == "outline":
+                # An emoji drawn as a plain shape in one colour, as the ratings are
+                _kind, x, y, anchor, text, tone, font = item
+                draw_outline_text(painter, *anchored_top_left(x, y, anchor, text, font), text, color(tone), font)
             elif kind == "dot":
                 _kind, x, y, dot_color = item
                 painter.save()
