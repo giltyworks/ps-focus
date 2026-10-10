@@ -140,6 +140,7 @@ class FriendsSync:
         self.app.settings["friends_status"] = status
         self.app._save_settings()
         self.offline_announced = False
+        self.app.google_sync.update_status()
         self.refresh_view()
         self.sync()
 

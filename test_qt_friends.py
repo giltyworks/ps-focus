@@ -183,6 +183,18 @@ class QtFriendsTests(unittest.TestCase):
             self.sync.set_status(status)
             self._settle()
             self.assertEqual((self.service.calls[-1][2]["status"], self.service.calls[-1][2]["active"]), (sent, active))
+        # Invisible, the name at the top is greyed
+        from unittest.mock import PropertyMock
+
+        connected = patch.object(type(self.app.google_sync.client), "connected", new_callable=PropertyMock, return_value=True)
+        connected.start()
+        self.addCleanup(connected.stop)
+        self.sync.set_status("invisible")
+        self._settle()
+        self.assertEqual(self.app.header.account_color, "muted")
+        self.sync.set_status("online")
+        self._settle()
+        self.assertEqual(self.app.header.account_color, "active_green")
         # Offline tells friends once, then sends nothing more
         self.sync.set_status("offline")
         self._settle()

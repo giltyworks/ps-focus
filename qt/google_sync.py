@@ -47,7 +47,10 @@ class GoogleSync:
         else:
             status, tone, buttons = self.email or "Google connected", "active_green", "connected"
             app.header.account_text = self.display_name() or status
-        app.header.account_color = tone
+        friends = getattr(app, "friends_sync", None)
+        # Invisible or offline to friends, the name is greyed, as friends see it
+        hidden = friends is not None and friends.enabled() and friends.status() in ("invisible", "offline")
+        app.header.account_color = "muted" if hidden else tone
         app.header.account_font = app.fonts.account if self.client.connected and not self.reauthentication_required else app.fonts.small
         app.header.account_disabled = self.busy
         app.header.update()
