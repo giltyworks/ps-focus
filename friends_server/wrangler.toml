@@ -1,0 +1,17 @@
+name = "ps-focus-friends"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[triggers]
+# The daily clean-up of people not heard from in six months
+crons = ["17 4 * * *"]
+
+[vars]
+# The Google sign-in client PS Focus uses; only ID tokens issued to it are accepted
+GOOGLE_CLIENT_ID = "91542726083-94m9n4iaq14cn44rjuad4drtbd6dinku.apps.googleusercontent.com"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "ps-focus-friends"
+# Filled in by the first deploy, see README.md
+database_id = "00000000-0000-0000-0000-000000000000"

@@ -133,7 +133,7 @@ class QtSettingsTests(unittest.TestCase):
         self.app.settings.pop("block_order", None)
         self.app.settings["module_order"] = ["stats", "graph", "calendar"]
         self.app.settings["modules_left"] = ["stats"]
-        self.assertEqual(self.app._read_block_order(), ["stats", "Photoshop", "Krita", "Clip Studio Paint", "graph", "calendar"])
+        self.assertEqual(self.app._read_block_order(), ["stats", "Photoshop", "Krita", "Clip Studio Paint", "graph", "calendar", "friends"])
 
     def test_chart_reuses_picture_until_data_period_or_layout_changes(self):
         chart = self.app.chart

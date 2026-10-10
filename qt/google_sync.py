@@ -119,6 +119,8 @@ class GoogleSync:
             if name != self.display_name():
                 self._set_display_name(name)
                 self.app._save_settings()
+                # Friends see the new name at once
+                self.app.friends_sync.sync()
         self.update_status()
 
     def account_clicked(self) -> None:
@@ -249,6 +251,9 @@ class GoogleSync:
                         self._start("upload", lambda payload=content: self.client.upload_activity_backup(payload))
                 elif kind == "upload":
                     self.app.settings_page.set_backup_status("Activity backup saved to Google Drive", "active_green")
+            if hasattr(self.app, "friends_sync"):
+                # Signing in, out or to another account changes whose friends are shown
+                self.app.friends_sync.account_changed()
             if self.pending_settings and not self.busy:
                 self.pending_settings = False
                 self.settings_changed()

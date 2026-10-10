@@ -141,7 +141,8 @@ class QtDockingTests(unittest.TestCase):
         self.assertFalse(self.app.docking.is_floating("graph"))
         self.assertFalse(self.app.chart.floating)
         self.assertIn(self.app.chart, self.app._shown_blocks())
-        self.assertEqual(self.app.block_order[-1], "graph")
+        # Dropped on the last module shown, the stats, it goes after them
+        self.assertEqual(self.app.block_order.index("graph"), self.app.block_order.index("stats") + 1)
         self.assertEqual(self.app.settings["floating_modules"], {})
         del panel
 

@@ -45,6 +45,7 @@ from windows_startup import (
     refresh_startup_entry,
     set_startup,
 )
+from friends import FriendsService
 from google_drive import GoogleDriveSync
 
 from .block_drag import BlockDrag
@@ -54,6 +55,8 @@ from .chart import ChartModule
 from .day_overview import DayOverview
 from .docking import Docking
 from .feedback_dialog import FeedbackDialog
+from .friends_module import FriendsModule
+from .friends_sync import FriendsSync
 from .header import Header, ModuleControls
 from .stats_module import StatsModule
 from .settings_page import SettingsPage
@@ -63,7 +66,7 @@ from .window import MainWindow, set_topmost
 from .google_sync import GoogleSync
 
 # Every block that can be put in order: the program panels and the modules, as in the Tk ui_modules
-MODULE_NAMES = ("graph", "calendar", "stats")
+MODULE_NAMES = ("graph", "calendar", "stats", "friends")
 BLOCK_NAMES = tuple(PROGRAM_PANEL_SETTINGS) + MODULE_NAMES
 # Longest the app may take to close after Exit before it is ended regardless
 EXIT_TIMEOUT_SECONDS = 10
@@ -116,7 +119,8 @@ class PSFocusQt:
         self.chart_drawn_day: date | None = None
         self.calendar = CalendarModule(self.fonts, self.store, self._open_day_overview, self._refresh_stats, self._block_resized)
         self.stats = StatsModule(self.fonts, self.store, self._block_resized)
-        self.modules = {"graph": self.chart, "calendar": self.calendar, "stats": self.stats}
+        self.friends = FriendsModule(self.fonts, self._block_resized)
+        self.modules = {"graph": self.chart, "calendar": self.calendar, "stats": self.stats, "friends": self.friends}
         self.docking = Docking(self)
         self.window.on_moved = self.docking.main_moved
         self.window.on_hover = self.update_glass
@@ -148,6 +152,7 @@ class PSFocusQt:
             activity_filename="qt-preview-activity.sqlite3" if preview else "activity.sqlite3",
         )
         self.google_sync = GoogleSync(self, client)
+        self.friends_sync = FriendsSync(self, self.friends, FriendsService(client.identity_token))
         self.settings_page.backup_button.command = lambda: self._backup_activity_now(force=True)
         self._backup_activity_now()
         self.backup_timer = QTimer(interval=BACKUP_INTERVAL_MS, timeout=self._backup_activity_now)
@@ -343,8 +348,9 @@ class PSFocusQt:
         # With no anchor panel the header stands alone: its height, less a block's border of a pixel each side
         column = today_height + overhead if anchor is not None else overhead - MODULE_GAP - 2
         stats = self.stats.landscape_height() if self._block_shown("stats") else 0
+        friends = self.friends.landscape_height() if self._block_shown("friends") else 0
         graph = self.chart.landscape_height() if not self.docking.is_floating("graph") else 0
-        return max(graph, stats, today_height, column)
+        return max(graph, stats, friends, today_height, column)
 
     def _block_resized(self) -> None:
         # A module growing or shrinking, such as the stats gaining a line, changes the size the window needs, and in
@@ -412,6 +418,9 @@ class PSFocusQt:
             self.chart.refresh()
         elif name == "calendar":
             self.calendar.refresh()
+        elif name == "friends":
+            if hasattr(self, "friends_sync"):
+                self.friends_sync.refresh_view()
         else:
             self._refresh_stats()
 
@@ -490,6 +499,7 @@ class PSFocusQt:
 
     def _poll_signals(self) -> None:
         self.google_sync.poll()
+        self.friends_sync.poll()
         while True:
             try:
                 kind, value = self.results.get_nowait()
@@ -562,6 +572,7 @@ class PSFocusQt:
         self.update_glass()
         self._celebrate_level_up(level)
         self._set_feedback_unlocked(lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS)
+        self.friends_sync.tick(foreground_app if self.active else None)
         # Tracking continues in the tray and Settings; drawing the modules out of sight waits for them to show.
         # Floating ones stay in view with Settings open, so they keep up
         if self.window.isVisible() and not self.window.isMinimized() and self.settings_shown:
@@ -579,7 +590,7 @@ class PSFocusQt:
             self.chart_drawn_day = today
         # As in the Tk app, the calendar and stats are brought up to date every 15 seconds
         if not refreshed_on_restore and self.slow_refresh_ticks % 15 == 0:
-            for name in ("calendar", "stats"):
+            for name in ("calendar", "stats", "friends"):
                 if self.module_ticked[name]:
                     self._refresh_module(name)
         self.slow_refresh_ticks += 1
@@ -590,7 +601,7 @@ class PSFocusQt:
             self.chart.refresh()
             self.chart_drawn_day = today
         if self.slow_refresh_ticks % 15 == 0:
-            for name in ("calendar", "stats"):
+            for name in ("calendar", "stats", "friends"):
                 if self.docking.is_floating(name) and self.module_ticked[name]:
                     self._refresh_module(name)
         self.slow_refresh_ticks += 1
@@ -708,6 +719,7 @@ class PSFocusQt:
         self.poll_timer.stop()
         self.backup_timer.stop()
         self.update_timer.stop()
+        self.friends_sync.timer.stop()
         if self.fireworks is not None:
             self.fireworks.stop()
         self.docking.save_positions()
@@ -779,7 +791,8 @@ def main(preview: bool, smoke_test: bool = False) -> None:
             app.landscape = landscape
             app._arrange_blocks()
             application.processEvents()
-            if any(module.picture is None or module.picture.isNull() for module in app.modules.values()):
+            # The friends module draws as it paints, with no picture made ahead
+            if any(module.picture is None or module.picture.isNull() for name, module in app.modules.items() if name != "friends"):
                 raise RuntimeError("Packaged preview module rendering failed")
         app._toggle_settings()
         app._toggle_settings()

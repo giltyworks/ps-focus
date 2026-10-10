@@ -35,7 +35,7 @@ MODULE_CHECKBOX_SIZE = 18
 MODULE_CONTROL_GAP = 8
 CHECKBOX_BOX_SIZE = 14
 CHECKBOX_CORNER_RADIUS = 4
-MODULE_LABELS = (("graph", "Graph"), ("calendar", "Calendar"), ("stats", "Stats"))
+MODULE_LABELS = (("graph", "Graph"), ("calendar", "Calendar"), ("stats", "Stats"), ("friends", "Friends"))
 # The display name field is as wide as this many characters, as the Tk entry; a name may be this long
 NAME_ENTRY_CHARACTERS = 20
 NAME_MAX_LENGTH = 32

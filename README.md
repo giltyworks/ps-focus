@@ -86,12 +86,14 @@ See [PRIVACY.md](PRIVACY.md) for the full policy. The tracker checks the foregro
 
 - `qt/`: the app, built with Qt. `app.py` runs it: the tracking loop, the tray icon, Settings, backups, feedback, updates and level-ups. `window.py` lays the blocks out by hand, in portrait or landscape. Each block paints itself: `today_panel.py` (a program's panel), `chart.py`, `calendar_module.py`, `stats_module.py`, with what they share in `module.py` (the name strip, buttons and glass). `header.py`, `settings_page.py`, `day_overview.py`, `feedback_dialog.py` and `uninstall_window.py` are the other parts of the interface; `theme.py` holds the colours, fonts and text measuring, laid out by Windows' own font metrics
 - `qt/docking.py` and `qt/block_drag.py`: floating panels. A block's title strip puts it in a new order, or out of the window into a window of its own; anything else moves the window or panel with everything snapped to it. Windows move together in one step, and see-through glass is worked out per group of snapped windows
+- `qt/friends_module.py` and `qt/friends_sync.py`: the Friends module, and its check-ins with the friends server about every ten minutes and when drawing starts or stops
 - `qt/google_sync.py`: Google sign-in, settings upload and activity backups for the app, run on background threads with the results handled on the interface's own
 - `qt/preview.py`: the copy of your data a run from source works on
 - `app_config.py`: paths, constants, colours, and default settings
 - `tracker.py`: activity database and foreground-window detection. The database keeps a write-ahead log, so recording each second is a short append; backups are plain single files
 - `stat_lines.py`: the Stats module's figures
 - `google_drive.py`, `feedback.py`, `update_check.py`: Google Drive sync, the feedback outbox, and the daily check for a newer version
+- `friends.py` and `friends_server/`: the app's side of Friends, and the Cloudflare Worker that passes figures between friends; see `friends_server/README.md` for deploying it
 - `web.py`: HTTPS through Windows' own WinHTTP, so the app needs no copy of OpenSSL
 - `windows_startup.py`: the Windows startup entry, taskbar identity, dark title bar, and the single-running-copy claim
 - `uninstall.py`: what the uninstall mode removes, run as `PS Focus.exe --uninstall`

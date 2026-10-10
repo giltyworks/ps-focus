@@ -1,0 +1,11 @@
+{
+  "name": "ps-focus-friends",
+  "private": true,
+  "scripts": {
+    "dev": "wrangler dev --var DEV_AUTH:1",
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "wrangler": "^4"
+  }
+}

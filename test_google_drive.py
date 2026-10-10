@@ -146,6 +146,29 @@ class GoogleAccountTests(unittest.TestCase):
         with self.assertRaises(GoogleAccountAccessRequired):
             self.sync._read_token()
 
+    @staticmethod
+    def _id_token(expires_at):
+        claims = base64.urlsafe_b64encode(json.dumps({"exp": expires_at}).encode()).rstrip(b"=").decode()
+        return f"header.{claims}.signature"
+
+    def test_identity_token_is_renewed_when_missing_or_expired(self):
+        fresh = self._id_token(time.time() + 3600)
+        self.sync._save_token({"access_token": "a", "refresh_token": "r", "expires_at": time.time() + 3600, "id_token": fresh})
+        with patch.object(self.sync, "_request_token") as renew:
+            self.assertEqual(self.sync.identity_token(), fresh)
+        renew.assert_not_called()
+        self.sync._save_token({"access_token": "a", "refresh_token": "r", "expires_at": time.time() + 3600, "id_token": self._id_token(time.time() - 10)})
+        with patch.object(self.sync, "_request_token", return_value={"access_token": "b", "expires_in": 3600, "id_token": fresh}) as renew:
+            self.assertEqual(self.sync.identity_token(), fresh)
+        self.assertEqual(renew.call_args.args[0]["grant_type"], "refresh_token")
+        # Kept for next time, with the refresh token
+        self.assertEqual(self.sync._read_token()["refresh_token"], "r")
+
+    def test_identity_token_asks_for_reconnection_when_google_gives_none(self):
+        self.sync._save_token({"access_token": "a", "refresh_token": "r", "expires_at": time.time() + 3600})
+        with patch.object(self.sync, "_request_token", return_value={"access_token": "b", "expires_in": 3600}), self.assertRaises(GoogleAccountAccessRequired):
+            self.sync.identity_token()
+
     def test_account_email_uses_google_userinfo(self):
         self._save_token(USERINFO_SCOPE)
         response = MagicMock()

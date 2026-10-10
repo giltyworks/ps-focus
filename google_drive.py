@@ -72,6 +72,16 @@ def _windows_data_protection(function_name: str, content: bytes) -> bytes:
         kernel32.LocalFree(ctypes.cast(result.data, ctypes.c_void_p))
 
 
+def _token_expiry(id_token: str) -> float:
+    """When an ID token expires, read from its middle part; 0 for one that cannot be read"""
+    try:
+        payload = id_token.split(".")[1]
+        claims = json.loads(base64.urlsafe_b64decode(payload + "=" * (-len(payload) % 4)))
+        return float(claims["exp"])
+    except (IndexError, ValueError, KeyError, TypeError):
+        return 0.0
+
+
 class GoogleDriveSync:
     def __init__(self, app_data: Path, credentials_file: Path, *, settings_filename: str = "settings.json", activity_filename: str = "activity.sqlite3") -> None:
         self.token_file = app_data / "google-token.json"
@@ -217,10 +227,24 @@ class GoogleDriveSync:
             server.server_close()
 
     def _access_token(self) -> str:
+        return self._current_token()["access_token"]
+
+    def identity_token(self) -> str:
+        """A Google ID token for the account, which proves who is signed in without giving access to their Drive; the
+        friends server is shown it"""
+        token = self._current_token()
+        if _token_expiry(token.get("id_token", "")) <= time.time() + 60:
+            # One saved without an ID token, or with an older one than its access token, is renewed
+            token = self._current_token(renew=True)
+        if _token_expiry(token.get("id_token", "")) <= time.time() + 60:
+            raise GoogleAccountAccessRequired("Reconnect Google to use friends")
+        return token["id_token"]
+
+    def _current_token(self, renew: bool = False) -> dict:
         with self._token_lock:
             client_id, client_secret = self._client()
             token = self._read_token()
-            if float(token.get("expires_at", 0)) <= time.time() + 60:
+            if renew or float(token.get("expires_at", 0)) <= time.time() + 60:
                 refresh_token = token.get("refresh_token")
                 if not refresh_token:
                     raise RuntimeError("Google sign-in needs to be renewed, connect your account again")
@@ -235,7 +259,7 @@ class GoogleDriveSync:
                 refreshed["scope"] = refreshed.get("scope", token.get("scope", ""))
                 token = refreshed
                 self._save_token(token)
-            return token["access_token"]
+            return token
 
     def account_email(self) -> str:
         token = self._read_token()
