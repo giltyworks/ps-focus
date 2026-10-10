@@ -13,6 +13,8 @@ const MAX_FRIENDS = 100;
 const MAX_PENDING = 50;
 const NAME_MAX_LENGTH = 32;
 const PROGRAMS = ['Photoshop', 'Krita', 'Clip Studio Paint'];
+// What friends see of someone: online, away, or offline (also what someone invisible sends)
+const STATUSES = ['online', 'away', 'offline'];
 // Most requests one person may make in a minute, counted per server instance, against runaway loops
 const REQUESTS_PER_MINUTE = 30;
 // Upper limits of each figure, in hours or counts, so nothing absurd is passed on to friends
@@ -152,7 +154,9 @@ function cleanStats(stats) {
     // Hours to a tenth; counts whole
     result[field] = ['level', 'streak'].includes(field) ? Math.round(result[field]) : Math.round(result[field] * 10) / 10;
   }
-  result.active = PROGRAMS.includes(stats.active) ? stats.active : null;
+  result.status = STATUSES.includes(stats.status) ? stats.status : 'online';
+  // Someone showing as offline is not shown drawing either
+  result.active = PROGRAMS.includes(stats.active) && result.status !== 'offline' ? stats.active : null;
   return result;
 }
 

@@ -143,6 +143,8 @@ DEFAULT_SETTINGS = {
     "show_friends": False,
     # Google accounts, by email, that have friends turned on on this PC, see qt/friends_sync.py
     "friends_accounts": [],
+    # online, away, invisible or offline, chosen in the menu next to the account name
+    "friends_status": "online",
     # Program panels and modules side by side instead of one under another, see PSFocusApp._apply_layout
     "landscape": False,
     # Programs whose panel the user has shown or hidden, or that switched on by itself at first use, see

@@ -24,6 +24,9 @@ PROGRESS_DOT_SPACE = 18
 ACCOUNT_TEXT_INSET_X = 5
 ACCOUNT_TEXT_INSET_Y = 4
 HEADER_GROUP_GAP = 6
+# The arrow after the account name that opens the friends status menu: the space it takes, and its half-width
+STATUS_ARROW_ROOM = 16
+STATUS_ARROW_ARM = 3
 # How far a Tk label kept its text from its own edge, which the word Level is still placed by
 LABEL_TEXT_INSET = 3
 # Where the settings button starts, which leaves its three dots the usual distance from the header's edge
@@ -173,6 +176,10 @@ class Header(QWidget):
         self.level_clickable = False
         # Whether the mouse is over the settings button, which then shows its box
         self.settings_hovered = False
+        # Whether the arrow for the friends status menu follows the account name, while friends are on, and whether
+        # the mouse is over it
+        self.status_arrow_shown = False
+        self.status_hovered = False
         self.badge: QImage | None = None
         self.badge_state: tuple[int, bool, float] | None = None
         # What a click does in each area, set by the app
@@ -181,9 +188,12 @@ class Header(QWidget):
         self.on_account_double: Callable[[], None] = lambda: None
         self.on_version: Callable[[], None] = lambda: None
         self.on_settings: Callable[[], None] = lambda: None
+        # Given where the status menu should open, in screen coordinates
+        self.on_status: Callable[[QPoint], None] = lambda _point: None
         # Areas that respond to the pointer, as (left, top, right, bottom); empty while not shown
         self.level_area = self.account_area = self.version_area = NO_AREA
         self.settings_area: Area = NO_AREA
+        self.status_area: Area = NO_AREA
         self.setFixedSize(HEADER_WIDTH, self.row_height())
         self.name_entry = NameEntry(self, fonts)
         # Always as wide, so always in the same place beside the progress dot
@@ -228,7 +238,7 @@ class Header(QWidget):
         painter = QPainter(self)
         painter.fillRect(self.rect(), color("background"))
         height = self.height()
-        self.level_area = self.account_area = self.version_area = NO_AREA
+        self.level_area = self.account_area = self.version_area = self.status_area = NO_AREA
         if self.settings_shown:
             self._paint_credit(painter, height)
         else:
@@ -274,11 +284,12 @@ class Header(QWidget):
         room_left = self.level_width(self.fonts) + HEADER_GROUP_GAP
         room_right = SETTINGS_BUTTON_LEFT + 8 - HEADER_GROUP_GAP
         editing = self.name_entry.isVisible()
-        text = fit_text(self.account_text, font, room_right - room_left - PROGRESS_DOT_SPACE - 2 * ACCOUNT_TEXT_INSET_X)
+        arrow_room = STATUS_ARROW_ROOM if self.status_arrow_shown and not editing else 0
+        text = fit_text(self.account_text, font, room_right - room_left - PROGRESS_DOT_SPACE - 2 * ACCOUNT_TEXT_INSET_X - arrow_room)
         if editing:
             content_width = self.name_entry.width()
         else:
-            content_width = QFontMetrics(font).horizontalAdvance(text) + 2 * ACCOUNT_TEXT_INSET_X
+            content_width = QFontMetrics(font).horizontalAdvance(text) + 2 * ACCOUNT_TEXT_INSET_X + arrow_room
         group_left = self._group_left(content_width)
         content_left = group_left + PROGRESS_DOT_SPACE
         dot_top = (height - HEADER_ICON_SIZE) // 2
@@ -294,7 +305,26 @@ class Header(QWidget):
             return
         text_color = self.palette().color(self.palette().ColorGroup.Disabled, self.palette().ColorRole.Text) if self.account_disabled else color(self.account_color)
         self._text(painter, content_left + ACCOUNT_TEXT_INSET_X, (height - line_height(font)) // 2, text, text_color, font)
-        self.account_area = (content_left, 0, content_left + content_width, height)
+        self.account_area = (content_left, 0, content_left + content_width - arrow_room, height)
+        if arrow_room:
+            self._paint_status_arrow(painter, content_left + content_width - arrow_room - 2, height)
+
+    def _paint_status_arrow(self, painter: QPainter, left: int, height: int) -> None:
+        """A small downward chevron, which opens the friends status menu; under the mouse a faint box shows behind it"""
+        top = (height - HEADER_ICON_SIZE) // 2
+        self.status_area = (left, top + 4, left + STATUS_ARROW_ROOM, top + HEADER_ICON_SIZE - 4)
+        if self.status_hovered:
+            paint_hover_box(painter, QRectF(left, top + 4, STATUS_ARROW_ROOM, HEADER_ICON_SIZE - 8), color("border"))
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        pen = QPen(color("muted"), 1.4)
+        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+        painter.setPen(pen)
+        middle_x, middle_y = left + STATUS_ARROW_ROOM / 2, height / 2
+        arm = STATUS_ARROW_ARM
+        painter.drawPolyline([QPointF(middle_x - arm, middle_y - arm / 2), QPointF(middle_x, middle_y + arm / 2), QPointF(middle_x + arm, middle_y - arm / 2)])
+        painter.restore()
 
     def _paint_level(self, painter: QPainter, height: int) -> None:
         """The word Level and the badge at the left, centred on the row"""
@@ -327,7 +357,7 @@ class Header(QWidget):
         """Whether a press here is a click on something, rather than the start of moving the window"""
         return (
             _inside(self.settings_area, point) or _inside(self.account_area, point) or _inside(self.version_area, point)
-            or (self.level_clickable and _inside(self.level_area, point))
+            or _inside(self.status_area, point) or (self.level_clickable and _inside(self.level_area, point))
         )
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
@@ -336,6 +366,9 @@ class Header(QWidget):
         point = event.position().toPoint()
         if _inside(self.settings_area, point):
             self.on_settings()
+        elif _inside(self.status_area, point):
+            left, _top, _right, bottom = self.status_area
+            self.on_status(self.mapToGlobal(QPoint(left, bottom + 2)))
         elif _inside(self.account_area, point):
             self.on_account()
         elif _inside(self.level_area, point):
@@ -351,18 +384,20 @@ class Header(QWidget):
             self.mousePressEvent(event)
 
     def leaveEvent(self, _event) -> None:
-        if self.settings_hovered:
-            self.settings_hovered = False
+        if self.settings_hovered or self.status_hovered:
+            self.settings_hovered = self.status_hovered = False
             self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
         over_settings = _inside(self.settings_area, point)
-        if over_settings != self.settings_hovered:
-            self.settings_hovered = over_settings
+        over_status = _inside(self.status_area, point)
+        if (over_settings, over_status) != (self.settings_hovered, self.status_hovered):
+            self.settings_hovered, self.status_hovered = over_settings, over_status
             self.update()
         hand = (
-            _inside(self.settings_area, point)
+            over_status
+            or _inside(self.settings_area, point)
             or _inside(self.account_area, point)
             or _inside(self.version_area, point)
             or (self.level_clickable and _inside(self.level_area, point))

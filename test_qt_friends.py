@@ -141,21 +141,56 @@ class QtFriendsTests(unittest.TestCase):
         self.assertEqual(self.app.settings["friends_accounts"], ["amy@example.com"])
         (kind, name, stats), = self.service.calls
         self.assertEqual((kind, name), ("sync", "amy"))
-        self.assertEqual(set(stats), {"two_weeks", "total", "today", "week", "level", "streak", "active"})
+        self.assertEqual(set(stats), {"two_weeks", "total", "today", "week", "level", "streak", "status", "active"})
         self.assertAlmostEqual(stats["total"], 1 / 3600)
         self.assertEqual(self.sync.view().mode, "on")
         self.assertEqual(self.app.friends.view.code, "ABCD2345")
 
-    def test_friends_are_ranked_by_hours_past_two_weeks_and_stale_ones_are_not_drawing(self):
+    def test_friends_are_ranked_by_hours_past_two_weeks_and_stale_ones_are_offline(self):
         self.service.answer = server_state(friends=[
-            {"code": "BBBB2222", "name": "Bo", "stats": {"two_weeks": 3, "active": "Krita"}, "updated_at": 1000 - 60},
+            {"code": "BBBB2222", "name": "Bo", "stats": {"two_weeks": 3, "active": "Krita", "status": "online"}, "updated_at": 1000 - 60},
             {"code": "CCCC3333", "name": "Cy", "stats": {"two_weeks": 9, "active": "Photoshop"}, "updated_at": 1000 - 3600},
+            {"code": "DDDD4444", "name": "Dee", "stats": {"two_weeks": 5, "status": "away"}, "updated_at": 1000},
+            {"code": "EEEE5555", "name": "Ev", "stats": {"two_weeks": 1}, "updated_at": 1000},
         ])
         self._turn_on()
         people = self.app.friends.view.people
-        self.assertEqual([person[0] for person in people], ["Cy", "Bo", "Amy"])
-        self.assertEqual([person[3] for person in people], [None, "Krita", None])
-        self.assertEqual([person[2] for person in people], [False, False, True])
+        # The user is not among them
+        self.assertEqual([person[0] for person in people], ["Cy", "Dee", "Bo", "Ev"])
+        self.assertEqual([person[2] for person in people], ["offline", "away", "drawing", "online"])
+        self.assertEqual([person[3] for person in people], [None, None, "Krita", None])
+
+    def test_status_menu_sets_what_friends_see(self):
+        from qt import friends_sync
+
+        self._turn_on()
+        self.assertTrue(self.app.header.status_arrow_shown)
+        self.sync.active_program = "Krita"
+        for status, sent, active in (("away", "away", None), ("invisible", "offline", None), ("online", "online", "Krita")):
+            self.sync.set_status(status)
+            self._settle()
+            self.assertEqual((self.service.calls[-1][2]["status"], self.service.calls[-1][2]["active"]), (sent, active))
+        # Offline tells friends once, then sends nothing more
+        self.sync.set_status("offline")
+        self._settle()
+        self.assertEqual(self.service.calls[-1][2]["status"], "offline")
+        count = len(self.service.calls)
+        self.sync.last_sync -= friends_sync.MIN_SYNC_GAP_SECONDS
+        self.sync.sync()
+        self.sync.tick("Krita")
+        self._settle()
+        self.assertEqual(len(self.service.calls), count)
+        self.assertEqual(self.sync.view().mode, "offline")
+        self.sync.set_status("online")
+        self._settle()
+        self.assertEqual(len(self.service.calls), count + 1)
+        # Choosing in the menu
+        from qt.status_menu import StatusMenu
+
+        menu = StatusMenu(self.app.window, self.app.fonts, "online", self.sync.set_status)
+        self.assertGreater(menu.height(), 60)
+        menu.on_chosen("away")
+        self.assertEqual(self.app.settings["friends_status"], "away")
 
     def test_starting_and_stopping_drawing_is_sent_once_it_has_lasted(self):
         from qt import friends_sync

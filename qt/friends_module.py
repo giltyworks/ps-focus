@@ -26,8 +26,9 @@ BUTTON_GAP = 4
 ROW_GAP = 4
 GROUP_GAP = 8
 BOTTOM_PADDING = 6
-# The green dot beside someone drawing now
+# The dot beside someone's name: green drawing, blue online, orange away; none offline
 ACTIVE_DOT_SIZE = 6
+PRESENCE_COLORS = {"drawing": "active_green", "online": "calendar_blue", "away": "orange"}
 # Short names for the programs, which share a line with the person's name
 PROGRAM_SHORT_NAMES = {"Clip Studio Paint": "Clip Studio"}
 # The code field takes a code typed with or without its dash
@@ -36,12 +37,12 @@ CODE_ENTRY_CHARACTERS = 11
 
 @dataclass
 class FriendsView:
-    """What the module shows. mode is one of: unavailable, signed_out, off, loading, on"""
+    """What the module shows. mode is one of: unavailable, signed_out, off, offline, loading, on"""
 
     mode: str = "unavailable"
     code: str = ""
-    # Everyone ranked, the user included, as (name, stats, is_you, active program or None, code)
-    people: list[tuple[str, dict, bool, str | None, str]] = field(default_factory=list)
+    # The friends ranked, as (name, stats, presence, program or None, code). Presence is drawing, online, away or offline
+    people: list[tuple[str, dict, str, str | None, str]] = field(default_factory=list)
     incoming: list[tuple[str, str]] = field(default_factory=list)
     outgoing: list[tuple[str, str]] = field(default_factory=list)
     # A message under the list, and its colour
@@ -195,6 +196,8 @@ class FriendsModule(ModuleBlock):
                        "streak, and the program you're drawing in.")
             y += ROW_GAP
             centred_button("Turn on friends", self.actions.turn_on)
+        elif view.mode == "offline":
+            text_block("You're offline. Friends don't see your hours change until you go online, from the menu next to your name.")
         elif view.mode == "loading":
             text_block("Connecting…")
         else:
@@ -221,7 +224,7 @@ class FriendsModule(ModuleBlock):
             y += GROUP_GAP - ROW_GAP
         rank_width = text_width(fonts.small, "00") + 6
         name_line = line_height(fonts.normal) + LINE_PADDING
-        for rank, (name, stats, is_you, active, code) in enumerate(view.people, 1):
+        for rank, (name, stats, presence, active, code) in enumerate(view.people, 1):
             top = y
             hours = f"{stats.get('two_weeks', 0):.1f} hrs past 2 weeks"
             hours_left = right - text_width(fonts.small, hours)
@@ -229,15 +232,18 @@ class FriendsModule(ModuleBlock):
             self.items.append(("anchored", left, middle, "w", str(rank), "muted", fonts.small))
             self.items.append(("anchored", right, middle, "e", hours, "text", fonts.small))
             name_left = left + rank_width
-            program = PROGRAM_SHORT_NAMES.get(active, active) if active else ""
-            program_room = text_width(fonts.small, program) + ACTIVE_DOT_SIZE + 10 if program else 0
-            name_room = hours_left - 8 - name_left - program_room
-            shown_name = fit_text(name + (" (you)" if is_you else ""), fonts.normal, name_room)
+            # Beside the name: what they are drawing in, or that they are away
+            label = PROGRAM_SHORT_NAMES.get(active, active) if active else "Away" if presence == "away" else ""
+            dot_color = PRESENCE_COLORS.get(presence)
+            label_room = (ACTIVE_DOT_SIZE + 6 if dot_color else 0) + (text_width(fonts.small, label) + 4 if label else 0)
+            name_room = hours_left - 8 - name_left - label_room
+            shown_name = fit_text(name, fonts.normal, name_room)
             self.items.append(("anchored", name_left, middle, "w", shown_name, "text", fonts.normal))
-            if program:
+            if dot_color:
                 dot_left = name_left + text_width(fonts.normal, shown_name) + 6
-                self.items.append(("dot", dot_left, middle))
-                self.items.append(("anchored", dot_left + ACTIVE_DOT_SIZE + 4, middle, "w", program, "active_green", fonts.small))
+                self.items.append(("dot", dot_left, middle, dot_color))
+                if label:
+                    self.items.append(("anchored", dot_left + ACTIVE_DOT_SIZE + 4, middle, "w", label, dot_color, fonts.small))
             y += name_line
             total = f"{stats.get('total', 0):.1f} hrs total"
             details = f"Lv {stats.get('level', 0)} · {stats.get('streak', 0)} wk streak · {stats.get('today', 0):.1f}h today"
@@ -246,10 +252,9 @@ class FriendsModule(ModuleBlock):
             self.items.append(("anchored", name_left, middle, "w", fit_text(details, fonts.small, details_room), "muted", fonts.small))
             self.items.append(("anchored", right, middle, "e", total, "muted", fonts.small))
             y += small_line
-            if not is_you:
-                self.person_areas.append((QRect(left - 4, top - 2, right - left + 8, y - top + 4), code, name))
+            self.person_areas.append((QRect(left - 4, top - 2, right - left + 8, y - top + 4), code, name))
             y += ROW_GAP
-        if len(view.people) <= 1 and not view.incoming and not view.outgoing:
+        if not view.people and not view.incoming and not view.outgoing:
             for line in wrap("No friends yet. Share your code, or add a friend's.", fonts.small, right - left):
                 self.items.append(("text", left, y, line, "muted", fonts.small))
                 y += small_line
@@ -353,11 +358,11 @@ class FriendsModule(ModuleBlock):
                 _kind, x, y, anchor, text, tone, font = item
                 draw_anchored(painter, x, y, anchor, text, color(tone), font)
             elif kind == "dot":
-                _kind, x, y = item
+                _kind, x, y, dot_color = item
                 painter.save()
                 painter.setRenderHint(QPainter.RenderHint.Antialiasing)
                 painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(color("active_green"))
+                painter.setBrush(color(dot_color))
                 painter.drawEllipse(QRectF(x, y - ACTIVE_DOT_SIZE / 2, ACTIVE_DOT_SIZE, ACTIVE_DOT_SIZE))
                 painter.restore()
         for button in self.buttons:

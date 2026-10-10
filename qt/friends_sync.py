@@ -17,6 +17,7 @@ from friends import FriendsService
 from google_drive import GoogleAccountAccessRequired
 
 from .friends_module import FriendsModule, FriendsView
+from .status_menu import StatusMenu
 
 # How often the figures are handed over while nothing changes. Kept to every ten minutes, so the free server allowance
 # covers well over a thousand people a day
@@ -28,6 +29,9 @@ ACTIVE_LINGER_SECONDS = 120
 MIN_SYNC_GAP_SECONDS = 60
 # A friend not heard from in this long is not shown as drawing now, as their PC may have gone off mid-session
 STALE_SECONDS = 15 * 60
+# The statuses the user can choose, by the menu next to their name, and what friends are told of each
+STATUSES = ("online", "away", "invisible", "offline")
+STATUS_SENT = {"online": "online", "away": "away", "invisible": "offline", "offline": "offline"}
 
 
 class FriendsSync:
@@ -48,6 +52,8 @@ class FriendsSync:
         self.last_active_time = 0.0
         self.active_program: str | None = None
         self.reported_active: str | None = None
+        # Whether friends have been told the user went offline, after which nothing more is sent
+        self.offline_announced = False
         actions = module.actions
         actions.sign_in = app.google_sync.connect
         actions.turn_on = self.turn_on
@@ -58,6 +64,7 @@ class FriendsSync:
         actions.cancel = lambda code: self._start("cancel", lambda: self.service.remove(code))
         actions.remove = self.remove
         actions.copy_code = lambda code: QGuiApplication.clipboard().setText(code)
+        app.header.on_status = self.open_status_menu
         self.timer = QTimer(interval=SYNC_INTERVAL_MS, timeout=self.sync)
         self.timer.start()
         self.refresh_view()
@@ -111,8 +118,28 @@ class FriendsSync:
             "week": store.total_for_range(today - timedelta(days=today.weekday()), today) / 3600,
             "level": user_level(total),
             "streak": store.calendar_streaks(today)[0],
-            "active": self.active_program,
+            "status": STATUS_SENT[self.status()],
+            "active": self.shown_program(),
         }
+
+    def status(self) -> str:
+        status = self.app.settings.get("friends_status")
+        return status if status in STATUSES else "online"
+
+    def shown_program(self) -> str | None:
+        """What friends are told the user is drawing in: nothing while away, invisible or offline"""
+        return self.active_program if self.status() == "online" else None
+
+    def set_status(self, status: str) -> None:
+        """Chosen in the menu next to the user's name. Friends are told at once; offline then stops the check-ins, with
+        that one telling friends the user went offline"""
+        if status == self.status():
+            return
+        self.app.settings["friends_status"] = status
+        self.app._save_settings()
+        self.offline_announced = False
+        self.refresh_view()
+        self.sync()
 
     def tick(self, program: str | None) -> None:
         """Called every second with the program being drawn in, if any; a change in what friends would see as drawing
@@ -123,15 +150,17 @@ class FriendsSync:
             self.active_program = program
         elif self.active_program and now - self.last_active_time > ACTIVE_LINGER_SECONDS:
             self.active_program = None
-        if self.enabled() and self.active_program != self.reported_active and now - self.last_sync >= MIN_SYNC_GAP_SECONDS:
+        if self.enabled() and self.shown_program() != self.reported_active and now - self.last_sync >= MIN_SYNC_GAP_SECONDS:
             self.sync()
 
     def sync(self) -> None:
-        if not self.enabled():
+        if not self.enabled() or (self.status() == "offline" and self.offline_announced):
             return
         if self.busy:
             self.pending_sync = True
             return
+        if self.status() == "offline":
+            self.offline_announced = True
         name, stats = self.name(), self.stats()
         self.reported_active = stats["active"]
         self.asked_account = self.account()
@@ -212,16 +241,22 @@ class FriendsSync:
             return FriendsView("signed_out", message=self.message, busy=self.app.google_sync.busy)
         if not self.enabled():
             return FriendsView("off", message=self.message, busy=self.busy)
+        if self.status() == "offline":
+            return FriendsView("offline", busy=self.busy)
         state = self.state if self.state_account == self.account() else None
         if not state or not state.get("me"):
             return FriendsView("loading", message=self.message, busy=self.busy)
         now = state.get("now", 0)
         me = state["me"]
-        people = [(me.get("name", ""), self.stats(), True, self.active_program, me.get("code", ""))]
+        people = []
         for friend in state.get("friends", []):
             stats = friend.get("stats") or {}
+            # Someone not heard from lately, whose PC may have gone off, shows as offline
             fresh = now - friend.get("updated_at", 0) <= STALE_SECONDS
-            people.append((friend.get("name", ""), stats, False, stats.get("active") if fresh else None, friend.get("code", "")))
+            status = stats.get("status", "online") if fresh else "offline"
+            program = stats.get("active") if status == "online" else None
+            presence = "drawing" if program else status
+            people.append((friend.get("name", ""), stats, presence, program, friend.get("code", "")))
         people.sort(key=lambda person: -float(person[1].get("two_weeks", 0) or 0))
         return FriendsView(
             "on", me.get("code", ""), people,
@@ -232,3 +267,11 @@ class FriendsSync:
 
     def refresh_view(self) -> None:
         self.module.show_view(self.view())
+        # The status menu is offered next to the account name while friends are on
+        header = self.app.header
+        if header.status_arrow_shown != self.enabled():
+            header.status_arrow_shown = self.enabled()
+            header.update()
+
+    def open_status_menu(self, point) -> None:
+        StatusMenu(self.app.window, self.app.fonts, self.status(), self.set_status).show_at(point)
