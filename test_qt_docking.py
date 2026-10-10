@@ -305,8 +305,9 @@ class QtDockingTests(unittest.TestCase):
     def test_header_moves_the_window_except_where_it_is_clicked(self):
         header = self.app.header
         position = self.app.window.pos()
-        empty = header.mapToGlobal(QPoint(header.width() - 60, header.height() // 2))
-        self.assertFalse(header.interactive_at(header.mapFromGlobal(empty)))
+        # A spot on the row that is not the level, the account or the settings button
+        spot = next(x for x in range(header.width() - 30, 0, -1) if not header.interactive_at(QPoint(x, header.height() // 2)))
+        empty = header.mapToGlobal(QPoint(spot, header.height() // 2))
         self._drag(header, empty, empty + QPoint(20, 10))
         self.assertEqual(self.app.window.pos(), position + QPoint(20, 10))
         dots = header.mapToGlobal(QPoint(header.settings_area[0] + 5, header.settings_area[1] + 5))

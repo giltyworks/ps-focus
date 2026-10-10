@@ -67,7 +67,7 @@ class ChartModule(ModuleBlock):
         self.period = period
         self.on_period = on_period
         self.period_buttons = {
-            name: PaintedButton(label, lambda value=name: self._set_period(value), fonts, 8, 6, width_in_digits=3) for name, label in PERIOD_LABELS.items()
+            name: PaintedButton(label, lambda value=name: self._set_period(value), fonts, 6, 6, width_in_digits=2) for name, label in PERIOD_LABELS.items()
         }
         self.buttons = list(self.period_buttons.values())
         self.month_text = ""
@@ -147,7 +147,8 @@ class ChartModule(ModuleBlock):
     def refresh(self) -> None:
         """Read the period's data again and redraw the chart"""
         today = date.today()
-        self.month_text = today.strftime("%B %Y")
+        # The short month name, so it fits beside the period buttons however long the month's name
+        self.month_text = today.strftime("%b %Y")
         values, labels = self.store.period_data(self.period)
         count = len(values)
         # The line stops at the present, so hours and days still to come are left empty

@@ -36,7 +36,7 @@ TITLE_PADDING = 8
 TITLE_GAP = 6
 DESCRIPTION_GAP = 14
 # Padding of the page's buttons: flat, they need little height; and the backups box's padding under them
-BUTTON_PADX = 17
+BUTTON_PADX = 10
 BUTTON_PADY = 3
 BUTTON_ROW_PADDING = 4
 

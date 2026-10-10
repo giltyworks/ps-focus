@@ -37,8 +37,9 @@ CALENDAR_DAY_NUMBER_INSET = 4
 CALENDAR_RATING_INSET = 4
 # Year view: three months to a row, each a block of this height holding squares of this size and spacing
 YEAR_MONTH_HEIGHT = 82
-YEAR_DAY_SIZE = (13, 8)
-YEAR_DAY_PITCH = (15, 9)
+# Three small months a row: seven of these steps each, within a third of the module's width
+YEAR_DAY_SIZE = (12, 8)
+YEAR_DAY_PITCH = (14, 9)
 YEAR_DAY_RADIUS = 2
 # Gaps between the buttons of the title row: before the step buttons, and between them
 TOGGLE_GAP = 4

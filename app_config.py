@@ -37,7 +37,7 @@ BACKUP_INTERVAL_MS = 15 * 60 * 1000
 # the window to the other, and a module's contents run from one side of its box to the other.
 # All measurements are in pixels.
 # Width of the window and so of every box, and the space kept around the window's contents
-TODAY_PANEL_WIDTH = 320
+TODAY_PANEL_WIDTH = 300
 WINDOW_MARGIN = 0
 # Space between an edge of the window, or of a box, and the text beside it
 EDGE_PADDING = 8

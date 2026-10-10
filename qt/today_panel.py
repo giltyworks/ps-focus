@@ -93,7 +93,7 @@ class TodayPanel(QWidget):
 
         self.texts = {
             "name": text(0, False, application, muted, fonts.two_week),
-            "two_week": text(0, True, "0.0 hours past 2 weeks", muted, fonts.two_week),
+            "two_week": text(0, True, "0.0 hrs past 2 weeks", muted, fonts.two_week),
             "total": text(1, False, "0s", color("text"), fonts.metric),
             "sessions": text(2, False, "0 SESSIONS", muted, fonts.small),
             "record_hours": text(2, True, "0.0 hrs on record", muted, fonts.counter),

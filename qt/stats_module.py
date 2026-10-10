@@ -22,6 +22,8 @@ STATS_MARGIN = EDGE_PADDING - 2
 STATS_BOTTOM_PADDING = 5
 MEDAL_SIZE = 14
 MEDAL_GAP = 4
+# The least space between a row's label and its value
+STAT_LABEL_GAP = 10
 STAT_NOTE_GAP = 8
 
 
@@ -93,12 +95,19 @@ class StatsModule(ModuleBlock):
         note_width = max((text_width(self._note_font(line), line.note) for line in lines if line.note), default=0)
         value_right = right - (note_width + STAT_NOTE_GAP if note_width else 0)
         for line, value_font, middle in rows:
+            line_value_right = value_right
+            # A row with no note whose label would run into its value, such as a long month's session count, takes
+            # the notes' column too
+            if line.label and line.value and not line.note:
+                label_end = STATS_MARGIN + 2 + text_width(fonts.small, line.label) + STAT_LABEL_GAP
+                if label_end > value_right - text_width(value_font, line.value):
+                    line_value_right = right
             if line.label:
                 draw_anchored(painter, STATS_MARGIN + 2, middle, "w", line.label, QColor(line.label_color), fonts.small)
             if line.value:
-                draw_anchored(painter, value_right, middle, "e", line.value, QColor(line.value_color), value_font)
+                draw_anchored(painter, line_value_right, middle, "e", line.value, QColor(line.value_color), value_font)
             if line.medal:
-                medal_right = value_right - text_width(value_font, line.value) - MEDAL_GAP
+                medal_right = line_value_right - text_width(value_font, line.value) - MEDAL_GAP
                 medal = icon("award", MEDAL_SIZE, self.icon_background(), line.medal, ratio)
                 painter.drawImage(QPoint(medal_right - MEDAL_SIZE, middle - MEDAL_SIZE // 2), medal)
             if line.note:

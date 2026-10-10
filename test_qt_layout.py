@@ -67,22 +67,22 @@ class QtLayoutTests(unittest.TestCase):
 
     def test_landscape_puts_blocks_side_by_side_with_the_header_on_the_anchor(self):
         self.window.show_blocks([self.first, self.anchor, self.last], self.anchor, modules_shown=True, landscape=True)
-        self.assertEqual((self.first.x(), self.anchor.x(), self.last.x()), (0, 320 + MODULE_GAP, 2 * (320 + MODULE_GAP)))
-        self.assertEqual((self.header.x(), self.header.y()), (320 + MODULE_GAP, 0))
+        self.assertEqual((self.first.x(), self.anchor.x(), self.last.x()), (0, TODAY_PANEL_WIDTH + MODULE_GAP, 2 * (TODAY_PANEL_WIDTH + MODULE_GAP)))
+        self.assertEqual((self.header.x(), self.header.y()), (TODAY_PANEL_WIDTH + MODULE_GAP, 0))
         self.assertEqual(self.anchor.y(), self.top + MODULE_GAP)
-        full_width = 3 * 320 + 2 * MODULE_GAP
+        full_width = 3 * TODAY_PANEL_WIDTH + 2 * MODULE_GAP
         self.assertEqual(self.window.width(), full_width)
         self.assertEqual(self.window.height(), max(200, self.top + MODULE_GAP + 140))
         # Narrower than everything the last block goes behind the right edge; narrower still the row slides left,
         # the anchor staying whole
-        self.window.resize(2 * 320 + MODULE_GAP, self.window.height())
+        self.window.resize(2 * TODAY_PANEL_WIDTH + MODULE_GAP, self.window.height())
         self.assertEqual(self.window.offset, 0)
-        self.window.resize(320, self.window.height())
-        self.assertEqual(self.window.offset, 320 + MODULE_GAP)
+        self.window.resize(TODAY_PANEL_WIDTH, self.window.height())
+        self.assertEqual(self.window.offset, TODAY_PANEL_WIDTH + MODULE_GAP)
 
     def test_landscape_without_a_program_panel_puts_the_header_first(self):
         self.window.show_blocks([self.first, self.last], None, modules_shown=True, landscape=True)
-        self.assertEqual((self.header.x(), self.first.x()), (0, 320 + MODULE_GAP))
+        self.assertEqual((self.header.x(), self.first.x()), (0, TODAY_PANEL_WIDTH + MODULE_GAP))
 
     def test_back_to_portrait_the_header_heads_the_window_again(self):
         self.window.show_blocks([self.first, self.anchor, self.last], self.anchor, modules_shown=True, landscape=True)

@@ -534,7 +534,7 @@ class PSFocusQt:
             total_today_seconds += today_seconds
             lifetime_seconds += total_seconds
             panel.set_text("total", format_duration(today_seconds))
-            panel.set_text("two_week", f"{two_weeks_seconds / 3600:.1f} hours past 2 weeks")
+            panel.set_text("two_week", f"{two_weeks_seconds / 3600:.1f} hrs past 2 weeks")
             panel.set_text("sessions", f"{self.store.lifetime_sessions(application=name)} SESSIONS")
             panel.set_text("record_hours", f"{total_seconds / 3600:.1f} hrs on record")
             last_session_text = last_session.strftime("%d %b").lstrip("0") if last_session else "--"
