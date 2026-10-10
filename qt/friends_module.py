@@ -15,7 +15,7 @@ from friends import format_code
 
 from .header import NAME_MAX_LENGTH, fit_text
 from .module import DOCK_CONTROL_SIZE, MODULE_TITLE_PADDING, ModuleBlock, PaintedButton, paint_hover_box
-from .theme import Fonts, anchored_top_left, color, draw_anchored, draw_outline_text, draw_text, line_height, text_width
+from .theme import Fonts, color, draw_anchored, draw_text, line_height, text_width
 
 # Space between the module's border and its text, as the stats keep
 SIDE = 1 + EDGE_PADDING
@@ -48,8 +48,6 @@ SCROLL_BAR_WIDTH = 3
 ICON_GAP = 2
 COPY_PADDING = 4
 CODE_SHOWN_MS = 4000
-# The rating star of the calendar and stats, which marks a favourite
-FAVOURITE_STAR = chr(0x2B50)
 # The code field takes a code typed with or without its dash
 CODE_ENTRY_CHARACTERS = 11
 
@@ -116,6 +114,13 @@ def paint_person_icon(painter: QPainter, rect: QRect, icon_color: QColor, backgr
         painter.drawLine(QPointF(center.x() - 1.7, center.y()), QPointF(center.x() + 1.7, center.y()))
         painter.drawLine(QPointF(center.x(), center.y() - 1.7), QPointF(center.x(), center.y() + 1.7))
     painter.restore()
+
+
+def friend_section(person: tuple) -> str:
+    """The part of the list a friend is in: Favourites, whether online or not, Online or Offline"""
+    if person[5]:
+        return "Favourites"
+    return "Offline" if person[2] == "offline" else "Online"
 
 
 def wrap(text: str, font, width: int) -> list[str]:
@@ -378,19 +383,20 @@ class FriendsModule(ModuleBlock):
             y += GROUP_GAP - ROW_GAP
         # Each friend's level stands at the left of their name, in a column as wide as two digits
         level_width = text_width(fonts.small, "00") + 6
-        # The favourite star is the rating star drawn on calendar days and in the stats
-        star_width = text_width(fonts.rating, FAVOURITE_STAR) + 4
         name_line = line_height(fonts.account) + LINE_PADDING
         self.name_rects = {}
-        offline_count = sum(1 for person in view.people if person[2] == "offline")
+        # Favourites first under a heading of their own, then the others online, then those offline or invisible; the
+        # others online have a heading only when there are favourites above them
+        sections = [friend_section(person) for person in view.people]
         for index, (name, stats, presence, active, code, favourite) in enumerate(view.people):
             offline = presence == "offline"
-            # Friends offline, or invisible, follow the others under a heading of their own
-            if offline and (index == 0 or view.people[index - 1][2] != "offline"):
-                if index:
-                    y += GROUP_GAP - ROW_GAP
-                self.items.append(("text", left, y, f"Offline \u2014 {offline_count}", "muted", fonts.small))
-                y += small_line
+            section = sections[index]
+            if index == 0 or sections[index - 1] != section:
+                if section != "Online" or "Favourites" in sections:
+                    if index:
+                        y += GROUP_GAP - ROW_GAP
+                    self.items.append(("text", left, y, f"{section} \u2014 {sections.count(section)}", "muted", fonts.small))
+                    y += small_line
             top = y
             hours = f"{stats.get('two_weeks', 0):.1f} hrs past 2 weeks"
             hours_left = right - text_width(fonts.small, hours)
@@ -405,15 +411,11 @@ class FriendsModule(ModuleBlock):
             if presence == "away":
                 label_room += AWAY_MARK_WIDTH + 4
             label_room += NAME_ARROW_SIZE + 2
-            name_room = hours_left - 8 - name_left - label_room - (star_width if favourite else 0)
+            name_room = hours_left - 8 - name_left - label_room
             shown_name = fit_text(name, fonts.account, name_room)
             self.items.append(("anchored", name_left, middle, "w", shown_name, NAME_COLORS.get(presence, "text"), fonts.account))
             self.name_rects[code] = QRect(name_left - 4, top, hours_left - 8 - name_left + 4, name_line)
             after_name = name_left + text_width(fonts.account, shown_name)
-            # A favourite has a gold star after their name
-            if favourite:
-                self.items.append(("outline", after_name + 4, middle, "w", FAVOURITE_STAR, "gold", fonts.rating))
-                after_name += star_width
             if presence == "away":
                 self.items.append(("zzz", after_name + 5, middle))
                 self.away_areas.append(QRect(after_name + 3, middle - 8, AWAY_MARK_WIDTH + 4, 14))
@@ -702,10 +704,6 @@ class FriendsModule(ModuleBlock):
             elif kind == "anchored":
                 _kind, x, y, anchor, text, tone, font = item
                 draw_anchored(painter, x, y, anchor, text, color(tone), font)
-            elif kind == "outline":
-                # An emoji drawn as a plain shape in one colour, as the ratings are
-                _kind, x, y, anchor, text, tone, font = item
-                draw_outline_text(painter, *anchored_top_left(x, y, anchor, text, font), text, color(tone), font)
             elif kind == "zzz":
                 # Three z's of one size, each a little higher than the last
                 _kind, x, y = item

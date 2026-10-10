@@ -15,7 +15,7 @@ from app_config import APP_NAME, user_level
 from friends import FriendsService
 from google_drive import GoogleAccountAccessRequired
 
-from .friends_module import FriendsModule, FriendsView
+from .friends_module import FriendsModule, FriendsView, friend_section
 from .request_popup import RequestPopup
 from .header import NAME_MAX_LENGTH
 from .status_menu import PopupMenu, StatusMenu
@@ -332,8 +332,9 @@ class FriendsSync:
             # A nickname the user gave them shows in place of their name
             name = self._local("friends_nicknames").get(code) or friend.get("name", "")
             people.append((name, stats, presence, program, code, code in self._local("friends_favourites")))
-        # Those offline last, then favourites first, then by hours over the past two weeks
-        people.sort(key=lambda person: (person[2] == "offline", not person[5], -float(person[1].get("two_weeks", 0) or 0)))
+        # Favourites, then the others online, then those offline; in each by hours over the past two weeks
+        sections = {"Favourites": 0, "Online": 1, "Offline": 2}
+        people.sort(key=lambda person: (sections[friend_section(person)], -float(person[1].get("two_weeks", 0) or 0)))
         return FriendsView(
             "on", me.get("code", ""), people,
             [(request["code"], request["name"]) for request in state.get("incoming", [])],
