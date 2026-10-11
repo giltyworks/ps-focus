@@ -130,7 +130,22 @@ app.window.move(screen.x() + 400, screen.y() + 40)
 app.window.raise_()
 settle()
 # The landscape orientation, the one view the website's demo leaves out: every module beside the program panel
-show(calendar=True, stats=True, graph=True)
+show(calendar=True, stats=False, graph=True, friends=True)
+# Made-up friends, next to the program panel as by default, since the capture signs in to nothing
+from qt.friends_module import FriendsView  # noqa: E402
+
+SAMPLE_FRIENDS = [
+    ("Mia", {"two_weeks": 16.4, "today": 1.4, "total": 121.6, "level": 19}, "drawing", "Krita", "MIA00001", False),
+    ("Leo", {"two_weeks": 10.2, "today": 0.6, "total": 71.3, "level": 14}, "online", None, "LEO00002", False),
+    ("Ava", {"two_weeks": 6.8, "today": 0.0, "total": 47.9, "level": 11}, "away", None, "AVA00003", False),
+    ("Noah", {"two_weeks": 3.1, "today": 0.0, "total": 28.4, "level": 8}, "offline", None, "NOAH0004", False),
+]
+app.friends_sync.view = lambda: FriendsView("on", "GILTY001", SAMPLE_FRIENDS)
+app.friends_sync.refresh_view()
+# Signed in, as Friends needs: a name in green with the status arrow beside it
+header = app.header
+header.account_text, header.account_font, header.account_color, header.status_arrow_shown = "gilty", app.fonts.account, "active_green", True
+header.update()
 app.docking.dock_all()
 app.landscape = True
 app.landscape_width = None

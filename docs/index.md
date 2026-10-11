@@ -48,7 +48,7 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 <script src="{{ '/assets/demo/demo.js' | relative_url }}" defer></script>
 
 <figure class="wide-shot">
-  <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1587" height="237" alt="PS Focus in landscape: today's time in Photoshop, then the hours graph, the September calendar and the stats side by side in one wide, short window">
+  <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1495" height="229" alt="PS Focus in landscape: today's time in Photoshop, then friends and their hours, the hours graph and the October calendar side by side in one wide, short window">
   <figcaption class="caption">Landscape, in the app: everything side by side in one short strip</figcaption>
 </figure>
 
