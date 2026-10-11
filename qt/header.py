@@ -27,6 +27,8 @@ HEADER_GROUP_GAP = 6
 # The arrow after the account name that opens the friends status menu: the space it takes, and its half-width
 STATUS_ARROW_ROOM = 16
 STATUS_ARROW_ARM = 3
+# How far the status line under the name tucks up into the name's line, which has space below its letters
+STATUS_LINE_OVERLAP = 2
 # How far a Tk label kept its text from its own edge, which the word Level is still placed by
 LABEL_TEXT_INSET = 3
 # Where the settings button starts, which leaves its three dots the usual distance from the header's edge
@@ -193,6 +195,9 @@ class Header(GlassMixin, QWidget):
         # The account text, its colour and font; the Settings page shows the version and credit instead
         self.account_text = "Local only"
         self.account_color = "muted"
+        # Under the name while friends are on, as Steam shows it: Online, Away, Invisible or Offline, and its colour
+        self.status_text = ""
+        self.status_color = "muted"
         self.account_font = fonts.small
         self.account_disabled = False
         self.progress_reached = False
@@ -235,7 +240,11 @@ class Header(GlassMixin, QWidget):
 
     def row_height(self) -> int:
         """The same whatever the row shows, so nothing below it moves when the account text changes"""
-        return max(HEADER_ICON_SIZE, line_height(self.fonts.account) + 2 * ACCOUNT_TEXT_INSET_Y)
+        return max(HEADER_ICON_SIZE, line_height(self.fonts.account) + 2 * ACCOUNT_TEXT_INSET_Y, self._account_block_height() + 2)
+
+    def _account_block_height(self) -> int:
+        """The name with the status under it, the two lines overlapping a little where the name's line has room"""
+        return line_height(self.fonts.account) + line_height(self.fonts.caption) - STATUS_LINE_OVERLAP
 
     def set_level(self, level: int, revealed: bool) -> None:
         ratio = self.devicePixelRatioF()
@@ -328,12 +337,19 @@ class Header(GlassMixin, QWidget):
         if editing:
             return
         text_color = self.palette().color(self.palette().ColorGroup.Disabled, self.palette().ColorRole.Text) if self.account_disabled else color(self.account_color)
-        self._text(painter, content_left + ACCOUNT_TEXT_INSET_X, (height - line_height(font)) // 2, text, text_color, font)
+        if self.status_text:
+            # The name with its status under it, the two centred on the row together
+            name_top = (height - self._account_block_height()) // 2
+            status_top = name_top + line_height(font) - STATUS_LINE_OVERLAP
+            self._text(painter, content_left + ACCOUNT_TEXT_INSET_X, status_top, self.status_text, color(self.status_color), self.fonts.caption)
+        else:
+            name_top = (height - line_height(font)) // 2
+        self._text(painter, content_left + ACCOUNT_TEXT_INSET_X, name_top, text, text_color, font)
         self.account_area = (content_left, 0, content_left + content_width - arrow_room, height)
         if arrow_room:
-            self._paint_status_arrow(painter, content_left + content_width - arrow_room - 2, height)
+            self._paint_status_arrow(painter, content_left + content_width - arrow_room - 2, height, name_top + line_height(font) / 2)
 
-    def _paint_status_arrow(self, painter: QPainter, left: int, height: int) -> None:
+    def _paint_status_arrow(self, painter: QPainter, left: int, height: int, middle_y: float | None = None) -> None:
         """A small downward chevron, which opens the friends status menu; under the mouse a faint box shows behind it"""
         top = (height - HEADER_ICON_SIZE) // 2
         self.status_area = (left, top + 4, left + STATUS_ARROW_ROOM, top + HEADER_ICON_SIZE - 4)
@@ -345,7 +361,9 @@ class Header(GlassMixin, QWidget):
         pen.setCapStyle(Qt.PenCapStyle.RoundCap)
         pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
         painter.setPen(pen)
-        middle_x, middle_y = left + STATUS_ARROW_ROOM / 2, height / 2
+        middle_x = left + STATUS_ARROW_ROOM / 2
+        # Level with the name
+        middle_y = height / 2 if middle_y is None else middle_y
         arm = STATUS_ARROW_ARM
         painter.drawPolyline([QPointF(middle_x - arm, middle_y - arm / 2), QPointF(middle_x, middle_y + arm / 2), QPointF(middle_x + arm, middle_y - arm / 2)])
         painter.restore()

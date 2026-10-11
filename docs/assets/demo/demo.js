@@ -266,7 +266,10 @@
     field.select();
   });
   const statusButton = el("button", { type: "button", class: "psf-icon-button psf-chevron", title: "Status", onclick: (event) => statusMenu(event.currentTarget) }, svg(ICONS.chevron));
-  const account = el("div", { class: "psf-account" }, progressDot, accountName, statusButton);
+  // The name, bold, with the arrow to the status menu beside it and the status under it, as the app
+  const accountStatus = el("span", { class: "psf-account-status" });
+  const account = el("div", { class: "psf-account" }, progressDot,
+    el("span", { class: "psf-account-text" }, el("span", { class: "psf-account-line" }, accountName, statusButton), accountStatus));
   const settingsButton = el("button", { type: "button", class: "psf-icon-button psf-settings", title: "Settings", onclick: () => toggleSettings() }, "···");
   const level = el("div", { class: "psf-level" }, "Level", levelBadge);
   // In Settings the header shows the version and the credit in place of the level and account
@@ -786,7 +789,7 @@
     markUsed("status");
     const choices = [["online", "Online", ""], ["away", "Away", "Friends see you're away"], ["invisible", "Invisible", "Appear offline, but still see your friends"], ["offline", "Offline", "Stop sharing with friends"]];
     openMenu(anchor, choices.map(([status, name, note]) => el("button", { type: "button", class: status === state.status ? "psf-current" : "",
-      onclick: () => { state.status = status; account.classList.toggle("psf-hidden-name", status === "invisible" || status === "offline"); closeMenu(); renderFriends(); } }, name, note ? el("small", {}, note) : null)));
+      onclick: () => { state.status = status; account.classList.toggle("psf-hidden-name", status === "invisible" || status === "offline"); closeMenu(); renderAccount(); renderFriends(); } }, name, note ? el("small", {}, note) : null)));
   }
 
   // ----- Settings -----
@@ -811,6 +814,9 @@
     accountName.title = signedIn ? "" : "Sign in with Google";
     account.classList.toggle("psf-local", !signedIn);
     statusButton.hidden = !signedIn;
+    accountStatus.hidden = !signedIn;
+    accountStatus.textContent = { online: "Online", away: "Away", invisible: "Invisible", offline: "Offline" }[state.status];
+    accountStatus.dataset.status = state.status;
   }
 
   function signIn(switching = false) {

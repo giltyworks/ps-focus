@@ -34,6 +34,8 @@ class Fonts:
         self.bold = font(10, semibold=True)
         self.small = font(9)
         self.account = font(11)
+        # The user's own name, bolder than an email address, which keeps the plain weight
+        self.account_bold = font(11, semibold=True)
         self.counter = font(10)
         self.two_week = font(app_config.HEADING_FONT_SIZE)
         self.title = font(20, semibold=True)

@@ -423,10 +423,10 @@ class FriendsModule(ModuleBlock):
                 label_room += AWAY_MARK_WIDTH + 4
             label_room += NAME_ARROW_SIZE + 2
             name_room = hours_left - 8 - name_left - label_room
-            shown_name = fit_text(name, fonts.account, name_room)
-            self.items.append(("anchored", name_left, middle, "w", shown_name, NAME_COLORS.get(presence, "text"), fonts.account))
+            shown_name = fit_text(name, fonts.account_bold, name_room)
+            self.items.append(("anchored", name_left, middle, "w", shown_name, NAME_COLORS.get(presence, "text"), fonts.account_bold))
             self.name_rects[code] = QRect(name_left - 4, top, hours_left - 8 - name_left + 4, name_line)
-            after_name = name_left + text_width(fonts.account, shown_name)
+            after_name = name_left + text_width(fonts.account_bold, shown_name)
             if presence == "away":
                 self.items.append(("zzz", after_name + 5, middle))
                 self.away_areas.append(QRect(after_name + 3, middle - 8, AWAY_MARK_WIDTH + 4, 14))

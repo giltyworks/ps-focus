@@ -36,6 +36,9 @@ MIN_SYNC_GAP_SECONDS = 60
 STALE_SECONDS = 15 * 60
 # The statuses the user can choose, by the menu next to their name, and what friends are told of each
 STATUSES = ("online", "away", "invisible", "offline")
+# What the header says under the user's name for each status, and in what colour, as friends would see them
+STATUS_LABELS = {"online": "Online", "away": "Away", "invisible": "Invisible", "offline": "Offline"}
+STATUS_COLORS = {"online": "friend_online", "away": "friend_away", "invisible": "muted", "offline": "muted"}
 STATUS_SENT = {"online": "online", "away": "away", "invisible": "offline", "offline": "offline"}
 
 
@@ -355,6 +358,8 @@ class FriendsSync:
             code = friend.get("code", "")
             # A nickname the user gave them shows in place of their name
             name = self._local("friends_nicknames").get(code) or friend.get("name", "")
+            # Someone who has set no name goes by their email address; only the part before the @ is shown
+            name = name.split("@", 1)[0]
             people.append((name, stats, presence, program, code, code in self._local("friends_favourites")))
         # For trying the list out: made-up friends shown beside the real ones, never sent anywhere
         if os.environ.get("PSFOCUS_SAMPLE_FRIENDS"):
@@ -375,8 +380,10 @@ class FriendsSync:
         self.module.show_view(self.view())
         # The status menu is offered next to the account name while friends are on
         header = self.app.header
-        if header.status_arrow_shown != self.enabled():
-            header.status_arrow_shown = self.enabled()
+        status = self.status() if self.enabled() else None
+        shown = (self.enabled(), STATUS_LABELS.get(status, ""), STATUS_COLORS.get(status, "muted"))
+        if (header.status_arrow_shown, header.status_text, header.status_color) != shown:
+            header.status_arrow_shown, header.status_text, header.status_color = shown
             header.update()
 
     def open_status_menu(self, point) -> None:

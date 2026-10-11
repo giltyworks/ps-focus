@@ -51,7 +51,11 @@ class GoogleSync:
         # Invisible or offline to friends, the name is greyed, as friends see it
         hidden = friends is not None and friends.enabled() and friends.status() in ("invisible", "offline")
         app.header.account_color = "muted" if hidden else tone
-        app.header.account_font = app.fonts.account if self.client.connected and not self.reauthentication_required else app.fonts.small
+        if not self.client.connected or self.reauthentication_required:
+            app.header.account_font = app.fonts.small
+        else:
+            # A name set by the user stands out in bold; an email address, shown when there is none, stays plain
+            app.header.account_font = app.fonts.account_bold if self.display_name() else app.fonts.account
         app.header.account_disabled = self.busy
         app.header.update()
         app.settings_page.set_google((status, tone), self.client.connected and not self.busy, buttons)

@@ -86,12 +86,17 @@
 .psf-titlebar button:hover { background: rgba(255, 255, 255, .08); }
 .psf-titlebar button.psf-close:hover { background: #c42b1c; }
 
-.psf-header { background: rgba(var(--psf-background), var(--a)); height: 28px; display: flex; align-items: center; padding: 0 2px 0 8px; font-size: 13.333px; position: relative; }
+.psf-header { background: rgba(var(--psf-background), var(--a)); height: 34px; display: flex; align-items: center; padding: 0 2px 0 8px; font-size: 13.333px; position: relative; }
 .psf-level { display: flex; align-items: center; gap: 4px; }
 .psf-badge { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--psf-red); display: grid; place-items: center; font-size: 12px; margin-left: 2px; }
 .psf-account { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14.667px; color: var(--psf-green); }
 .psf-account.psf-hidden-name { color: var(--psf-muted); }
-.psf-account-name { cursor: pointer; }
+.psf-account-name { cursor: pointer; font-weight: 600; }
+.psf-account-text { display: flex; flex-direction: column; }
+.psf-account-line { display: flex; align-items: center; gap: 2px; line-height: 18px; }
+.psf-account-status { font-size: 10.667px; line-height: 12px; color: var(--psf-muted); }
+.psf-account-status[data-status="online"] { color: var(--psf-online); }
+.psf-account-status[data-status="away"] { color: var(--psf-away); }
 .psf-name-field { width: 160px; background: #151515; border: 0; border-radius: 4px; color: var(--psf-text); font: 15px inherit; font-family: inherit; text-align: center; padding: 1px 4px; outline: none; }
 .psf-name-field::selection { background: #284e45; }
 .psf-dot { width: 13px; height: 13px; border-radius: 50%; background: #151515; border: 1px solid rgba(var(--psf-border), 1); }
@@ -202,7 +207,7 @@
 /* A friend's two lines snug together, as the app: the name's line 18 tall, the details' 17, 4 between friends */
 .psf-friend { display: grid; grid-template-columns: 27px 1fr auto; grid-template-rows: 18px 17px; align-items: center; padding: 2px 0; }
 .psf-friend .psf-lv { width: 17px; height: 17px; border: 1.5px solid var(--psf-red); border-radius: 50%; font-size: 10px; display: grid; place-items: center; margin-top: 1px; }
-.psf-friend .psf-name { font-size: 14.667px; line-height: 18px; display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; }
+.psf-friend .psf-name { font-weight: 600; font-size: 14.667px; line-height: 18px; display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; }
 .psf-friend .psf-name.psf-drawing { color: var(--psf-green); }
 .psf-friend .psf-name.psf-online { color: var(--psf-online); }
 .psf-friend .psf-name.psf-offline { color: var(--psf-muted); }
