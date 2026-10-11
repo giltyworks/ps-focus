@@ -7,8 +7,8 @@ import time
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QRect, Qt
-from PySide6.QtGui import QMouseEvent, QPainter, QPaintEvent
-from PySide6.QtWidgets import QWidget
+from PySide6.QtGui import QCursor, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtWidgets import QApplication, QWidget
 
 from .theme import Fonts, color, draw_text, line_height, text_width
 
@@ -72,6 +72,8 @@ class PopupMenu(QWidget):
         screen = self.screen().availableGeometry()
         self.move(min(point.x(), screen.right() - self.width()), min(point.y(), screen.bottom() - self.height()))
         self.show()
+        # Over the arrow that opened it, the hand stays
+        self.setCursor(self._cursor_outside(QCursor.pos()))
 
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
@@ -89,11 +91,25 @@ class PopupMenu(QWidget):
                 draw_text(painter, area.x() + PADDING_X - 1, area.y() + PADDING_Y + line_height(self.fonts.normal), note, color("muted"), self.fonts.small)
         painter.end()
 
+    def _cursor_outside(self, point: QPoint) -> Qt.CursorShape:
+        under = QApplication.widgetAt(point)
+        interactive = getattr(under, "interactive_at", None)
+        if under is not self and interactive is not None and interactive(under.mapFromGlobal(point)):
+            return Qt.CursorShape.PointingHandCursor
+        return Qt.CursorShape.ArrowCursor
+
     def _row_at(self, point: QPoint) -> str | None:
         return next((key for key, _name, _note, area in self.rows if area.contains(point)), None)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        key = self._row_at(event.position().toPoint())
+        point = event.position().toPoint()
+        if not self.rect().contains(point):
+            # The menu has the mouse while open, so outside it, it shows the hand the app would over something to
+            # click, such as the arrow that opened it
+            self.setCursor(self._cursor_outside(event.globalPosition().toPoint()))
+        else:
+            self.unsetCursor()
+        key = self._row_at(point)
         if key != self.hovered:
             self.hovered = key
             self.update()
