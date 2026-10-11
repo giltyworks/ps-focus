@@ -671,7 +671,7 @@
   // Today's time on a friend's row: hours to a decimal, or under an hour in minutes, as the app
   const todayAmount = (hours) => (hours >= 1 ? `${hours.toFixed(1)} hrs` : `${Math.round(hours * 60)} min`);
   function friendRow(friend) {
-    const nameClass = { drawing: "psf-drawing", online: "psf-online", away: "psf-offline", offline: "psf-offline" }[friend.presence];
+    const nameClass = { drawing: "psf-drawing", online: "psf-online", away: "psf-away", offline: "psf-offline" }[friend.presence];
     const shown = state.nicknames.get(friend.code) || friend.name;
     const name = el("span", { class: `psf-name ${nameClass}` }, shown);
     if (state.nicknaming === friend.code) {
@@ -700,7 +700,7 @@
         : friend.presence === "online"
           ? el("span", { class: "psf-sub psf-online-today" }, friend.today > 0 ? `${todayAmount(friend.today)} today` : "Online")
           : friend.presence === "away"
-            ? el("span", { class: "psf-sub psf-online-today" }, "Away")
+            ? el("span", { class: "psf-sub psf-away" }, "Away")
             : el("span", { class: "psf-sub" }, `${todayAmount(friend.today)} today`), el("span", { class: "psf-sub-right" }, `${friend.total.toFixed(1)} hrs total`));
     friend.fresh = false;
     return row;

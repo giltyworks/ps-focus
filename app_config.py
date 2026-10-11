@@ -134,6 +134,8 @@ COLORS = {
     "notification": "#e5484d",
     # A friend's name while they are online: the app's blue, lightened to read on the dark panel
     "friend_online": "#7d95f5",
+    # A friend away: the same blue, dimmed towards the panel, as Steam dims its away friends
+    "friend_away": "#56659f",
 }
 DEFAULT_SETTINGS = {
     "tracking_enabled": True,

@@ -17,6 +17,7 @@
   --psf-blue: #3d5ce6;
   --psf-green: #22c55e;
   --psf-online: #7d95f5;
+  --psf-away: #56659f;
   --psf-gold: #f0c33c;
   --psf-red: #e07e75;
   --psf-badge: #e5484d;
@@ -204,6 +205,8 @@
 .psf-friend .psf-name.psf-drawing { color: var(--psf-green); }
 .psf-friend .psf-name.psf-online { color: var(--psf-online); }
 .psf-friend .psf-name.psf-offline { color: var(--psf-muted); }
+/* Away: the online blue, dimmed */
+.psf-friend .psf-name.psf-away, .psf-friend .psf-sub.psf-away { color: var(--psf-away); }
 .psf-friend .psf-sub.psf-program { color: var(--psf-green); }
 .psf-friend .psf-sub.psf-online-today { color: var(--psf-online); }
 .psf-friend .psf-zzz { font-size: 9px; color: var(--psf-muted); letter-spacing: 1px; }
