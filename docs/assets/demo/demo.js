@@ -324,7 +324,7 @@
   const readoutValue = el("b"), readoutCaption = el("span");
   const chart = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   chart.setAttribute("class", "psf-chart");
-  chart.setAttribute("viewBox", "0 0 298 170");
+  chart.setAttribute("viewBox", "0 0 298 164");
   const graphBlock = el("div", { class: "psf-block psf-graph", "data-name": "graph" },
     strip("Usage over time"),
     el("div", { class: "psf-graph-head" }, `${MONTHS[today.getMonth()]} ${today.getFullYear()}`, el("span", { class: "psf-spacer" }),
@@ -364,7 +364,7 @@
     const total = data.values.reduce((a, b) => a + b, 0);
     if (hover == null) { readoutValue.textContent = hm(total * 3600); readoutCaption.textContent = data.caption; }
     else { readoutValue.textContent = hm(data.values[hover] * 3600); readoutCaption.textContent = data.labels[hover]; }
-    const left = 24, right = 280, top = 10, bottom = 140;
+    const left = 24, right = 280, top = 10, bottom = 136;
     const peak = Math.max(1, ...data.values);
     const step = peak <= 4 ? 1 : peak <= 8 ? 2 : peak <= 20 ? 5 : peak <= 40 ? 10 : 20;
     const ceiling = Math.ceil(peak / step) * step;
