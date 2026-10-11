@@ -52,7 +52,7 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 
 <section class="try" id="try" markdown="0">
   <h2>Try it</h2>
-  <p class="try-intro">A working sample of PS Focus, beside a painting on an art app's canvas. Switch drawing on and off, change the graph, open the calendar and Friends, pull a panel out by its title, and move your mouse away to watch it fade.</p>
+  <p class="try-intro">A working sample of PS Focus over a painting. Drag the window by any empty spot to move it; the arrows point out the rest.</p>
   <div class="psf-demo" data-painting="{{ '/assets/demo/sorolla.jpg' | relative_url }}" data-logo="{{ '/assets/logo-v2.png' | relative_url }}"></div>
   <p class="caption">Sample data and made-up friends; nothing you do here is sent anywhere. Painting: Joaquín Sorolla, <em>Strolling along the Seashore</em> (1909), public domain.</p>
   <noscript><p class="caption">The demo needs JavaScript.</p></noscript>

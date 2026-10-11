@@ -52,7 +52,7 @@
 .psf-canvas {
   /* A fixed size, tall enough for PS Focus at its biggest to fit over it: a tall slice of the painting, centred on its
      figures, which stays put whatever the window shows */
-  position: absolute; top: 24px; right: 24px; left: 344px; height: 1100px;
+  position: absolute; top: 24px; right: 24px; left: 344px; height: 1345px;
   background: #111 74% 50% / cover no-repeat; box-shadow: 0 6px 30px rgba(0, 0, 0, .45);
 }
 
@@ -322,3 +322,24 @@
 @media (prefers-reduced-motion: reduce) {
   .psf-friend.psf-new, .psf-hotspot { animation: none; }
 }
+
+/* Stats: labels on the left, values in a column, a narrow note after */
+.psf-stats { padding: 8px 10px 9px; font-size: 13px; display: grid; gap: 4px; }
+.psf-stat { display: grid; grid-template-columns: 1fr auto 46px; align-items: center; gap: 8px; }
+.psf-stat-gap { margin-bottom: 6px; }
+.psf-stat-summary { margin-top: 6px; grid-template-columns: auto 1fr; }
+.psf-stat-summary .psf-stat-label { white-space: nowrap; }
+.psf-stat-summary .psf-stat-note { display: none; }
+.psf-stat-label { color: var(--psf-muted); white-space: nowrap; }
+.psf-stat-value { text-align: right; display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.psf-stat-value.psf-bold { font-weight: 700; }
+.psf-stat-value.psf-muted { color: var(--psf-muted); }
+.psf-stat-note { color: var(--psf-muted); font-size: 12px; text-align: right; }
+.psf-stat-note.psf-up { color: var(--psf-green); }
+.psf-stat-note.psf-gold { color: var(--psf-gold); }
+.psf-medal { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+.psf-medal.psf-gold { background: #f0c33c; }
+.psf-medal.psf-silver { background: #c9d1d6; }
+.psf-medal.psf-bronze { background: #c98a52; }
+/* A nickname, typed over a friend's name */
+.psf-nick-input { width: 130px; background: #151515; border: 1px solid #2c2c2c; border-radius: 4px; color: var(--psf-text); font: inherit; padding: 1px 5px; outline: none; }

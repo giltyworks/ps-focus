@@ -81,7 +81,7 @@
     period: "Week",
     calendarView: "Month",
     calendarMonth: new Date(today.getFullYear(), today.getMonth(), 1),
-    shown: { graph: true, calendar: true, friends: true },
+    shown: { graph: true, calendar: true, stats: true, friends: true },
     programs: { Photoshop: true, "Clip Studio Paint": false, Krita: false },
     // A made-up Google account; in the app the real one is chosen on Google's own page in the browser
     account: { name: "gilty", email: "demo@example.com" },
@@ -92,10 +92,13 @@
     startMinimized: true,
     fanfareOff: false,
     // Every block in the window's order, program panels and modules alike, as in the app
-    order: ["today", "Clip Studio Paint", "Krita", "graph", "calendar", "friends"],
+    order: ["today", "Clip Studio Paint", "Krita", "graph", "calendar", "stats", "friends"],
     floating: {},
     status: "online",
     favourites: new Set(),
+    // Names the user gave friends, by code, shown in place of their own
+    nicknames: new Map(),
+    nicknaming: null,
     friends: [
       { code: "MIAA", name: "Mia", level: 19, presence: "drawing", program: "Krita", two: 16.4, total: 121.6, today: 1.4 },
       { code: "LEOO", name: "Leo", level: 14, presence: "online", two: 10.2, total: 71.3, today: 0.6 },
@@ -129,6 +132,7 @@
     graph: '<path d="M1 13H13"/><path d="M1.5 10.5L5 6.5L8 8.5L12.5 2.5"/>',
     calendar: '<rect x="1" y="2.5" width="12" height="10.5" rx="2"/><path d="M1 5.5H13M4.2 0.8V3.4M9.8 0.8V3.4"/><circle cx="4" cy="8" r=".5" fill="currentColor"/><circle cx="7" cy="8" r=".5" fill="currentColor"/><circle cx="10" cy="8" r=".5" fill="currentColor"/><circle cx="4" cy="10.8" r=".5" fill="currentColor"/><circle cx="7" cy="10.8" r=".5" fill="currentColor"/><circle cx="10" cy="10.8" r=".5" fill="currentColor"/>',
     friends: '<circle cx="9.5" cy="4" r="1.8"/><path d="M7.4 9.6C8 8 11.6 8 13.3 10.2"/><circle cx="5" cy="4.8" r="2.2"/><path d="M0.8 12.8C1.4 9.4 8.4 9.4 9.2 12.8"/>',
+    stats: '<path d="M1.1 2.8H5.6M8.4 2.8H12.9M1.1 7H5.6M8.4 7H12.9M1.1 11.2H5.6M8.4 11.2H12.9"/>',
     chevron: '<path d="M4 5.5L7 8.5L10 5.5"/>',
     dock: '<path d="M6 4L3 7L6 10M10 4L7 7L10 10"/>',
   };
@@ -167,8 +171,7 @@
   const controls = el("div", { class: "psf-controls" },
     pauseControl,
     el("label", { class: "psf-slider" }, "Transparency", slider),
-    el("span", { class: "psf-hint" }, touch.matches ? "The icons at the top show and hide each part · tap the painting to let PS Focus fade"
-      : "The icons at the top show and hide each part · drag a panel out by its title · move your mouse onto the painting"));
+    el("span", { class: "psf-hint" }, touch.matches ? "Tap the painting to let PS Focus fade" : "Drag the window by any empty spot to move it"));
   const stage = el("div", { class: "psf-stage" });
   const canvas = el("div", { class: "psf-canvas", role: "img", "aria-label": "A painting on the art app's canvas" });
   canvas.style.backgroundImage = `url("${PAINTING}")`;
@@ -230,7 +233,7 @@
   const credit = el("div", { class: "psf-credit", hidden: true }, el("span", { class: "psf-version" }, "Version 1.2.0"), el("span", { class: "psf-by" }, "by giltyworks"));
   const header = el("div", { class: "psf-header" }, level, account, credit, settingsButton);
   const iconButtons = {};
-  const icons = el("div", { class: "psf-icons" }, ["graph", "calendar", "friends"].map((name) => {
+  const icons = el("div", { class: "psf-icons" }, ["graph", "calendar", "stats", "friends"].map((name) => {
     iconButtons[name] = el("button", { type: "button", class: "psf-icon-button", title: `Show or hide ${name}`, onclick: () => { markUsed("icons"); toggleModule(name); } }, svg(ICONS[name]));
     return iconButtons[name];
   }));
@@ -462,6 +465,7 @@
   }
 
   function renderCalendar() {
+    renderStats();
     const [weeks, rest] = streaks();
     calLegend.replaceChildren(el("span", { class: "psf-square" }), "15 min+", el("span", { class: "psf-spacer" }),
       `🔥 ${weeks} week streak`, el("span", { style: "width:8px" }), `🌙 ${rest} rest days`);
@@ -499,6 +503,65 @@
       cells.push(cell);
     }
     calBody.replaceChildren(el("div", { class: "psf-weekdays" }, WEEKDAYS.map((w) => el("span", {}, w))), el("div", { class: "psf-days" }, cells));
+  }
+
+  // ----- Stats: label and value rows, as the app's -----
+
+  const statsBody = el("div", { class: "psf-stats" });
+  const statsBlock = el("div", { class: "psf-block psf-stats-block", "data-name": "stats" }, strip("Stats"), statsBody);
+  const MEDALS = [[10, "gold"], [25, "silver"], [50, "bronze"]];
+  const firstDay = daysAgo(STARTED_DAYS_AGO);
+  const average = (days, end) => rangeTotal(new Date(end.getTime() - (days - 1) * DAY), end) / days;
+  const change = (seconds) => (Math.round(Math.abs(seconds) / 60) === 0 ? "same" : `${seconds > 0 ? "+" : "-"}${hm(Math.abs(seconds))}`);
+  const startOf = (date) => { const hour = (history.get(key(date)) || []).findIndex((v) => v > 0); return hour < 0 ? null : hour * 60; };
+  const clockOf = (minutes) => clockTime(Math.floor(minutes / 60), minutes % 60);
+
+  function renderStats() {
+    const monday = daysAgo((today.getDay() + 6) % 7);
+    const week = rangeTotal(monday, today);
+    // This week so far against the same days of each past week
+    const past = [];
+    for (let w = 1; w < 52; w++) {
+      const start = new Date(monday.getTime() - w * 7 * DAY);
+      if (start.getTime() + 6 * DAY < firstDay.getTime()) break;
+      past.push(rangeTotal(start, new Date(start.getTime() + (today.getTime() - monday.getTime()))));
+    }
+    const rank = past.length >= 4 ? Math.max(1, Math.round((past.filter((v) => v > week).length + 1) / (past.length + 1) * 100)) : null;
+    const medal = rank != null ? (MEDALS.find(([limit]) => rank <= limit) || [])[1] : null;
+    const row = (label, value, { note = "", noteClass = "", valueClass = "", medalName = null, gap = false } = {}) =>
+      el("div", { class: `psf-stat${gap ? " psf-stat-gap" : ""}` }, el("span", { class: "psf-stat-label" }, label),
+        el("span", { class: `psf-stat-value ${valueClass}` }, medalName ? el("i", { class: `psf-medal psf-${medalName}` }) : null, value),
+        el("span", { class: `psf-stat-note ${noteClass}` }, note));
+    const rows = [row("This week", hm(week), { valueClass: "psf-bold", medalName: medal })];
+    if (medal) rows.push(row("", `top ${rank}% of your weeks`, { valueClass: "psf-muted" }));
+    rows[rows.length - 1].classList.add("psf-stat-gap");
+    for (const days of [7, 30]) {
+      const now = average(days, today), before = average(days, new Date(today.getTime() - days * DAY));
+      rows.push(row(`${days}-day average`, `${hm(now)}/day`, { note: change(now - before), noteClass: Math.round((now - before) / 60) > 0 ? "psf-up" : "" }));
+    }
+    // Each weekday averaged over every time it has come round since the first day
+    const totals = new Array(7).fill(0), counts = new Array(7).fill(0);
+    for (let t = firstDay.getTime(); t <= today.getTime(); t += DAY) { const d = new Date(t), i = (d.getDay() + 6) % 7; totals[i] += dayTotal(d); counts[i]++; }
+    const best = totals.map((v, i) => v / counts[i]).reduce((b, v, i, all) => (v > all[b] ? i : b), 0);
+    rows.push(row("Best day", `${WEEKDAYS[best]} · ${hm(totals[best] / counts[best])}/day`));
+    let longest = null;
+    history.forEach((_, k) => { const [y, m, d] = k.split("-").map(Number), date = new Date(y, m, d), total = dayTotal(date); if (total >= SESSION_MINIMUM && (!longest || total > longest[1] || (total === longest[1] && date < longest[0]))) longest = [date, total]; });
+    rows.push(row("Longest session", longest ? `${longest[0].getDate()} ${MONTHS[longest[0].getMonth()]} ${longest[0].getFullYear()} · ${hm(longest[1])}` : "--"));
+    // The start of the highest-rated days, averaged
+    const top = Math.max(0, ...ratings.values());
+    const starts = [...ratings].filter(([, r]) => r === top).map(([k]) => { const [y, m, d] = k.split("-").map(Number); return startOf(new Date(y, m, d)); }).filter((v) => v != null);
+    if (top && starts.length) rows.push(row("Best start time", clockOf(Math.round(starts.reduce((a, b) => a + b, 0) / starts.length)), { note: `⭐ ${top}`, noteClass: "psf-gold" }));
+    // The sessions in the period the calendar shows
+    const m = state.calendarMonth, year = state.calendarView === "Year";
+    const from = year ? new Date(m.getFullYear(), 0, 1) : m, to = year ? new Date(m.getFullYear(), 11, 31) : new Date(m.getFullYear(), m.getMonth() + 1, 0);
+    const sessions = [];
+    for (let t = from.getTime(); t <= Math.min(to.getTime(), today.getTime()); t += DAY) { const d = new Date(t); if (dayTotal(d) >= SESSION_MINIMUM) sessions.push(startOf(d)); }
+    const period = year ? String(m.getFullYear()) : MONTH_NAMES[m.getMonth()];
+    const summary = sessions.length
+      ? row(`${sessions.length} session${sessions.length === 1 ? "" : "s"} in ${period}`, `avg start ${clockOf(Math.round(sessions.reduce((a, b) => a + b, 0) / sessions.length))}`, { valueClass: "psf-muted" })
+      : row("No sessions for this period", "");
+    summary.classList.add("psf-stat-summary");
+    statsBody.replaceChildren(...rows, summary);
   }
 
   // ----- Friends -----
@@ -543,7 +606,22 @@
 
   function friendRow(friend) {
     const nameClass = { drawing: "psf-drawing", online: "psf-online", away: "psf-online", offline: "psf-offline" }[friend.presence];
-    const name = el("span", { class: `psf-name ${nameClass}` }, friend.name);
+    const shown = state.nicknames.get(friend.code) || friend.name;
+    const name = el("span", { class: `psf-name ${nameClass}` }, shown);
+    if (state.nicknaming === friend.code) {
+      // The nickname is typed over the name: Enter keeps it, Escape or clicking elsewhere leaves it as it was
+      const field = el("input", { type: "text", class: "psf-nick-input", maxlength: 32, value: shown, placeholder: "Nickname", "aria-label": "Nickname" });
+      const finish = (keep) => {
+        if (state.nicknaming !== friend.code) return;
+        state.nicknaming = null;
+        if (keep) { const typed = field.value.trim(); typed && typed !== friend.name ? state.nicknames.set(friend.code, typed) : state.nicknames.delete(friend.code); }
+        renderFriends();
+      };
+      field.addEventListener("keydown", (event) => { if (event.key === "Enter") finish(true); if (event.key === "Escape") finish(false); });
+      field.addEventListener("blur", () => finish(false));
+      name.replaceChildren(field);
+      setTimeout(() => { field.focus(); field.select(); });
+    }
     if (friend.presence === "drawing") name.append(el("span", { class: "psf-program" }, friend.program));
     if (friend.presence === "away") name.append(el("span", { class: "psf-zzz", title: "Away" }, el("span", {}, "z"), el("span", {}, "z"), el("span", {}, "z")));
     name.append(el("button", { type: "button", class: "psf-icon-button psf-chevron", title: `${friend.name}'s menu`, onclick: (event) => friendMenu(event.currentTarget, friend) }, svg(ICONS.chevron)));
@@ -618,9 +696,12 @@
 
   function friendMenu(anchor, friend) {
     const favourite = state.favourites.has(friend.code);
+    const nickname = state.nicknames.get(friend.code);
     openMenu(anchor, [
       el("button", { type: "button", onclick: () => { favourite ? state.favourites.delete(friend.code) : state.favourites.add(friend.code); closeMenu(); renderFriends(); } }, favourite ? "Remove from favourites" : "Add to favourites"),
-      el("button", { type: "button", class: "psf-danger", onclick: () => { state.friends = state.friends.filter((f) => f !== friend); closeMenu(); renderFriends(); toast(`${friend.name} removed`); } }, "Remove friend"),
+      el("button", { type: "button", onclick: () => { closeMenu(); state.nicknaming = friend.code; renderFriends(); } }, nickname ? "Change nickname" : "Set nickname"),
+      nickname ? el("button", { type: "button", onclick: () => { state.nicknames.delete(friend.code); closeMenu(); renderFriends(); } }, "Clear nickname") : null,
+      el("button", { type: "button", class: "psf-danger", onclick: () => { state.friends = state.friends.filter((f) => f !== friend); closeMenu(); renderFriends(); toast(`${nickname || friend.name} removed`); } }, "Remove friend"),
     ]);
   }
 
@@ -775,7 +856,7 @@
       el("div", { class: "psf-row" }, el("span", { class: "psf-small" }, `${sessions} SESSIONS`), el("span", {}, `${record} hrs on record`)),
       el("div", { class: "psf-row" }, el("span", { class: "psf-status" }, "NOT ACTIVE"), el("span", {}, `last session on ${last}`))));
   const blockOf = {
-    today: todayBlock, graph: graphBlock, calendar: calendarBlock, friends: friendsBlock,
+    today: todayBlock, graph: graphBlock, calendar: calendarBlock, stats: statsBlock, friends: friendsBlock,
     "Clip Studio Paint": otherProgram("Clip Studio Paint", "1.8", "6.2", 4, `${daysAgo(9).getDate()} ${MONTHS[daysAgo(9).getMonth()]}`),
     Krita: otherProgram("Krita", "0.0", "2.5", 2, `${daysAgo(23).getDate()} ${MONTHS[daysAgo(23).getMonth()]}`),
   };
@@ -819,8 +900,10 @@
         children.unshift(anchorColumn);
       }
     } else {
-      win.insertBefore(header, blocks);
-      win.insertBefore(icons, blocks);
+      if (header.nextSibling !== icons || icons.nextSibling !== blocks) {
+        win.insertBefore(header, blocks);
+        win.insertBefore(icons, blocks);
+      }
     }
     if (placeholderAt != null) {
       const holder = el("div", { class: "psf-placeholder" });
@@ -828,7 +911,9 @@
       if (state.landscape) holder.style.width = `${placeholderWidth - 2}px`;
       children.splice(placeholderAt, 0, holder);
     }
-    blocks.replaceChildren(...children);
+    // Moving a node, even to where it already is, loses the browser's hover on it, so only a changed order is applied
+    const current = [...blocks.children];
+    if (current.length !== children.length || children.some((child, i) => child !== current[i])) blocks.replaceChildren(...children);
     fitStage();
   }
 
@@ -838,7 +923,7 @@
     const panels = Object.values(state.floating).filter((f) => !f.panel.hidden);
     const bottom = Math.max(win.offsetTop + win.offsetHeight, ...panels.map((f) => f.panel.offsetTop + f.panel.offsetHeight));
     // The scene holds the painting whole on a desktop, and grows only if PS Focus is dragged further down
-    stage.style.minHeight = `${Math.max(touch.matches ? 640 : 1148, bottom + 24)}px`;
+    stage.style.minHeight = `${Math.max(touch.matches ? 640 : 1393, bottom + 24)}px`;
     // On the narrowest phones the window, 300 pixels wide like the app's, is shrunk to fit
     const room = stage.clientWidth - 16;
     win.style.transform = touch.matches ? `translateX(-50%)${room < 300 ? ` scale(${room / 300})` : ""}` : "";
@@ -1164,7 +1249,7 @@
   const HOTSPOTS = [
     { id: "timer", target: () => today_.metric, at: (r) => [r.left + 206, r.top + r.height / 2, "left"],
       text: "Counts while you draw, by itself. Pause tracking above stops it." },
-    { id: "icons", target: () => icons, at: (r) => [r.right - 76, r.top + r.height / 2, "right"], text: "Show or hide each panel." },
+    { id: "icons", target: () => icons, at: (r) => [r.right - 98, r.top + r.height / 2, "right"], text: "Show or hide each panel." },
     { id: "drag", target: () => [...blocks.querySelectorAll(".psf-block:not(.psf-today) .psf-strip")][0], at: (r) => [r.left + 112, r.top + r.height / 2, "left"],
       text: "Drag a title to move a panel out. Drop it back, or press «." },
     { id: "fade", target: () => canvas, at: (r) => [r.left + 4, r.top + 80, "right"],
@@ -1225,6 +1310,7 @@
     todayHours[hour] += 1;
     lifetime += 1;
     renderToday();
+    if (lifetime % 60 === 0) renderStats();
     if (state.shown.graph && (state.period === "Day" || state.period === "Week") && !chart.matches(":hover")) renderGraph();
   }, 1000);
 
@@ -1236,6 +1322,7 @@
     Krita: "Your time in Krita.",
     graph: "How much you draw, from today to the past year.",
     calendar: "Days with 15+ minutes turn blue. Keep your streak going.",
+    stats: "Your averages, best day and longest session.",
     friends: "Friends' hours, and who's drawing now.",
   };
   let panelTipTimer;
