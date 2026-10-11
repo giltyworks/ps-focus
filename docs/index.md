@@ -51,7 +51,7 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 </div>
 
 <figure class="wide-shot natural">
-  <video src="{{ '/assets/demo-reel.mp4' | relative_url }}" poster="{{ '/assets/demo-reel-poster.png' | relative_url }}" width="720" height="640" autoplay muted loop playsinline aria-label="PS Focus in use: the day's time counting up, the graph and calendar changing period, a panel pulled out and snapped back, a friend request accepted, going invisible, and switching to landscape"></video>
+  <video src="{{ '/assets/demo-reel.mp4' | relative_url }}" poster="{{ '/assets/demo-reel-poster.png' | relative_url }}" width="720" height="640" autoplay muted loop playsinline aria-label="PS Focus beside a painting in an art app: the time counts while drawing and stops when stepping away, the graph and calendar show habits, a level-up with fireworks, a panel pulled out beside the canvas fades see-through, a friend request is accepted, and the window becomes a slim strip"></video>
   <figcaption class="caption">PS Focus in use, with sample data</figcaption>
 </figure>
 

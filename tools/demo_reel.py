@@ -3,7 +3,8 @@
 Nothing from the user's own history or account is used: the app runs against a throwaway data folder, a made-up Google
 account and a stand-in friends server. Nothing outside the app can get in either: the real mouse is never moved or
 clicked, a pretend pointer handing its moves and clicks to the app's own widgets as events; and the screen is never
-captured, each frame being painted from the app's own windows alone, on black, with their title bar drawn in. The
+captured, each frame being painted from the app's own windows alone, with their title bar drawn in, over a plain
+drawing of an art app's workspace with a painting on its canvas. The
 computer can be used as normal while it records, about half a minute.
 
 Needs FFmpeg (`winget install --id Gyan.FFmpeg -e --scope user`). Run as `py tools/demo_reel.py [folder]` (the
@@ -31,12 +32,12 @@ os.environ["QT_QPA_PLATFORM"] = "windows"
 EMAIL = "demo@example.com"
 (data / "settings.json").write_text(
     '{"feedback_submitted": true, "show_graph": true, "show_calendar": false, "show_stats": false, "show_friends": false,'
-    ' "period": "Week", "panel_transparency": 45, "google_display_names": {"demo@example.com": "gilty"}}',
+    ' "period": "Week", "panel_transparency": 45, "disable_fanfare_sound": true, "google_display_names": {"demo@example.com": "gilty"}}',
     encoding="utf-8",
 )
 
 from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, Qt  # noqa: E402
-from PySide6.QtGui import QColor, QEnterEvent, QFont, QImage, QMouseEvent, QPainter, QPen, QPolygonF  # noqa: E402
+from PySide6.QtGui import QColor, QEnterEvent, QFont, QImage, QLinearGradient, QMouseEvent, QPainter, QPen, QPolygonF, QRadialGradient  # noqa: E402
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QWidget  # noqa: E402
 from shiboken6 import isValid  # noqa: E402
 
@@ -49,8 +50,6 @@ from qt.docking import FloatingPanel  # noqa: E402
 FPS = 30
 # Room for the window, a panel pulled out beside it, and landscape
 WIDTH, HEIGHT = 720, 640
-# The window starts in the middle of the picture, and is moved this far aside when a panel or landscape needs the room
-SIDEWAYS = 174
 
 
 class DemoFriends:
@@ -94,11 +93,12 @@ class DemoFriends:
 
 
 service = DemoFriends()
+FOREGROUND = ["Photoshop"]
 patches = [
     patch.object(PSFocusQt, "_start_tray_icon", lambda self: setattr(self, "tray_icon", QSystemTrayIcon())),
-    patch.object(PSFocusQt, "_celebrate_level_up", lambda self, level: None),
     patch.object(PSFocusQt, "_check_for_updates", lambda self: None),
-    patch.object(qt_app, "foreground_application", lambda: "Photoshop"),
+    # Photoshop in front, until the script steps away from it
+    patch.object(qt_app, "foreground_application", lambda: FOREGROUND[0]),
     patch.object(qt_app, "user_is_active", lambda _seconds=300: True),
     patch.object(qt_app, "FriendsService", lambda _token: service),
     # A Google account that is connected but never reached
@@ -154,7 +154,7 @@ def add_sample_history():
 add_sample_history()
 app._track_and_refresh()
 app._arrange_blocks()
-app.window.move(area.x() + 36 + SIDEWAYS, area.y() + 36)
+app.window.move(area.x() + 36, area.y() + 28)
 
 # ----- Where things are on the screen -----
 
@@ -182,14 +182,8 @@ def title_of(name) -> QPoint:
     return block.mapToGlobal(QPoint(rect.left() + 70, rect.center().y()))
 
 
-def header_area(name) -> QPoint:
-    left, top, right, bottom = getattr(app.header, name)
-    return app.header.mapToGlobal(QPoint((left + right) // 2, (top + bottom) // 2))
 
 
-def landscape_choice() -> QPoint:
-    left, top, right, bottom = app.settings_page.orientation_areas[True]
-    return app.settings_page.mapToGlobal(QPoint((left + right) // 2, (top + bottom) // 2))
 
 
 def popup_accept() -> QPoint:
@@ -197,16 +191,8 @@ def popup_accept() -> QPoint:
     return button_at(popup, popup.accept_button)
 
 
-def status_choice(key) -> QPoint:
-    menu = next(widget for widget in application.topLevelWidgets() if widget.isVisible() and type(widget).__name__ == "StatusMenu")
-    rect = next(row for row_key, _name, _note, row in menu.rows if row_key == key)
-    return menu.mapToGlobal(rect.center())
 
 
-def below_window() -> QPoint:
-    """Just past the window's bottom edge, where a panel dropped goes back in under the others"""
-    left, _top, right, bottom = app.docking.main_bounds()
-    return QPoint((left + right) // 2, bottom + 24)
 
 
 # ----- The script: where the pointer goes, what it clicks, and the pauses between -----
@@ -240,48 +226,91 @@ def request_arrives():
     app.friends_sync.sync()
 
 
-def window_grip() -> QPoint:
-    """An empty spot on the row of module icons, which the window is moved by"""
-    row = app.module_controls
-    return row.mapToGlobal(QPoint(40, row.height() // 2))
+# What is said under each scene, and whether the pointer shows
+caption = {"text": None, "since": 0.0}
+pointer_shown = [False]
 
 
-def drag_window(by: int) -> list:
-    """Move the window sideways by its top, as a user would to make room"""
-    return [move(window_grip, 0.5), press(), move(lambda: pointer_device.pos + QPoint(by, 0), 0.6), release(), wait(0.2)]
+def say(text):
+    return do(lambda: caption.update(text=text, since=NOW[0]))
+
+
+def pointer(shown: bool):
+    return do(lambda: pointer_shown.__setitem__(0, shown))
+
+
+def step_away():
+    FOREGROUND[0] = None
+
+
+def come_back():
+    FOREGROUND[0] = "Photoshop"
+
+
+def show_modules(**modules):
+    for name, visible in modules.items():
+        if app.module_ticked[name] != visible:
+            app.module_ticked[name] = visible
+            app._module_toggled(name)
+    app.module_controls.update()
+
+
+def level_up():
+    """Earlier hours enough to reach the next level, which the next tick notices and celebrates"""
+    from app_config import LEVEL_HOURS, user_level
+
+    store = app.store
+    level = user_level(store.total_seconds())
+    needed = LEVEL_HOURS[level] * 3600 - store.total_seconds() + 60
+    day = (date.today() - timedelta(days=80)).isoformat()
+    with store.connection:
+        for slot in range(24):
+            if needed <= 0:
+                break
+            seconds = min(3600, needed)
+            store.connection.execute("INSERT OR REPLACE INTO activity (day, slot, seconds, application) VALUES (?, ?, ?, 'Photoshop')", (day, slot, seconds))
+            needed -= seconds
+
+
+def to_friends():
+    app.docking.dock_all()
+    show_modules(calendar=False, graph=False, friends=True)
+
+
+def to_landscape():
+    app._set_orientation(True)
+    app._arrange_blocks()
+
+
+def beside_window() -> QPoint:
+    """Where the calendar's title goes for its panel to snap to the window's right edge, level with its top"""
+    _left, top, right, _bottom = app.docking.main_bounds()
+    return QPoint(right + 4 + 70, top + 14)
 
 
 SCRIPT = [
-    wait(0.8),
-    # The day's time counting up, then the graph over longer periods
-    move(lambda: period_button("1M"), 0.7), click(), wait(0.9),
-    move(lambda: period_button("1Y"), 0.4), click(), wait(1.0),
-    # Modules come and go from the icons at the top
-    move(lambda: module_icon("graph"), 0.6), click(), wait(0.3),
-    move(lambda: module_icon("calendar"), 0.3), click(), wait(0.7),
-    move(lambda: button_at(app.calendar, app.calendar.toggle), 0.5), click(), wait(1.2),
-    click(), wait(0.4),
-    # A module pulled out into a panel of its own, then left alone, which turns everything see-through
-    *drag_window(-SIDEWAYS),
+    # It counts by itself while you draw, and stops when you stop
+    say("Counts your drawing time by itself"), wait(2.4),
+    do(step_away), say("and stops when you step away"), wait(1.8),
+    do(come_back), wait(0.4),
+    # Your habits at a glance
+    say("See your habits at a glance"), pointer(True),
+    move(lambda: period_button("1M"), 0.6), click(), wait(1.3),
+    pointer(False), do(lambda: show_modules(graph=False, calendar=True)), wait(1.8),
+    # Every hour counts towards a level
+    say("Level up as the hours add up"), do(level_up), wait(2.8),
+    # Beside your canvas, and out of the way
+    say("Pull panels out beside your canvas"), pointer(True),
     move(lambda: title_of("calendar"), 0.5), press(),
-    move(lambda: title_of("calendar") + QPoint(330, 30), 0.8), release(), wait(0.4),
-    move(lambda: QPoint(area.left() + 520, area.bottom() - 70), 0.6), wait(1.2),
-    # And snapped back into the window
-    move(lambda: title_of("calendar"), 0.6), press(),
-    move(below_window, 0.8), wait(0.4), release(), wait(0.4),
-    *drag_window(SIDEWAYS),
-    # Friends: who is drawing now, and a request that pops up and is accepted
-    move(lambda: module_icon("calendar"), 0.5), click(), wait(0.2),
-    move(lambda: module_icon("friends"), 0.3), click(), wait(1.0),
-    do(request_arrives), wait(0.9),
-    move(popup_accept, 0.8), click(), wait(1.2),
-    # Going invisible from the menu by your name
-    move(lambda: header_area("status_area"), 0.7), click(), wait(0.4),
-    move(lambda: status_choice("invisible"), 0.5), click(), wait(0.9),
-    # Landscape, from Settings
-    *drag_window(-SIDEWAYS),
-    move(lambda: header_area("settings_area"), 0.6), click(), wait(0.5),
-    move(landscape_choice, 0.6), click(), wait(2.0),
+    move(beside_window, 0.8), release(), wait(0.3),
+    say("They fade while you draw"), move(lambda: QPoint(area.left() + 520, area.bottom() - 60), 0.5), wait(1.6),
+    # Friends
+    pointer(False), do(to_friends), say("Draw alongside your friends"), wait(1.0),
+    do(request_arrives), wait(0.8), pointer(True),
+    move(popup_accept, 0.7), click(), wait(1.6),
+    # Or a slim strip, and where to get it
+    pointer(False), do(to_landscape), say("Or keep it as a slim strip"), wait(1.9),
+    say("Free for Windows"), wait(1.8),
 ]
 
 # ----- The pretend pointer -----
@@ -406,9 +435,52 @@ def paint_title_bar(painter: QPainter, window: QWidget):
         painter.drawText(button, Qt.AlignmentFlag.AlignCenter, glyph)
 
 
-def paint_frame() -> QImage:
+def paint_workspace() -> QImage:
+    """An art app's workspace, plain and unbranded: grey, with a painting on the canvas to the right, which the
+    see-through panels show through"""
     image = QImage(WIDTH, HEIGHT, QImage.Format.Format_RGB888)
-    image.fill(QColor("#000000"))
+    image.fill(QColor("#1e1e1e"))
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    canvas = QRect(372, 28, 320, 512)
+    painter.fillRect(canvas.adjusted(-1, -1, 1, 1), QColor("#111111"))
+    # A sunset over hills: the sky, the sun, three ridges, and a few strokes of light on the water
+    sky = QLinearGradient(QPointF(canvas.topLeft()), QPointF(canvas.left(), canvas.top() + 300))
+    for stop, tone in ((0.0, "#2b1e5c"), (0.45, "#b24a7a"), (0.8, "#f08a4b"), (1.0, "#ffc76b")):
+        sky.setColorAt(stop, QColor(tone))
+    painter.fillRect(canvas, sky)
+    painter.setPen(Qt.PenStyle.NoPen)
+    sun = QRadialGradient(QPointF(canvas.left() + 205, canvas.top() + 270), 70)
+    sun.setColorAt(0.0, QColor(255, 236, 170, 255))
+    sun.setColorAt(0.45, QColor(255, 200, 120, 230))
+    sun.setColorAt(1.0, QColor(255, 160, 90, 0))
+    painter.setBrush(sun)
+    painter.drawEllipse(QPointF(canvas.left() + 205, canvas.top() + 270), 70, 70)
+    for depth, tone, heights in (
+        (300, "#6b3a6e", (40, 10, 55, 25, 60, 20)),
+        (340, "#43275a", (20, 50, 15, 45, 10, 35)),
+        (390, "#24183d", (35, 15, 45, 5, 40, 20)),
+    ):
+        ridge = QPolygonF([QPointF(canvas.left(), canvas.bottom() + 1)])
+        for index, height in enumerate(heights):
+            ridge.append(QPointF(canvas.left() + index * canvas.width() / (len(heights) - 1), canvas.top() + depth - height))
+        ridge.append(QPointF(canvas.right() + 1, canvas.bottom() + 1))
+        painter.setBrush(QColor(tone))
+        painter.drawPolygon(ridge)
+    painter.setBrush(QColor("#141026"))
+    painter.drawRect(QRect(canvas.left(), canvas.top() + 420, canvas.width(), canvas.height() - 420))
+    painter.setPen(QPen(QColor(255, 190, 120, 150), 3, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+    for y, x1, x2 in ((440, 150, 260), (458, 170, 240), (476, 185, 225), (494, 195, 215)):
+        painter.drawLine(QPointF(canvas.left() + x1, canvas.top() + y), QPointF(canvas.left() + x2, canvas.top() + y))
+    painter.end()
+    return image
+
+
+WORKSPACE = paint_workspace()
+
+
+def paint_frame() -> QImage:
+    image = WORKSPACE.copy()
     painter = QPainter(image)
     painter.translate(-area.x(), -area.y())
     for window in stacked_windows():
@@ -421,6 +493,25 @@ def paint_frame() -> QImage:
         painter.drawPixmap(window.geometry().topLeft(), window.grab())
     painter.end()
     return image
+
+
+NOW = [0.0]
+CAPTION_FONT = QFont("Segoe UI Semibold")
+CAPTION_FONT.setPixelSize(22)
+
+
+def draw_caption(image: QImage, now: float):
+    """The scene's caption, centred under the window, fading in as it changes"""
+    text = caption["text"]
+    if not text:
+        return
+    painter = QPainter(image)
+    painter.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+    painter.setFont(CAPTION_FONT)
+    painter.setOpacity(min(1.0, (now - caption["since"]) / 0.25))
+    painter.setPen(QColor("#eef3f1"))
+    painter.drawText(QRect(0, HEIGHT - 64, WIDTH, 40), Qt.AlignmentFlag.AlignCenter, text)
+    painter.end()
 
 
 ARROW = QPolygonF([QPointF(x, y) for x, y in ((0, 0), (0, 17), (4.5, 13), (7.5, 20), (10, 19), (7, 12), (12.5, 12))])
@@ -516,12 +607,15 @@ try:
             application.processEvents()
             time.sleep(0.002)
         application.processEvents()
+        NOW[0] = now
         image = paint_frame()
         if not poster_saved and now >= 0.5:
             image.save(str(out / "demo-reel-poster.png"))
             poster_saved = True
         ripple = (now - ripple_start) / 0.35 if ripple_start is not None and now - ripple_start < 0.35 else None
-        draw_pointer(image, pointer, ripple)
+        if pointer_shown[0]:
+            draw_pointer(image, pointer, ripple)
+        draw_caption(image, now)
         # Rows of exactly three bytes a pixel, as the width is a multiple of four, so the picture goes as it is
         encoder.stdin.write(bytes(image.constBits()))
         frame_index += 1
