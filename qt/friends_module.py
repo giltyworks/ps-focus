@@ -391,7 +391,6 @@ class FriendsModule(ModuleBlock):
         # others online have a heading only when there are favourites above them
         sections = [friend_section(person) for person in view.people]
         for index, (name, stats, presence, active, code, favourite) in enumerate(view.people):
-            offline = presence == "offline"
             section = sections[index]
             if index == 0 or sections[index - 1] != section:
                 if section != "Online" or "Favourites" in sections:
@@ -404,7 +403,7 @@ class FriendsModule(ModuleBlock):
             hours_left = right - text_width(fonts.small, hours)
             middle = y + name_line // 2
             self.items.append(("level", left + LEVEL_RING_SIZE / 2, middle, str(stats.get("level", 0))))
-            self.items.append(("anchored", right, middle, "e", hours, "muted" if offline else "text", fonts.small))
+            self.items.append(("anchored", right, middle, "e", hours, "muted", fonts.small))
             name_left = left + level_width
             # Beside the name, a zzz while they are away; what they are drawing in goes with today's time, below
             label = PROGRAM_SHORT_NAMES.get(active, active) if active else ""
@@ -429,8 +428,15 @@ class FriendsModule(ModuleBlock):
             # Under an hour, in minutes, such as "23 min"
             today = float(stats.get("today", 0) or 0)
             amount = f"{today:.1f}h" if today >= 1 else f"{round(today * 60)} min"
-            details = f"{label} ({amount})" if label else f"{amount} today"
-            details_color = PRESENCE_COLORS.get(presence, "muted") if label else "muted"
+            # Drawing: the program and today's time in green. Online: today's time in blue, or just Online with none yet
+            if label:
+                details, details_color = f"{label} ({amount})", PRESENCE_COLORS.get(presence, "muted")
+            elif presence == "online":
+                details, details_color = (f"{amount} today" if today > 0 else "Online"), "friend_online"
+            elif presence == "away" and today <= 0:
+                details, details_color = "Away", "muted"
+            else:
+                details, details_color = f"{amount} today", "muted"
             details_room = right - text_width(fonts.small, total) - 8 - name_left
             middle = y + small_line // 2
             self.items.append(("anchored", name_left, middle, "w", fit_text(details, fonts.small, details_room), details_color, fonts.small))

@@ -3,6 +3,7 @@ when the user starts or stops drawing, and hands what comes back to the friends 
 
 from __future__ import annotations
 
+import os
 import queue
 import threading
 import time
@@ -36,6 +37,18 @@ STALE_SECONDS = 15 * 60
 # The statuses the user can choose, by the menu next to their name, and what friends are told of each
 STATUSES = ("online", "away", "invisible", "offline")
 STATUS_SENT = {"online": "online", "away": "away", "invisible": "offline", "offline": "offline"}
+
+
+# Made-up friends for trying the list out, shown when PSFOCUS_SAMPLE_FRIENDS is set: one of each state, with and
+# without time today
+SAMPLE_FRIENDS = (
+    ("Mia", {"two_weeks": 16.4, "today": 1.4, "total": 121.6, "level": 19}, "drawing", "Krita", "SAMPLE01"),
+    ("Sam", {"two_weeks": 12.7, "today": 0.4, "total": 92.4, "level": 16}, "drawing", "Photoshop", "SAMPLE02"),
+    ("Leo", {"two_weeks": 10.2, "today": 0.6, "total": 71.3, "level": 14}, "online", None, "SAMPLE03"),
+    ("Kai", {"two_weeks": 8.9, "today": 0.0, "total": 60.2, "level": 13}, "online", None, "SAMPLE04"),
+    ("Ava", {"two_weeks": 6.8, "today": 0.0, "total": 47.9, "level": 11}, "away", None, "SAMPLE05"),
+    ("Noah", {"two_weeks": 3.1, "today": 1.2, "total": 28.4, "level": 8}, "offline", None, "SAMPLE06"),
+)
 
 
 class FriendsSync:
@@ -343,6 +356,11 @@ class FriendsSync:
             # A nickname the user gave them shows in place of their name
             name = self._local("friends_nicknames").get(code) or friend.get("name", "")
             people.append((name, stats, presence, program, code, code in self._local("friends_favourites")))
+        # For trying the list out: made-up friends shown beside the real ones, never sent anywhere
+        if os.environ.get("PSFOCUS_SAMPLE_FRIENDS"):
+            for name, stats, presence, program, code in SAMPLE_FRIENDS:
+                shown = self._local("friends_nicknames").get(code) or name
+                people.append((shown, stats, presence, program, code, code in self._local("friends_favourites")))
         # Favourites, then the others online, then those offline; in each by hours over the past two weeks
         sections = {"Favourites": 0, "Online": 1, "Offline": 2}
         people.sort(key=lambda person: (sections[friend_section(person)], -float(person[1].get("two_weeks", 0) or 0)))

@@ -689,11 +689,14 @@
     name.append(el("button", { type: "button", class: "psf-icon-button psf-chevron", title: `${friend.name}'s menu`, onclick: (event) => friendMenu(event.currentTarget, friend) }, svg(ICONS.chevron)));
     const row = el("div", { class: `psf-friend${friend.fresh ? " psf-new" : ""}`, oncontextmenu: (event) => { event.preventDefault(); friendMenu(name, friend); } },
       el("span", { class: "psf-lv" }, String(friend.level)), name,
-      el("span", { class: "psf-right", style: friend.presence === "offline" ? "color:var(--psf-muted)" : "" }, `${friend.two.toFixed(1)} hrs past 2 weeks`),
+      el("span", { class: "psf-right" }, `${friend.two.toFixed(1)} hrs past 2 weeks`),
       el("span", {}), friend.presence === "drawing"
         // Today's time with the program they are drawing in, as the app shows it
         ? el("span", { class: "psf-sub psf-program" }, `${PROGRAM_SHORT[friend.program] || friend.program} (${todayAmount(friend.today)})`)
-        : el("span", { class: "psf-sub" }, `${todayAmount(friend.today)} today`), el("span", { class: "psf-sub-right" }, `${friend.total.toFixed(1)} hrs total`));
+        // Online: today's time in blue, or just Online with none yet, as the app
+        : friend.presence === "online"
+          ? el("span", { class: "psf-sub psf-online-today" }, friend.today > 0 ? `${todayAmount(friend.today)} today` : "Online")
+          : el("span", { class: "psf-sub" }, friend.presence === "away" && friend.today <= 0 ? "Away" : `${todayAmount(friend.today)} today`), el("span", { class: "psf-sub-right" }, `${friend.total.toFixed(1)} hrs total`));
     friend.fresh = false;
     return row;
   }
