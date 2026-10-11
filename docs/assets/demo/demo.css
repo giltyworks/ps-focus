@@ -355,3 +355,5 @@
 .psf-streak-icon { display: block; flex: none; }
 .psf-star-icon { display: inline-block; vertical-align: -1px; }
 .psf-stat-note .psf-star-icon { vertical-align: -1px; }
+/* A block being put in a new order in the window, outlined in blue as in the app */
+.psf-block.psf-reordering { border-color: var(--psf-blue); }

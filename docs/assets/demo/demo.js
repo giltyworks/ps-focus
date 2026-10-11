@@ -92,7 +92,7 @@
     startMinimized: true,
     fanfareOff: false,
     // Every block in the window's order, program panels and modules alike, as in the app
-    order: ["today", "Clip Studio Paint", "Krita", "graph", "calendar", "stats", "friends"],
+    order: ["today", "Clip Studio Paint", "Krita", "friends", "graph", "calendar", "stats"],
     floating: {},
     status: "online",
     favourites: new Set(),
@@ -1192,6 +1192,25 @@
     follow(move, () => settle(panel, group));
   }
 
+  // How far outside the window a block's title may be dragged and still be put in order rather than float, as the app
+  const REORDER_MARGIN = 24;
+
+  function reorderAt(name, px, py) {
+    // The block goes after every other block in the window whose middle the pointer has passed
+    const docked = state.order.filter((n) => wanted(n) && !state.floating[n]);
+    const others = docked.filter((n) => n !== name);
+    const passed = others.filter((n) => {
+      const r = rect(blockOf[n]);
+      return state.landscape ? px > r.left + r.width / 2 : py > r.top + r.height / 2;
+    });
+    const before = others.find((n) => !passed.includes(n));
+    const current = docked.indexOf(name), target = before ? docked.indexOf(before) - (docked.indexOf(before) > current ? 1 : 0) : docked.length - 1;
+    if (target === current) return;
+    state.order = state.order.filter((n) => n !== name);
+    state.order.splice(before ? state.order.indexOf(before) : state.order.length, 0, name);
+    arrange();
+  }
+
   function dragPanel(name, event) {
     // A panel moved alone, by its title or, floating, by its body: out of the window it snaps to what it comes near as it
     // moves; with the pointer over the window, or its top just below the window, a blue space shows where it will dock
@@ -1212,7 +1231,20 @@
         if (Math.hypot(moveEvent.clientX - start.x, moveEvent.clientY - start.y) < 6) return;
         dragging = true;
         markUsed("drag");
-        if (!panel) panel = floatOut(name, px - grab.x, py - grab.y);
+        if (panel) panel.classList.add("psf-dragging");
+      }
+      if (!panel) {
+        // In the window, as the app: outlined in blue, it passes the block under the pointer as the pointer crosses that
+        // block's middle; dragged clear of the window, it floats in a panel of its own
+        const w = rect(win);
+        if (px > w.left - REORDER_MARGIN && px < w.right + REORDER_MARGIN && py > w.top - REORDER_MARGIN && py < w.bottom + REORDER_MARGIN) {
+          block.classList.add("psf-reordering");
+          reorderAt(name, px, py);
+          hideTip();
+          return;
+        }
+        block.classList.remove("psf-reordering");
+        panel = floatOut(name, px - grab.x, py - grab.y);
         panel.classList.add("psf-dragging");
       }
       let x = px - grab.x - stage.clientLeft, y = Math.max(0, py - grab.y - stage.clientTop);
@@ -1230,6 +1262,8 @@
     };
     follow(move, () => {
       if (!dragging) return;
+      block.classList.remove("psf-reordering");
+      if (!panel) return;
       panel.classList.remove("psf-dragging", "psf-docking");
       if (slot != null) dockBack(name, slot);
       else { refreshAttached(); arrange(); fitStage(); }

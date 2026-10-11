@@ -68,7 +68,8 @@ from .google_sync import GoogleSync
 
 # Every block that can be put in order: the program panels and the modules, as in the Tk ui_modules
 MODULE_NAMES = ("graph", "calendar", "stats", "friends")
-BLOCK_NAMES = tuple(PROGRAM_PANEL_SETTINGS) + MODULE_NAMES
+# The first order: the program panels, then Friends, the most used after them, then the rest
+BLOCK_NAMES = tuple(PROGRAM_PANEL_SETTINGS) + ("friends", "graph", "calendar", "stats")
 # Longest the app may take to close after Exit before it is ended regardless
 EXIT_TIMEOUT_SECONDS = 10
 
