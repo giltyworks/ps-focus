@@ -426,8 +426,10 @@ class FriendsModule(ModuleBlock):
             y += name_line
             total = f"{stats.get('total', 0):.1f} hrs total"
             # Today's time, with the program while they are drawing in it, such as "Photoshop (1.1h)", in its colour
-            today = stats.get("today", 0)
-            details = f"{label} ({today:.1f}h)" if label else f"{today:.1f}h today"
+            # Under an hour, in minutes, such as "23 min"
+            today = float(stats.get("today", 0) or 0)
+            amount = f"{today:.1f}h" if today >= 1 else f"{round(today * 60)} min"
+            details = f"{label} ({amount})" if label else f"{amount} today"
             details_color = PRESENCE_COLORS.get(presence, "muted") if label else "muted"
             details_room = right - text_width(fonts.small, total) - 8 - name_left
             middle = y + small_line // 2

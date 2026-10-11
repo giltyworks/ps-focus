@@ -665,6 +665,8 @@
   requestsIcon.addEventListener("click", () => { state.requestsOpen = !state.requestsOpen; renderFriends(); });
 
   const PROGRAM_SHORT = { "Clip Studio Paint": "Clip Studio" };
+  // Today's time on a friend's row: hours to a decimal, or under an hour in minutes, as the app
+  const todayAmount = (hours) => (hours >= 1 ? `${hours.toFixed(1)}h` : `${Math.round(hours * 60)} min`);
   function friendRow(friend) {
     const nameClass = { drawing: "psf-drawing", online: "psf-online", away: "psf-online", offline: "psf-offline" }[friend.presence];
     const shown = state.nicknames.get(friend.code) || friend.name;
@@ -690,8 +692,8 @@
       el("span", { class: "psf-right", style: friend.presence === "offline" ? "color:var(--psf-muted)" : "" }, `${friend.two.toFixed(1)} hrs past 2 weeks`),
       el("span", {}), friend.presence === "drawing"
         // Today's time with the program they are drawing in, as the app shows it
-        ? el("span", { class: "psf-sub psf-program" }, `${PROGRAM_SHORT[friend.program] || friend.program} (${friend.today.toFixed(1)}h)`)
-        : el("span", { class: "psf-sub" }, `${friend.today.toFixed(1)}h today`), el("span", { class: "psf-sub-right" }, `${friend.total.toFixed(1)} hrs total`));
+        ? el("span", { class: "psf-sub psf-program" }, `${PROGRAM_SHORT[friend.program] || friend.program} (${todayAmount(friend.today)})`)
+        : el("span", { class: "psf-sub" }, `${todayAmount(friend.today)} today`), el("span", { class: "psf-sub-right" }, `${friend.total.toFixed(1)} hrs total`));
     friend.fresh = false;
     return row;
   }
