@@ -77,7 +77,7 @@
 
   const state = {
     drawing: true,
-    transparency: 70,
+    transparency: 50,
     period: "Week",
     calendarView: "Month",
     calendarMonth: new Date(today.getFullYear(), today.getMonth(), 1),
@@ -1081,34 +1081,50 @@
     window.addEventListener("pointercancel", end);
   }
 
-  function snapPosition(x, y, width, height, neighbours, sideTargets) {
-    // As the app: snap to the nearest touching edge with either end lined up; beside the window, a panel also lines up
-    // with the top or bottom of each block in it
-    const candidates = [];
+  // A snap once made holds until the panel is pulled this much further than the distance that made it, so a panel near
+  // several edges at once settles on one rather than flicking between them
+  const SNAP_RELEASE = 6;
+  // Lining up along an edge already touched is gentler, as such lines lie close together (every block's top and bottom)
+  const ALIGN_DISTANCE = 8;
+
+  function snapPosition(x, y, width, height, neighbours, sideTargets, held, align = ALIGN_DISTANCE) {
+    // Each way on its own: a panel's side snaps to touch a neighbour's side when within the snapping distance, and its
+    // top or bottom to touch a neighbour's bottom or top. Only once touching does it also line up along that edge, its
+    // top or bottom with the neighbour's (beside the window, with any block in it), or its left or right; otherwise it
+    // slides freely along. `held` is the last snap, kept while within reach
+    const pick = (raw, options, before, distance = SNAP_DISTANCE) => {
+      const kept = before == null ? null : options.find((o) => Math.abs(o.v - before) < 0.5 && Math.abs(raw - o.v) <= distance + SNAP_RELEASE);
+      if (kept) return kept;
+      let best = null;
+      for (const o of options) if (Math.abs(raw - o.v) <= distance && (!best || Math.abs(raw - o.v) < Math.abs(raw - best.v))) best = o;
+      return best;
+    };
+    const sides = [], ends = [];
     for (const n of neighbours) {
-      if (y <= n.bottom + SNAP_DISTANCE && y + height >= n.top - SNAP_DISTANCE) {
-        for (const edge of [n.left - width, n.right]) if (Math.abs(edge - x) <= SNAP_DISTANCE) candidates.push([edge, n.top], [edge, n.bottom - height]);
-      }
-      if (x <= n.right + SNAP_DISTANCE && x + width >= n.left - SNAP_DISTANCE) {
-        for (const edge of [n.top - height, n.bottom]) if (Math.abs(edge - y) <= SNAP_DISTANCE) candidates.push([n.left, edge], [n.right - width, edge]);
-      }
+      if (y <= n.bottom + SNAP_DISTANCE && y + height >= n.top - SNAP_DISTANCE) sides.push({ v: n.left - width, n }, { v: n.right, n });
+      if (x <= n.right + SNAP_DISTANCE && x + width >= n.left - SNAP_DISTANCE) ends.push({ v: n.top - height, n }, { v: n.bottom, n });
     }
-    for (const n of sideTargets) {
-      if (y > n.bottom + SNAP_DISTANCE || y + height < n.top - SNAP_DISTANCE) continue;
-      for (const edge of [n.left - width, n.right]) if (Math.abs(edge - x) <= SNAP_DISTANCE) candidates.push([edge, n.top], [edge, n.bottom - height]);
+    let sx = pick(x, sides, held?.x), sy = pick(y, ends, held?.y);
+    if (sx && !sy) {
+      const lines = [{ v: sx.n.top }, { v: sx.n.bottom - height }];
+      if (sx.n.isWindow) for (const t of sideTargets) lines.push({ v: t.top }, { v: t.bottom - height });
+      sy = pick(y, lines, held?.y, align);
+    } else if (sy && !sx) {
+      sx = pick(x, [{ v: sy.n.left }, { v: sy.n.right - width }], held?.x, align);
     }
-    if (!candidates.length) return [x, y];
-    return candidates.reduce((best, c) => (Math.abs(c[0] - x) + Math.abs(c[1] - y) < Math.abs(best[0] - x) + Math.abs(best[1] - y) ? c : best));
+    return { x: sx ? sx.v : x, y: sy ? sy.v : y, held: { x: sx ? sx.v : null, y: sy ? sy.v : null } };
   }
 
-  function liveSnap(panel, x, y) {
-    const neighbours = [win, ...shownPanels().filter((other) => other !== panel)].map(rect);
+  function liveSnap(panel, x, y, held = null, align = ALIGN_DISTANCE) {
     const w = rect(win);
-    const sideTargets = [...blocks.children].map(rect).filter((b) => b.top >= w.top && b.top < w.bottom).map((b) => ({ left: w.left, top: b.top, right: w.right, bottom: Math.min(b.bottom, w.bottom) }));
+    const neighbours = [{ ...w, isWindow: true }, ...shownPanels().filter((other) => other !== panel).map(rect)];
+    const sideTargets = [...blocks.children].map(rect).filter((b) => b.top >= w.top && b.top < w.bottom).map((b) => ({ top: b.top, bottom: Math.min(b.bottom, w.bottom) }));
     // Positions are set from the stage's inner edge, measured from its outer edge
-    const inset = stage.clientLeft;
-    const [sx, sy] = snapPosition(x + inset, y + stage.clientTop, panel.offsetWidth, panel.offsetHeight, neighbours, sideTargets);
-    return [sx - inset, sy - stage.clientTop];
+    const ix = stage.clientLeft, iy = stage.clientTop;
+    const toStage = held && { x: held.x == null ? null : held.x + ix, y: held.y == null ? null : held.y + iy };
+    const snapped = snapPosition(x + ix, y + iy, panel.offsetWidth, panel.offsetHeight, neighbours, sideTargets, toStage, align);
+    const back = { x: snapped.held.x == null ? null : snapped.held.x - ix, y: snapped.held.y == null ? null : snapped.held.y - iy };
+    return [snapped.x - ix, snapped.y - iy, back];
   }
 
   function dockSlotFor(panel, pointerX, pointerY, x, y) {
@@ -1256,6 +1272,8 @@
     let panel = state.floating[name]?.panel || null;
     let dragging = false;
     let slot = null;
+    // The snap last made, held while the panel stays within reach of it
+    let held = null;
     const move = (moveEvent) => {
       const s = stage.getBoundingClientRect();
       const px = moveEvent.clientX - s.left, py = moveEvent.clientY - s.top;
@@ -1285,7 +1303,8 @@
       // Kept inside the scene, so it can never be lost past an edge
       x = Math.max(0, Math.min(x, stage.clientWidth - panel.offsetWidth));
       if (!touch.matches) y = Math.min(y, Math.max(0, stageHeight() - 24 - panel.offsetHeight));
-      if (newSlot == null) [x, y] = liveSnap(panel, x, y);
+      if (newSlot == null) [x, y, held] = liveSnap(panel, x, y, held);
+      else held = null;
       panel.style.left = `${x}px`;
       panel.style.top = `${y}px`;
       panel.classList.toggle("psf-docking", newSlot != null);
@@ -1307,7 +1326,8 @@
 
   function snap(panel) {
     // A panel put down alone snaps as it would while dragged
-    const [x, y] = liveSnap(panel, panel.offsetLeft, panel.offsetTop);
+    // Put down in one go, not dragged, it lines up from as far as it snaps
+    const [x, y] = liveSnap(panel, panel.offsetLeft, panel.offsetTop, null, SNAP_DISTANCE);
     panel.style.left = `${x}px`;
     panel.style.top = `${y}px`;
     refreshAttached();
