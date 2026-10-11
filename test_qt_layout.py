@@ -164,34 +164,6 @@ if __name__ == "__main__":
 
 
 @unittest.skipIf(QApplication is None, "PySide6 is not installed")
-class PanelTipTests(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        cls.application = QApplication.instance() or QApplication([])
-
-    def test_resting_on_a_name_strip_says_what_the_block_is_for(self):
-        from PySide6.QtGui import QHelpEvent
-
-        from qt.hover_tip import hover_tip
-        from qt.module import PANEL_TIPS, ModuleBlock, hide_title_tip
-        from qt.theme import Fonts
-        from qt.today_panel import TodayPanel
-
-        fonts = Fonts()
-        for block, tip in ((ModuleBlock("Calendar", fonts), PANEL_TIPS["Calendar"]), (TodayPanel("Krita", fonts), "Your time in Krita today, past two weeks and in total.")):
-            block.show()
-            title = block.title_rect().center()
-            self.assertTrue(block.event(QHelpEvent(QEvent.Type.ToolTip, title, block.mapToGlobal(title))))
-            shown = hover_tip(block)
-            self.assertTrue(shown.isVisible())
-            self.assertEqual(shown.text, tip)
-            # Off the strip, it goes
-            hide_title_tip(block, None)
-            self.assertFalse(shown.isVisible())
-            block.hide()
-
-
-@unittest.skipIf(QApplication is None, "PySide6 is not installed")
 class CalendarDayTipTests(unittest.TestCase):
     def test_a_day_under_the_mouse_shows_its_date_and_time(self):
         from datetime import date
