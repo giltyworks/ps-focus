@@ -474,29 +474,32 @@ class QtDockingTests(unittest.TestCase):
             self.assertEqual(self.app.stats.glass_alpha, 255)
             self.app._transparency_chosen(60, True)
         self.assertEqual(self.app.settings["panel_transparency"], 60)
-        # Docked, a module is solid again; the window fades as a whole
+        # Docked, a module takes the window's glass
         self.app.docking.dock_module("stats")
-        self.assertEqual(self.app.stats.glass_alpha, 255)
+        self.assertEqual(self.app.stats.glass_alpha, self.app.window.glass_alpha)
 
-    def test_main_window_fades_away_from_the_mouse(self):
+    def test_main_window_turns_to_glass_away_from_the_mouse(self):
         from qt.docking import glass_alpha
 
         self.app.window.show()
         self.app.settings["panel_transparency"] = 100
-        faded = glass_alpha(100) / 255
+        faded = glass_alpha(100)
+        parts = lambda: (self.app.window.glass_alpha, self.app.header.glass_alpha, self.app.module_controls.glass_alpha,
+                         self.app.window.title_bar.glass_alpha, self.app.calendar.glass_alpha)
         with patch("qt.docking.QCursor.pos", return_value=QPoint(5, 5)):
             self.app.update_glass()
-            self.assertAlmostEqual(self.app.window.windowOpacity(), faded, places=2)
-            # Its blocks stay solid; it is the window that fades
-            self.assertEqual(self.app.calendar.glass_alpha, 255)
+            # Every background fades, the blocks' included; the window itself, and so its text, stays solid
+            self.assertEqual(parts(), (faded,) * 5)
+            self.assertEqual(self.app.window.windowOpacity(), 1.0)
+            self.assertTrue(self.app.window.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground))
             # Settings open, it is solid
             self.app._toggle_settings()
-            self.assertEqual(self.app.window.windowOpacity(), 1.0)
+            self.assertEqual(self.app.window.glass_alpha, 255)
             self.app._toggle_settings()
-            self.assertAlmostEqual(self.app.window.windowOpacity(), faded, places=2)
+            self.assertEqual(self.app.window.glass_alpha, faded)
         with patch("qt.docking.QCursor.pos", return_value=self.app.window.frameGeometry().center()):
             self.app.update_glass()
-        self.assertEqual(self.app.window.windowOpacity(), 1.0)
+        self.assertEqual(parts(), (255,) * 5)
 
     def test_glass_pictures_match_the_background_and_icons_have_no_square(self):
         from PySide6.QtGui import QColor
@@ -539,7 +542,7 @@ class QtDockingTests(unittest.TestCase):
         with patch("qt.docking.QCursor.pos", return_value=attached.geometry().center()):
             self.app.update_glass()
         self.assertEqual(self.app.stats.glass_alpha, 255)
-        self.assertEqual(self.app.window.windowOpacity(), 1.0)
+        self.assertEqual(self.app.window.glass_alpha, 255)
         self.assertEqual(self.app.chart.glass_alpha, faded)
         # The mouse on the window: the panel snapped to it turns solid too
         with patch("qt.docking.QCursor.pos", return_value=self.app.window.frameGeometry().center()):
@@ -549,7 +552,7 @@ class QtDockingTests(unittest.TestCase):
         with patch("qt.docking.QCursor.pos", return_value=apart.geometry().center()):
             self.app.update_glass()
         self.assertEqual((self.app.chart.glass_alpha, self.app.calendar.glass_alpha), (255, 255))
-        self.assertLess(self.app.window.windowOpacity(), 1.0)
+        self.assertEqual(self.app.window.glass_alpha, faded)
         self.assertEqual(self.app.stats.glass_alpha, faded)
 
     def test_window_positions_are_saved_without_a_google_upload(self):

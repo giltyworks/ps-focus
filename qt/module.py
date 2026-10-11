@@ -11,7 +11,7 @@ from PySide6.QtWidgets import QWidget
 
 from app_config import MODULE_MARGIN, TODAY_PANEL_WIDTH
 
-from .theme import Fonts, color, draw_text, line_height, text_width
+from .theme import Fonts, color, draw_text, halo_strength, line_height, text_width
 
 # Space above and below a module's name, as in ui_modules.py
 MODULE_TITLE_PADDING = 5
@@ -22,6 +22,8 @@ HOVER_BOX_RADIUS = 4
 DOCK_CONTROL_SIZE = 18
 # Space between the line under the name strip and the module's contents
 STRIP_GAP = 4
+# Borders and the line under a name strip stay at least this solid, a faint outline, however see-through a block turns
+OUTLINE_MIN_ALPHA = 110
 
 
 def paint_title_strip(painter: QPainter, rect: QRect, hovered: bool, alpha: int = 255, line: bool = True) -> None:
@@ -30,7 +32,7 @@ def paint_title_strip(painter: QPainter, rect: QRect, hovered: bool, alpha: int 
     fill = color("calendar_blank" if hovered else "background")
     fill.setAlpha(alpha)
     edge = color("border")
-    edge.setAlpha(alpha)
+    edge.setAlpha(max(alpha, OUTLINE_MIN_ALPHA))
     painter.save()
     # On a see-through block it replaces the background under it, so the two do not add up to something more solid
     painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
@@ -250,15 +252,16 @@ class ModuleBlock(QWidget):
         painter.restore()
 
     def border(self) -> QColor:
-        """The border's colour, fading with the background"""
+        """The border's colour, fading with the background down to a faint outline"""
         result = color(self.border_color)
-        result.setAlpha(self.glass_alpha)
+        result.setAlpha(max(self.glass_alpha, OUTLINE_MIN_ALPHA))
         return result
 
     def icon_background(self) -> str:
         return color("panel").name() if self.glass_alpha == 255 else ""
 
     def paint_frame(self, painter: QPainter) -> None:
+        painter.halo = halo_strength(self.glass_alpha)
         painter.fillRect(self.rect(), self.surface("panel"))
         self.paint_title(painter)
         painter.save()

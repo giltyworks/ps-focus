@@ -8,28 +8,28 @@ from ctypes import wintypes
 from typing import Callable
 
 from PySide6.QtCore import QEvent, Qt
-from PySide6.QtGui import QCloseEvent, QIcon, QMoveEvent, QPalette, QResizeEvent
+from PySide6.QtGui import QCloseEvent, QIcon, QMoveEvent, QPainter, QPaintEvent, QResizeEvent
 from PySide6.QtWidgets import QWidget
 
 from app_config import APP_NAME, COMPACT_BOTTOM_SPACE, MODULE_GAP, TODAY_PANEL_WIDTH, WINDOW_MARGIN, resource_path
-from windows_startup import set_title_bar_colors_for_handle
 
-from .theme import color
-
-# The item added to the menu of the window's title bar, by the command number Windows reports when it is chosen
-ALWAYS_ON_TOP_COMMAND = 0x0010
-WM_SYSCOMMAND = 0x0112
-MF_STRING, MF_SEPARATOR, MF_CHECKED = 0x0000, 0x0800, 0x0008
+from .module import OUTLINE_MIN_ALPHA
+from .theme import Fonts, color
+from .title_bar import GRIP_SIZE, TITLE_BAR_HEIGHT, EdgeGrip, TitleBar
 
 
-def _title_bar_menu(window: QWidget) -> int:
-    """The menu Windows shows on a right click on the window's title bar"""
+
+def _keep_taskbar_minimize(window: QWidget) -> None:
+    """A window without Windows' frame still minimises from its taskbar button and Windows' shortcuts, given these
+    styles back; they draw nothing"""
+    if os.name != "nt":
+        return
     user32 = ctypes.windll.user32
-    user32.GetSystemMenu.argtypes = [wintypes.HWND, wintypes.BOOL]
-    user32.GetSystemMenu.restype = wintypes.HMENU
-    user32.AppendMenuW.argtypes = [wintypes.HMENU, wintypes.UINT, ctypes.c_size_t, wintypes.LPCWSTR]
-    user32.CheckMenuItem.argtypes = [wintypes.HMENU, wintypes.UINT, wintypes.UINT]
-    return user32.GetSystemMenu(int(window.winId()), False)
+    user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+    user32.SetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_long]
+    handle = wintypes.HWND(int(window.winId()))
+    # GWL_STYLE; WS_MINIMIZEBOX and WS_SYSMENU
+    user32.SetWindowLongW(handle, -16, user32.GetWindowLongW(handle, -16) | 0x00020000 | 0x00080000)
 
 # Space between the header and the module checkboxes under it
 HEADER_GAP = 2
@@ -90,11 +90,14 @@ class MainWindow(QWidget):
     the window can be dragged narrower. Everything is placed by hand, as the header moves between the two
     """
 
-    def __init__(self, on_close: Callable[[], None], on_resized_by_user: Callable[[int], None] | None = None) -> None:
-        super().__init__()
-        # Told when Always on top is chosen in the title bar's menu. Set first, as Windows sends the window messages
-        # from the moment it is made
-        self.on_always_on_top: Callable[[], None] | None = None
+    def __init__(self, on_close: Callable[[], None], on_resized_by_user: Callable[[int], None] | None = None, fonts: Fonts | None = None) -> None:
+        # Without Windows' frame, which cannot have a see-through background behind it: the window draws its own title
+        # bar and edges, and its background turns to glass as a floating panel's does
+        super().__init__(None, Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.glass_alpha = 255
+        # Whether Always on top is on, which the title bar's menu shows
+        self.always_on_top = False
         self.on_close = on_close
         self.on_resized_by_user = on_resized_by_user
         # Told when the window moves, and when it is minimized or brought back, for the floating modules
@@ -106,10 +109,9 @@ class MainWindow(QWidget):
         # Like the Tk window, there is nothing to maximize to: the window is as big as what it shows
         self.setWindowFlag(Qt.WindowType.WindowMaximizeButtonHint, False)
         self.setWindowIcon(QIcon(str(resource_path("assets/icons/PSFocus.ico"))))
-        palette = self.palette()
-        palette.setColor(QPalette.ColorRole.Window, color("background"))
-        self.setPalette(palette)
-        self.setAutoFillBackground(True)
+        self.title_bar = TitleBar(self, fonts or Fonts())
+        self.title_bar.on_close = self.close
+        self.title_bar.on_minimize = self.showMinimized
         # The blocks are placed in the container, which slides within the viewport
         self.viewport = QWidget(self)
         self.container = QWidget(self.viewport)
@@ -125,29 +127,36 @@ class MainWindow(QWidget):
         self.refitting = False
         # Laid over the bottom of a window too short for its blocks, so they disappear behind a margin rather than
         # running right up to the edge, see the Tk ModulesMixin._update_clip_margin
-        self.clip_margin = QWidget(self)
-        self.clip_margin.setAutoFillBackground(True)
+        self.clip_margin = ClipMargin(self)
         self.clip_margin.hide()
-        # Asking for the window's handle makes it now, so the title bar is dark from the first frame shown
-        set_title_bar_colors_for_handle(int(self.winId()))
-        if os.name == "nt":
-            menu = _title_bar_menu(self)
-            ctypes.windll.user32.AppendMenuW(menu, MF_SEPARATOR, 0, None)
-            ctypes.windll.user32.AppendMenuW(menu, MF_STRING, ALWAYS_ON_TOP_COMMAND, "Always on top")
+        # The edge the window is resized by: the bottom in portrait, the right in landscape
+        self.grip = EdgeGrip(self)
+        _keep_taskbar_minimize(self)
 
     def show_always_on_top(self, on: bool) -> None:
-        """Tick Always on top in the title bar's menu, or not"""
-        if os.name == "nt":
-            menu = _title_bar_menu(self)
-            ctypes.windll.user32.CheckMenuItem(menu, ALWAYS_ON_TOP_COMMAND, MF_CHECKED if on else 0)
+        """Note whether Always on top is on, for the title bar's menu to tick it"""
+        self.always_on_top = on
 
-    def nativeEvent(self, event_type, message):
-        if event_type == b"windows_generic_MSG" and getattr(self, "on_always_on_top", None) is not None:
-            msg = wintypes.MSG.from_address(int(message))
-            if msg.message == WM_SYSCOMMAND and (msg.wParam & 0xFFF0) == ALWAYS_ON_TOP_COMMAND:
-                self.on_always_on_top()
-                return True, 0
-        return super().nativeEvent(event_type, message)
+    def set_glass(self, alpha: int) -> None:
+        """Make the window's own background, the title bar's, and the margin's this solid, from 255 down"""
+        if alpha != self.glass_alpha:
+            self.glass_alpha = alpha
+            self.title_bar.set_glass(alpha)
+            self.clip_margin.update()
+            self.update()
+
+    def paintEvent(self, _event: QPaintEvent) -> None:
+        """The background in the gaps between the blocks, as see-through as the window, with a faint outline"""
+        painter = QPainter(self)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        background = color("background")
+        background.setAlpha(self.glass_alpha)
+        painter.fillRect(self.rect(), background)
+        outline = color("border")
+        outline.setAlpha(max(self.glass_alpha, OUTLINE_MIN_ALPHA))
+        painter.setPen(outline)
+        painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
+        painter.end()
 
     def enterEvent(self, event) -> None:
         super().enterEvent(event)
@@ -188,14 +197,15 @@ class MainWindow(QWidget):
         self.viewport.hide()
         self.controls.hide()
         self.clip_margin.hide()
+        self.grip.hide()
         self.header.setParent(self)
-        self.header.move(WINDOW_MARGIN, 0)
+        self.header.move(WINDOW_MARGIN, TITLE_BAR_HEIGHT)
         self.header.show()
         page.setParent(self)
-        page.move(WINDOW_MARGIN, self.header.height() + HEADER_GAP)
+        page.move(WINDOW_MARGIN, TITLE_BAR_HEIGHT + self.header.height() + HEADER_GAP)
         page.show()
         width = TODAY_PANEL_WIDTH + WINDOW_MARGIN * 2
-        height = self.header.height() + HEADER_GAP + page.height()
+        height = TITLE_BAR_HEIGHT + self.header.height() + HEADER_GAP + page.height()
         self.setFixedSize(width, height)
 
     def reorder_blocks(self, blocks: list[QWidget]) -> None:
@@ -232,13 +242,13 @@ class MainWindow(QWidget):
                     bottom = max(bottom, unit.height())
                 x += width + MODULE_GAP
             self.container.resize(max(1, x - MODULE_GAP), bottom)
-            self.viewport.move(WINDOW_MARGIN, 0)
+            self.viewport.move(WINDOW_MARGIN, TITLE_BAR_HEIGHT)
         else:
             for widget in (header, controls):
                 if widget.parent() is not self:
                     widget.setParent(self)
-            header.move(WINDOW_MARGIN, 0)
-            controls.move(WINDOW_MARGIN, header.height() + HEADER_GAP)
+            header.move(WINDOW_MARGIN, TITLE_BAR_HEIGHT)
+            controls.move(WINDOW_MARGIN, TITLE_BAR_HEIGHT + header.height() + HEADER_GAP)
             top = 0
             for block in self.blocks:
                 if block.parent() is not self.container:
@@ -247,7 +257,7 @@ class MainWindow(QWidget):
                 block.move(0, top)
                 top += block.height()
             self.container.resize(TODAY_PANEL_WIDTH, top)
-            self.viewport.move(WINDOW_MARGIN, top_height)
+            self.viewport.move(WINDOW_MARGIN, TITLE_BAR_HEIGHT + top_height)
         # Taken from one parent to another, a widget is hidden until shown again
         header.show()
         controls.show()
@@ -258,15 +268,15 @@ class MainWindow(QWidget):
     def full_size(self) -> tuple[int, int]:
         """Size of the window showing every block whole"""
         if self.landscape:
-            return WINDOW_MARGIN + self.container.width(), self.container.height()
+            return WINDOW_MARGIN + self.container.width(), TITLE_BAR_HEIGHT + self.container.height()
         content = self.container.height() if self.blocks else COMPACT_BOTTOM_SPACE
-        return TODAY_PANEL_WIDTH + WINDOW_MARGIN * 2, self.top_height() + content
+        return TODAY_PANEL_WIDTH + WINDOW_MARGIN * 2, TITLE_BAR_HEIGHT + self.top_height() + content
 
     def compact_height(self) -> int:
         """Smallest height in portrait: the header and checkboxes, and the program panel holding the header, so it
         is never cut off; the other blocks slide out of view around it"""
         panel = MODULE_GAP + self.anchor.height() if self.anchor is not None and self.anchor in self.blocks else 0
-        return self.top_height() + COMPACT_BOTTOM_SPACE + panel
+        return TITLE_BAR_HEIGHT + self.top_height() + COMPACT_BOTTOM_SPACE + panel
 
     def refit(self, width: int | None = None) -> None:
         """Lay the blocks out again and size the window to all of them, after a block has come, gone, grown or
@@ -321,7 +331,7 @@ class MainWindow(QWidget):
             self.clip_margin.hide()
         else:
             start, end = (self.anchor.y(), self.anchor.y() + self.anchor.height()) if anchored else (0, 0)
-            room = self.height() - self.top_height() - COMPACT_BOTTOM_SPACE
+            room = self.height() - TITLE_BAR_HEIGHT - self.top_height() - COMPACT_BOTTOM_SPACE
             offset = min(max(0, end - room), max(0, start - MODULE_GAP))
             position = (0, -offset)
             clipped = self.modules_shown and self.height() < self.full_size()[1]
@@ -330,12 +340,28 @@ class MainWindow(QWidget):
                 self.clip_margin.setGeometry(0, self.height() - COMPACT_BOTTOM_SPACE, self.width(), COMPACT_BOTTOM_SPACE)
                 self.clip_margin.raise_()
         self.offset = offset
+        self._place_grip()
         # Most resizes leave the blocks where they are; moving them only when they must keeps resizing smooth
         if (self.container.x(), self.container.y()) != position:
             self.container.move(*position)
 
+    def _place_grip(self) -> None:
+        """The grip along the edge the window can be dragged along, shown only while there is room to resize"""
+        if self.landscape:
+            resizable = self.minimumWidth() < self.maximumWidth()
+            self.grip.set_edge(Qt.Edge.RightEdge)
+            self.grip.setGeometry(self.width() - GRIP_SIZE, TITLE_BAR_HEIGHT, GRIP_SIZE, self.height() - TITLE_BAR_HEIGHT)
+        else:
+            resizable = self.minimumHeight() < self.maximumHeight()
+            self.grip.set_edge(Qt.Edge.BottomEdge)
+            self.grip.setGeometry(0, self.height() - GRIP_SIZE, self.width(), GRIP_SIZE)
+        self.grip.setVisible(resizable and self.settings_page is None)
+        self.grip.raise_()
+
     def resizeEvent(self, event: QResizeEvent) -> None:
         super().resizeEvent(event)
+        self.title_bar.setGeometry(0, 0, self.width(), TITLE_BAR_HEIGHT)
+        self.title_bar.raise_()
         # Floating panels keep the window's new edges, see Docking.main_moved
         if self.on_moved is not None:
             self.on_moved()
@@ -369,3 +395,16 @@ class MainWindow(QWidget):
         # The window's X hides the app to the tray, where it keeps counting
         event.ignore()
         self.on_close()
+
+
+class ClipMargin(QWidget):
+    """The strip laid over the bottom of a window too short for its blocks, in the window's background, as see-through
+    as the window"""
+
+    def paintEvent(self, _event: QPaintEvent) -> None:
+        painter = QPainter(self)
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+        background = color("background")
+        background.setAlpha(self.window().glass_alpha)
+        painter.fillRect(self.rect(), background)
+        painter.end()

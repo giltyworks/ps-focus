@@ -59,6 +59,7 @@ from .friends_module import FriendsModule
 from .friends_sync import FriendsSync
 from .header import Header, ModuleControls
 from .stats_module import StatsModule
+from .status_menu import PopupMenu
 from .settings_page import SettingsPage
 from .theme import Fonts
 from .today_panel import TodayPanel
@@ -103,13 +104,13 @@ class PSFocusQt:
         self.arranging = False
         self.settings_shown = False
         self.modules_were_hidden = True
-        self.window = MainWindow(on_close=self.window_hidden, on_resized_by_user=self._window_width_chosen)
+        self.window = MainWindow(on_close=self.window_hidden, on_resized_by_user=self._window_width_chosen, fonts=self.fonts)
         self.header = Header(self.fonts)
         self.module_ticked = {name: bool(self.settings.get(f"show_{name}", True)) for name in MODULE_NAMES}
         self.module_controls = ModuleControls(self.fonts, self.module_ticked, self._module_toggled)
         self.window.set_top(self.header, self.module_controls)
-        # Always on top is chosen in the menu of the window's title bar
-        self.window.on_always_on_top = self._toggle_always_on_top
+        # The title bar's right-click menu holds Always on top
+        self.window.title_bar.on_menu = self._title_bar_menu
         self.header.on_settings = self._toggle_settings
         self.header.on_level = self._level_clicked
         self.header.on_version = self._open_update_page
@@ -126,8 +127,6 @@ class PSFocusQt:
         self.docking = Docking(self)
         self.window.on_moved = self.docking.main_moved
         self.window.on_hover = self.update_glass
-        # How opaque the window is now, see update_glass
-        self.main_opacity = 1.0
         self.window.on_state_changed = lambda: self.docking.sync_visibility()
         # The calendar and stats change slowly, so they are worked out again every so many seconds
         self.slow_refresh_ticks = 0
@@ -136,7 +135,7 @@ class PSFocusQt:
             self.docking, self._moves_window,
         )
         window = self.window
-        self.block_drag.watch(window, window.viewport, window.container, window.clip_margin, self.header, self.module_controls)
+        self.block_drag.watch(window, window.viewport, window.container, window.clip_margin, window.title_bar, self.header, self.module_controls)
         self._arrange_blocks()
         self.settings_page = SettingsPage(self.fonts, self.settings, self._setting_toggled, self._set_orientation, self._settings_resized)
         self.settings_page.exit_button.command = self.close
@@ -261,6 +260,12 @@ class PSFocusQt:
             # A floating program panel shows or hides at once; one in the window does on leaving Settings
             self.docking.sync_visibility()
 
+    def _title_bar_menu(self, point) -> None:
+        choices = [("always_on_top", "Always on top", ""), ("minimize", "Minimise", ""), ("close", "Close to the tray", "")]
+        chosen = {"always_on_top": self._toggle_always_on_top, "minimize": self.window.showMinimized, "close": self.window.close}
+        current = "always_on_top" if self.settings.get("always_on_top") else None
+        PopupMenu(self.window, self.fonts, choices, current, lambda key: chosen[key]()).show_at(point)
+
     def _toggle_always_on_top(self) -> None:
         self.settings["always_on_top"] = not self.settings.get("always_on_top")
         self._save_settings()
@@ -378,7 +383,7 @@ class PSFocusQt:
         """Whether a press on this part of the window, not a block, moves it: the header and checkbox rows, the gaps
         and margins; not the Settings page"""
         window = self.window
-        return widget in (window, window.viewport, window.container, window.clip_margin, self.header, self.module_controls)
+        return widget in (window, window.viewport, window.container, window.clip_margin, window.title_bar, self.header, self.module_controls)
 
     def _shown_blocks(self) -> list:
         blocks = {**self.panels, **self.modules}

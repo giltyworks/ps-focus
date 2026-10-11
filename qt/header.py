@@ -13,7 +13,7 @@ from app_config import EDGE_PADDING, LEVEL_BADGE_SIZE, TODAY_PANEL_WIDTH
 
 from .badge import render_level_badge
 from .module import paint_hover_box
-from .theme import Fonts, ascent, color, line_height
+from .theme import Fonts, ascent, color, draw_text, halo_strength, line_height
 
 # The same measurements as the Tk header, see ui_header.py: the header is as wide as the panels; the square the
 # level badge and the settings button each take, and the least height of the row; the space holding the progress
@@ -122,6 +122,29 @@ def paint_module_icon(painter: QPainter, kind: str, rect: QRectF, icon_color: QC
     painter.restore()
 
 
+def paint_glass_background(painter: QPainter, rect, alpha: int) -> None:
+    """The app's background, as see-through as the window, replacing what is under it rather than adding to it"""
+    background = color("background")
+    background.setAlpha(alpha)
+    painter.save()
+    painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
+    painter.fillRect(rect, background)
+    painter.restore()
+
+
+class GlassMixin:
+    """How solid a part of the window's background is, from 255 down, set by the window's transparency"""
+
+    glass_alpha = 255
+
+    def set_glass(self, alpha: int) -> None:
+        if alpha != self.glass_alpha:
+            self.glass_alpha = alpha
+            # A see-through part leaves Qt to clear behind it first
+            self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent, alpha == 255)
+            self.update()
+
+
 class NameEntry(QLineEdit):
     """The field for typing a display name, shown in place of the account text while a name is edited. Enter or
     clicking elsewhere keeps the name, Escape drops it; on_finished is called with the name, or None when dropped"""
@@ -159,7 +182,7 @@ class NameEntry(QLineEdit):
             self._finish(self.text())
 
 
-class Header(QWidget):
+class Header(GlassMixin, QWidget):
     """What it shows is set by the app through its attributes, followed by update()"""
 
     def __init__(self, fonts: Fonts) -> None:
@@ -238,7 +261,8 @@ class Header(QWidget):
 
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
-        painter.fillRect(self.rect(), color("background"))
+        painter.halo = halo_strength(self.glass_alpha)
+        paint_glass_background(painter, self.rect(), self.glass_alpha)
         height = self.height()
         self.level_area = self.account_area = self.version_area = self.status_area = NO_AREA
         if self.settings_shown:
@@ -250,9 +274,7 @@ class Header(QWidget):
         painter.end()
 
     def _text(self, painter: QPainter, x: int, top: int, text: str, text_color: QColor, font: QFont) -> None:
-        painter.setFont(font)
-        painter.setPen(text_color)
-        painter.drawText(QPoint(x, top + ascent(font)), text)
+        draw_text(painter, x, top, text, text_color, font)
 
     def _paint_credit(self, painter: QPainter, height: int) -> None:
         """What the Settings page shows in place of the level and account: the version, and the credit. When a newer
@@ -407,7 +429,7 @@ class Header(QWidget):
         self.setCursor(Qt.CursorShape.PointingHandCursor if hand else Qt.CursorShape.ArrowCursor)
 
 
-class ModuleControls(QWidget):
+class ModuleControls(GlassMixin, QWidget):
     """The module buttons in a row at the right, one icon each; clicking one shows or hides its module. The mouse over
     one shows its rounded box and its name"""
 
@@ -430,7 +452,8 @@ class ModuleControls(QWidget):
 
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
-        painter.fillRect(self.rect(), color("background"))
+        painter.halo = halo_strength(self.glass_alpha)
+        paint_glass_background(painter, self.rect(), self.glass_alpha)
         inset = (MODULE_BUTTON_SIZE - MODULE_ICON_SIZE) / 2
         for name, _label in MODULE_LABELS:
             area = QRectF(self.areas[name])

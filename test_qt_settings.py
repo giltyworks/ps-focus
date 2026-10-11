@@ -178,7 +178,7 @@ class QtSettingsTests(unittest.TestCase):
         self.app._toggle_settings()
         self.app.settings_page.set_backup_status("Local backup failed: " + "unavailable folder " * 15, "red")
         self.application.processEvents()
-        self.assertEqual(self.app.window.height(), self.app.header.height() + 2 + self.app.settings_page.height())
+        self.assertEqual(self.app.window.height(), self.app.window.title_bar.height() + self.app.header.height() + 2 + self.app.settings_page.height())
         self.assertFalse(self.app.module_controls.isVisible())
         self.assertFalse(self.app.window.viewport.isVisible())
 

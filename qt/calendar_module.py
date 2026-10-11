@@ -16,7 +16,7 @@ from tracker import ActivityStore
 
 from .icons import icon
 from .module import STRIP_GAP, ModuleBlock, PaintedButton
-from .theme import Fonts, anchored_top_left, color, draw_anchored, draw_outline_text, draw_text, line_height, text_width
+from .theme import Fonts, anchored_top_left, color, draw_anchored, draw_outline_text, draw_text, halo_strength, line_height, text_width
 
 # The same measurements as the Tk calendar, see ui_calendar.py. The first and last years it can be stepped to
 CALENDAR_YEARS = (1, 9998)
@@ -203,6 +203,7 @@ class CalendarModule(ModuleBlock):
         picture.setDevicePixelRatio(ratio)
         picture.fill(self.picture_fill())
         painter = QPainter(picture)
+        painter.halo = halo_strength(self.glass_alpha)
         self.day_boxes = []
         if self.landscape:
             side_bottom = self._draw_side(painter, title, week_streak, rest_day_streak)

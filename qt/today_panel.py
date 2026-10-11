@@ -10,8 +10,8 @@ from PySide6.QtWidgets import QWidget
 
 from app_config import TODAY_PANEL_WIDTH
 
-from .module import DOCK_CONTROL_SIZE, paint_dock_icon, paint_title_strip
-from .theme import Fonts, ascent, color, line_height
+from .module import OUTLINE_MIN_ALPHA, DOCK_CONTROL_SIZE, paint_dock_icon, paint_title_strip
+from .theme import Fonts, ascent, color, draw_text, halo_strength, line_height
 
 # The same measurements as the Tk panel, see main.py: space inside the panel above its first row and below its
 # last, and at each side of its text; above and below the big figure's digits; between the last two rows
@@ -172,12 +172,13 @@ class TodayPanel(QWidget):
 
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
+        painter.halo = halo_strength(self.glass_alpha)
         background = color("panel")
         background.setAlpha(self.glass_alpha)
         painter.fillRect(self.rect(), background)
         paint_title_strip(painter, self.title_rect(), self.title_hovered, self.glass_alpha)
         edge = color(self.border_color)
-        edge.setAlpha(self.glass_alpha)
+        edge.setAlpha(max(self.glass_alpha, OUTLINE_MIN_ALPHA))
         painter.save()
         # Like the background, the border fades rather than adding up with what is under it
         painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
@@ -185,8 +186,7 @@ class TodayPanel(QWidget):
         painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
         painter.restore()
         for name, item in self.texts.items():
-            painter.setFont(item.font)
-            painter.setPen(color("text") if name == "name" and self.title_hovered else item.color)
+            text_color = color("text") if name == "name" and self.title_hovered else item.color
             metrics = QFontMetrics(item.font)
             width = metrics.horizontalAdvance(item.text)
             x = item.x - width if item.right_aligned else item.x
@@ -195,7 +195,7 @@ class TodayPanel(QWidget):
                 x -= DOCK_CONTROL_SIZE + 6
             # The name row keeps to its strip; the rows under it sit in the middle of what is left
             shift = 0 if item.top < self.title_bottom else self.stretch // 2
-            painter.drawText(QPoint(x, item.top + shift + ascent(item.font)), item.text)
+            draw_text(painter, x, item.top + shift, item.text, text_color, item.font)
         dock = self.dock_rect()
         if dock is not None:
             paint_dock_icon(painter, dock, self.hovered_control == "dock")

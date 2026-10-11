@@ -16,7 +16,7 @@ from app_config import CHART_FILL_OPACITY, CHART_PERIOD_CAPTIONS, EDGE_PADDING, 
 from tracker import ActivityStore
 
 from .module import STRIP_GAP, ModuleBlock, PaintedButton
-from .theme import Fonts, color, draw_anchored, draw_text, line_height, text_width, tk_round
+from .theme import Fonts, color, draw_anchored, draw_text, halo_strength, line_height, text_width, tk_round
 
 # The same measurements as the Tk graph, see ui_chart.py: the gap between period buttons; the space below the
 # buttons; the space above the plot kept for the total and its caption; the plot's margins at the left, right and
@@ -202,6 +202,7 @@ class ChartModule(ModuleBlock):
         picture.setDevicePixelRatio(ratio)
         picture.fill(self.picture_fill())
         painter = QPainter(picture)
+        painter.halo = halo_strength(self.glass_alpha)
         self._paint_plot(painter, points, bottom, [(left, right, y) for y in gridlines])
         muted = color("muted")
         for hour, y in zip(tick_hours, gridlines):

@@ -41,7 +41,9 @@ DOCKING_OPACITY = 0.7
 PREVIEW_FILL_ALPHA = 60
 # The most see-through a floating panel's background gets, at full transparency: never clear, so its text and figures
 # stay readable over whatever is behind
-GLASS_MIN_ALPHA = 165
+# Fully see-through, the background is all but gone; kept a touch above nothing, as Windows lets clicks on wholly
+# clear pixels through to whatever is behind
+GLASS_MIN_ALPHA = 2
 
 
 def glass_alpha(transparency: object) -> int:
@@ -342,8 +344,8 @@ class Docking:
             del self.floating[name]
             block = panel.release_block()
             block.floating = False
-            # Back in the window it is solid; the window fades as a whole
-            block.set_glass(255)
+            # Back in the window it takes the window's glass
+            block.set_glass(self.window.glass_alpha)
             panel.deleteLater()
             if relayout:
                 self.app._arrange_blocks()
@@ -378,9 +380,8 @@ class Docking:
     def update_glass(self, _name: str | None = None) -> None:
         """PS Focus turns see-through, as far as the setting says, while the mouse is elsewhere; solid under the
         mouse, while something is dragged, and while Settings is open, for reading and clicking. Windows snapped
-        together count as one: the mouse over any of them makes them all solid. Floating panels turn to glass, their
-        text and figures staying solid; the main window, whose Windows title bar cannot have a see-through background
-        behind it, fades as a whole"""
+        together count as one: the mouse over any of them makes them all solid. Every window turns to glass alike: the
+        backgrounds fade, down to a faint outline, while text, figures and buttons stay solid"""
         app = self.app
         alpha = glass_alpha(app.settings.get("panel_transparency"))
         cursor = QCursor.pos()
@@ -405,10 +406,7 @@ class Docking:
                 over = over or self.window.frameGeometry().contains(cursor)
             solid = over or dragging or (with_main and (app.settings_shown or not self.window.isVisible()))
             if with_main:
-                opacity = 1.0 if solid else alpha / 255
-                if opacity != app.main_opacity:
-                    app.main_opacity = opacity
-                    self.window.setWindowOpacity(opacity)
+                self._set_main_glass(255 if solid else alpha)
             for name in members:
                 block = self.floating[name].block
                 before = block.glass_alpha
@@ -416,6 +414,21 @@ class Docking:
                 # The calendar and stats draw themselves again from what they read; the graph reads again
                 if block.glass_alpha != before and name == "graph" and self.floating[name].isVisible():
                     app._refresh_module(name)
+
+    def _set_main_glass(self, alpha: int) -> None:
+        """The main window's background, header, checkbox row and the blocks in it, all this solid"""
+        app = self.app
+        self.window.set_glass(alpha)
+        app.header.set_glass(alpha)
+        app.module_controls.set_glass(alpha)
+        for name, block in app.blocks_by_name().items():
+            if self.is_floating(name):
+                continue
+            before = block.glass_alpha
+            block.set_glass(alpha)
+            # The graph reads again to draw for the new background, as a floating one does
+            if block.glass_alpha != before and name == "graph" and block.isVisible():
+                app._refresh_module(name)
 
     def _panel_should_show(self, name: str) -> bool:
         return self.app._block_wanted(name) and self._main_shown()

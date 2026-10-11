@@ -3,7 +3,7 @@
 Nothing from the user's own history or account is used: the app runs against a throwaway data folder, a made-up Google
 account and a stand-in friends server. Nothing outside the app can get in either: the real mouse is never moved or
 clicked, a pretend pointer handing its moves and clicks to the app's own widgets as events; and the screen is never
-captured, each frame being painted from the app's own windows alone, with their title bar drawn in, over a plain
+captured, each frame being painted from the app's own windows alone, over a plain
 drawing of an art app's workspace with a painting on its canvas. The
 computer can be used as normal while it records, about half a minute.
 
@@ -411,28 +411,6 @@ def mouse_button(down: bool):
 
 # ----- Painting a frame from the app's own windows -----
 
-ICON_FONT = QFont("Segoe Fluent Icons")
-ICON_FONT.setPixelSize(10)
-TITLE_FONT = QFont("Segoe UI")
-TITLE_FONT.setPixelSize(12)
-
-
-def paint_title_bar(painter: QPainter, window: QWidget):
-    """The main window's title bar as Windows draws it in the dark: the icon, the name, and minimise, maximise (not
-    available) and close at the right"""
-    frame, inner = window.frameGeometry(), window.geometry()
-    bar = QRect(frame.left(), frame.top(), frame.width(), inner.top() - frame.top())
-    painter.fillRect(bar, QColor("#080808"))
-    icon = window.windowIcon().pixmap(16, 16)
-    painter.drawPixmap(bar.left() + 10, bar.center().y() - 7, icon)
-    painter.setFont(TITLE_FONT)
-    painter.setPen(QColor("#ffffff"))
-    painter.drawText(QRect(bar.left() + 34, bar.top(), 200, bar.height()), Qt.AlignmentFlag.AlignVCenter, window.windowTitle())
-    painter.setFont(ICON_FONT)
-    for index, (glyph, tone) in enumerate((("\ue8bb", "#ffffff"), ("\ue922", "#5c5c5c"), ("\ue921", "#ffffff"))):
-        button = QRect(bar.right() + 1 - 46 * (index + 1), bar.top(), 46, bar.height())
-        painter.setPen(QColor(tone))
-        painter.drawText(button, Qt.AlignmentFlag.AlignCenter, glyph)
 
 
 def paint_workspace() -> QImage:
@@ -485,11 +463,6 @@ def paint_frame() -> QImage:
     painter.translate(-area.x(), -area.y())
     for window in stacked_windows():
         painter.setOpacity(window.windowOpacity())
-        if window is app.window:
-            paint_title_bar(painter, window)
-            frame = window.frameGeometry()
-            painter.setPen(QColor("#2b2b2b"))
-            painter.drawRect(frame.adjusted(0, 0, -1, -1))
         painter.drawPixmap(window.geometry().topLeft(), window.grab())
     painter.end()
     return image

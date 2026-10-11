@@ -37,7 +37,12 @@ class QtLayoutTests(unittest.TestCase):
         self.window = MainWindow(on_close=lambda: None)
         self.header, self.controls = _block(26), _block(18)
         self.window.set_top(self.header, self.controls)
-        self.top = 26 + 2 + 18
+        from qt.title_bar import TITLE_BAR_HEIGHT
+
+        # The header and checkboxes, and with the window's own title bar above them, where the blocks start
+        self.header_rows = 26 + 2 + 18
+        self.title = TITLE_BAR_HEIGHT
+        self.top = self.title + self.header_rows
         self.first, self.anchor, self.last = _block(100), _block(140), _block(200)
         self.window.show_blocks([self.first, self.anchor, self.last], self.anchor, modules_shown=True)
         self.window.show()
@@ -69,10 +74,10 @@ class QtLayoutTests(unittest.TestCase):
         self.window.show_blocks([self.first, self.anchor, self.last], self.anchor, modules_shown=True, landscape=True)
         self.assertEqual((self.first.x(), self.anchor.x(), self.last.x()), (0, TODAY_PANEL_WIDTH + MODULE_GAP, 2 * (TODAY_PANEL_WIDTH + MODULE_GAP)))
         self.assertEqual((self.header.x(), self.header.y()), (TODAY_PANEL_WIDTH + MODULE_GAP, 0))
-        self.assertEqual(self.anchor.y(), self.top + MODULE_GAP)
+        self.assertEqual(self.anchor.y(), self.header_rows + MODULE_GAP)
         full_width = 3 * TODAY_PANEL_WIDTH + 2 * MODULE_GAP
         self.assertEqual(self.window.width(), full_width)
-        self.assertEqual(self.window.height(), max(200, self.top + MODULE_GAP + 140))
+        self.assertEqual(self.window.height(), self.title + max(200, self.header_rows + MODULE_GAP + 140))
         # Narrower than everything the last block goes behind the right edge; narrower still the row slides left,
         # the anchor staying whole
         self.window.resize(2 * TODAY_PANEL_WIDTH + MODULE_GAP, self.window.height())
@@ -88,7 +93,7 @@ class QtLayoutTests(unittest.TestCase):
         self.window.show_blocks([self.first, self.anchor, self.last], self.anchor, modules_shown=True, landscape=True)
         self.window.show_blocks([self.first, self.anchor, self.last], self.anchor, modules_shown=True)
         self.assertIs(self.header.parent(), self.window)
-        self.assertEqual((self.header.y(), self.first.mapTo(self.window, QPoint(0, 0)).y()), (0, self.top + MODULE_GAP))
+        self.assertEqual((self.header.y(), self.first.mapTo(self.window, QPoint(0, 0)).y()), (self.title, self.top + MODULE_GAP))
 
     def _mouse(self, widget, kind, point, buttons):
         local = QPointF(widget.mapFromGlobal(point))

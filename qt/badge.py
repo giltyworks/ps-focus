@@ -15,7 +15,7 @@ QT_BLUR_PER_PILLOW_RADIUS = 2.6
 def _sharp_badge(level: int, ratio: float) -> QImage:
     side = round(LEVEL_BADGE_SIZE * ratio)
     image = QImage(side, side, QImage.Format.Format_ARGB32_Premultiplied)
-    image.fill(QColor(COLORS["background"]))
+    image.fill(QColor(0, 0, 0, 0))
     painter = QPainter(image)
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     painter.scale(ratio, ratio)
@@ -50,7 +50,7 @@ def render_level_badge(level: int, revealed: bool, ratio: float = 1.0) -> QImage
         item.setGraphicsEffect(blur)
         scene.addItem(item)
         blurred = QImage(image.size(), QImage.Format.Format_ARGB32_Premultiplied)
-        blurred.fill(QColor(COLORS["background"]))
+        blurred.fill(QColor(0, 0, 0, 0))
         painter = QPainter(blurred)
         # Faded towards the background, as the Tk badge
         painter.setOpacity(LEVEL_BLUR_OPACITY)
