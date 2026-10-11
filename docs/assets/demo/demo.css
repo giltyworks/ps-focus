@@ -45,13 +45,13 @@
 /* The scene: an art app's plain workspace with the painting on its canvas */
 .psf-stage {
   position: relative; overflow: hidden; border-radius: 10px; background: #1e1e1e;
-  border: 1px solid #2a2a2a; min-height: 640px; touch-action: manipulation;
+  border: 1px solid #2a2a2a; min-height: 1148px; touch-action: manipulation;
 }
 .psf-canvas {
-  /* As tall as the scene, which grows with PS Focus, so the window fits over it even at its biggest: a tall slice of the
-     painting, centred on its figures */
-  position: absolute; top: 24px; right: 24px; bottom: 24px; left: 372px;
-  background: #111 56% 50% / cover no-repeat; box-shadow: 0 6px 30px rgba(0, 0, 0, .45);
+  /* A fixed size, tall enough for PS Focus at its biggest to fit over it: a tall slice of the painting, centred on its
+     figures, which stays put whatever the window shows */
+  position: absolute; top: 24px; right: 24px; left: 344px; height: 1100px;
+  background: #111 74% 50% / cover no-repeat; box-shadow: 0 6px 30px rgba(0, 0, 0, .45);
 }
 
 /* A window or panel: every background as see-through as --a, text solid, with a soft glow behind it as --g grows */
@@ -281,7 +281,8 @@
 
 /* Phones and narrow screens: the painting fills the scene behind the window, and panels stay in it */
 @media (max-width: 760px), (pointer: coarse) {
-  .psf-canvas { left: 0; top: 0; right: 0; bottom: 0; box-shadow: none; }
+  .psf-canvas { left: 0; top: 0; right: 0; bottom: 0; height: auto; box-shadow: none; }
+  .psf-stage { min-height: 640px; }
   .psf-window { left: 50%; transform: translateX(-50%); }
   .psf-strip { cursor: default; }
   .psf-grip { display: none; }

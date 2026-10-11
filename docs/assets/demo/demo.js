@@ -721,7 +721,8 @@
   function fitStage() {
     const panels = Object.values(state.floating).filter((f) => !f.panel.hidden);
     const bottom = Math.max(win.offsetTop + win.offsetHeight, ...panels.map((f) => f.panel.offsetTop + f.panel.offsetHeight));
-    stage.style.minHeight = `${Math.max(640, bottom + 24)}px`;
+    // The scene holds the painting whole on a desktop, and grows only if PS Focus is dragged further down
+    stage.style.minHeight = `${Math.max(touch.matches ? 640 : 1148, bottom + 24)}px`;
     // On the narrowest phones the window, 300 pixels wide like the app's, is shrunk to fit
     const room = stage.clientWidth - 16;
     win.style.transform = touch.matches ? `translateX(-50%)${room < 300 ? ` scale(${room / 300})` : ""}` : "";
