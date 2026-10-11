@@ -431,9 +431,11 @@ class CalendarModule(ModuleBlock):
         return None
 
     def day_summary(self, day: date) -> str:
-        """What a day shows under the mouse: its date and the time tracked, such as 'Thu 8 Oct · 1h 20m'"""
+        """What a day shows under the mouse: its date and the time tracked, such as 'Thu 8 Oct · 1h 20m', or just the
+        date when nothing was"""
         seconds = self.store.total_for_range(day, day)
-        return f"{DAY_ABBREVIATIONS[day.weekday()]} {day.day} {day.strftime('%b')} · {format_hours_minutes(seconds) if seconds else 'nothing tracked'}"
+        label = f"{DAY_ABBREVIATIONS[day.weekday()]} {day.day} {day.strftime('%b')}"
+        return f"{label} · {format_hours_minutes(seconds)}" if seconds else label
 
     def _show_day_tip(self, point: QPoint | None) -> None:
         """The day under the mouse shows its summary straight away, above its square; elsewhere none shows"""

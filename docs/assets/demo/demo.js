@@ -506,7 +506,7 @@
         String(d), rating ? el("span", { class: "psf-rating" }, `★ ${rating}`) : null);
       if (!future) {
         // Under the mouse, the day's date and time tracked; a click opens the day
-        cell.addEventListener("pointerenter", () => showTip(cell, `${longDate(date)} · ${seconds ? hm(seconds) : "nothing tracked"}`));
+        cell.addEventListener("pointerenter", () => showTip(cell, `${longDate(date)}${seconds ? ` · ${hm(seconds)}` : ""}`));
         cell.addEventListener("pointerleave", hideTip);
         cell.addEventListener("click", () => { hideTip(); dayOverview(date); });
       }

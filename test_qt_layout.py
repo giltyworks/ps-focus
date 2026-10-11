@@ -205,7 +205,7 @@ class CalendarDayTipTests(unittest.TestCase):
         calendar = CalendarModule.__new__(CalendarModule)
         calendar.store = Store()
         self.assertEqual(calendar.day_summary(date(2026, 10, 8)), "Thu 8 Oct · 1h 20m")
-        self.assertEqual(calendar.day_summary(date(2026, 10, 9)), "Fri 9 Oct · nothing tracked")
+        self.assertEqual(calendar.day_summary(date(2026, 10, 9)), "Fri 9 Oct")
 
 
 @unittest.skipIf(QApplication is None, "PySide6 is not installed")
