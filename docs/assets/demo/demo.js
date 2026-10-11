@@ -1039,17 +1039,17 @@
   // Each tip is an arrow pointing at its feature: where the arrow's tip goes, and which way it points
   const HOTSPOTS = [
     { id: "timer", target: () => today_.metric, at: (r) => [r.left + 206, r.top + r.height / 2, "left"],
-      text: "Counts by itself while your art app is in front, and stops when you step away. Try the switch above." },
-    { id: "icons", target: () => icons, at: (r) => [r.right - 76, r.top + r.height / 2, "right"], text: "Show or hide the graph, calendar and friends." },
+      text: "Counts while you draw, stops when you don't. Try the switch above." },
+    { id: "icons", target: () => icons, at: (r) => [r.right - 76, r.top + r.height / 2, "right"], text: "Show or hide each panel." },
     { id: "drag", target: () => [...blocks.querySelectorAll(".psf-block:not(.psf-today) .psf-strip")][0], at: (r) => [r.left + 112, r.top + r.height / 2, "left"],
-      text: "Drag a panel out by its title to keep it beside your canvas. Drop it back in, or press « on it." },
+      text: "Drag a title to move a panel out. Drop it back, or press «." },
     { id: "fade", target: () => canvas, at: (r) => [r.left + 4, r.top + 80, "right"],
-      text: "Move your mouse onto the painting: PS Focus fades so your art shows through, and comes back when you point at it." },
+      text: "Point at the painting: PS Focus fades so your art shows through." },
     { id: "requests", target: () => (requestsIcon.hidden ? null : requestsIcon), at: (r) => [r.left - 2, r.top + r.height / 2, "right"],
-      text: "Someone wants to be friends: open your requests to accept or decline." },
-    { id: "status", target: () => statusButton, at: (r) => [r.left + r.width / 2, r.bottom + 2, "up"], text: "Show friends you're Away, or go Invisible or Offline." },
-    { id: "settings", target: () => settingsButton, at: (r) => [r.left - 2, r.top + r.height / 2, "right"], text: "Settings: your programs, transparency, and backups." },
-    { id: "rename", target: () => accountName, at: (r) => [r.left + r.width / 2, r.bottom + 2, "up"], text: "Double-click your name to change what friends see." },
+      text: "A friend request. Open to accept or decline." },
+    { id: "status", target: () => statusButton, at: (r) => [r.left + r.width / 2, r.bottom + 2, "up"], text: "Set Away, Invisible or Offline." },
+    { id: "settings", target: () => settingsButton, at: (r) => [r.left - 2, r.top + r.height / 2, "right"], text: "Programs, transparency and backups." },
+    { id: "rename", target: () => accountName, at: (r) => [r.left + r.width / 2, r.bottom + 2, "up"], text: "Double-click to rename." },
   ];
   const TIPS_AT_ONCE = 3;
   const used = new Set();
@@ -1098,12 +1098,12 @@
   // ----- What each panel is for, under the pointer on its title, after a moment -----
 
   const PANEL_TIPS = {
-    today: "Today's drawing time in Photoshop, counted for you, with your past two weeks and all your hours.",
-    "Clip Studio Paint": "Your time in Clip Studio Paint, counted the same way. Each program you use gets its own panel.",
-    Krita: "Your time in Krita, counted the same way. Each program you use gets its own panel.",
-    graph: "When and how much you draw, from today back to a year, so you can see your rhythm.",
-    calendar: "Every day you draw 15 minutes or more turns blue. Keep your streak going, and rate your days.",
-    friends: "Your friends' hours and who's drawing right now, for a little friendly motivation.",
+    today: "Your time in Photoshop today, past two weeks and in total.",
+    "Clip Studio Paint": "Your time in Clip Studio Paint.",
+    Krita: "Your time in Krita.",
+    graph: "How much you draw, from today to the past year.",
+    calendar: "Days with 15+ minutes turn blue. Keep your streak going.",
+    friends: "Friends' hours, and who's drawing now.",
   };
   let panelTipTimer;
   Object.entries(PANEL_TIPS).forEach(([name, text]) => {
