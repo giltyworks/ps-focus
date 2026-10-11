@@ -929,11 +929,27 @@
 
   const anchorColumn = el("div", { class: "psf-anchor-column" });
 
+  function stageHeight() {
+    const panels = Object.values(state.floating).filter((f) => !f.panel.hidden).map((f) => f.panel);
+    return Math.max(1148, ...[win, ...panels].map((node) => node.offsetHeight + 48));
+  }
+
+  function lowest(nodes) {
+    // How far down a window or panel, or a group of them moving together, may go: its bottom stays inside the scene
+    if (touch.matches) return Infinity;
+    const height = stageHeight() - 24;
+    return Math.min(...[...nodes].map((node) => Math.max(0, height - node.offsetHeight - node.offsetTop)));
+  }
+
   function fitStage() {
-    const panels = Object.values(state.floating).filter((f) => !f.panel.hidden);
-    const bottom = Math.max(win.offsetTop + win.offsetHeight, ...panels.map((f) => f.panel.offsetTop + f.panel.offsetHeight));
-    // The scene holds the painting whole on a desktop, and grows only if PS Focus is dragged further down
-    stage.style.minHeight = `${Math.max(touch.matches ? 640 : 1148, bottom + 24)}px`;
+    if (touch.matches) {
+      // On a phone the window stands in the middle, and the scene is as tall as it needs
+      stage.style.minHeight = `${Math.max(640, win.offsetTop + win.offsetHeight + 24)}px`;
+    } else {
+      // The scene holds the painting whole, and grows only as far as the tallest window or panel needs, never because
+      // something was dragged down: what is dragged stops at its bottom, see lowest
+      stage.style.minHeight = `${stageHeight()}px`;
+    }
     // On the narrowest phones the window, 300 pixels wide like the app's, is shrunk to fit
     const room = stage.clientWidth - 16;
     win.style.transform = touch.matches ? `translateX(-50%)${room < 300 ? ` scale(${room / 300})` : ""}` : "";
@@ -999,7 +1015,65 @@
     updateGlass();
   }
 
-  const SNAP_DISTANCE = 22;
+  const SNAP_DISTANCE = 20;
+  // How far below the window a panel's top may be let go and still dock, and how see-through it is meanwhile, as the app
+  const DOCK_ZONE = 40;
+
+  function follow(move, up) {
+    // Moves and the release are heard on the whole page rather than on what was pressed, which may be redrawn or moved
+    // mid-drag (the graph redraws every second; a title moves into a panel of its own)
+    const end = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      up();
+    };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+  }
+
+  function snapPosition(x, y, width, height, neighbours, sideTargets) {
+    // As the app: snap to the nearest touching edge with either end lined up; beside the window, a panel also lines up
+    // with the top or bottom of each block in it
+    const candidates = [];
+    for (const n of neighbours) {
+      if (y <= n.bottom + SNAP_DISTANCE && y + height >= n.top - SNAP_DISTANCE) {
+        for (const edge of [n.left - width, n.right]) if (Math.abs(edge - x) <= SNAP_DISTANCE) candidates.push([edge, n.top], [edge, n.bottom - height]);
+      }
+      if (x <= n.right + SNAP_DISTANCE && x + width >= n.left - SNAP_DISTANCE) {
+        for (const edge of [n.top - height, n.bottom]) if (Math.abs(edge - y) <= SNAP_DISTANCE) candidates.push([n.left, edge], [n.right - width, edge]);
+      }
+    }
+    for (const n of sideTargets) {
+      if (y > n.bottom + SNAP_DISTANCE || y + height < n.top - SNAP_DISTANCE) continue;
+      for (const edge of [n.left - width, n.right]) if (Math.abs(edge - x) <= SNAP_DISTANCE) candidates.push([edge, n.top], [edge, n.bottom - height]);
+    }
+    if (!candidates.length) return [x, y];
+    return candidates.reduce((best, c) => (Math.abs(c[0] - x) + Math.abs(c[1] - y) < Math.abs(best[0] - x) + Math.abs(best[1] - y) ? c : best));
+  }
+
+  function liveSnap(panel, x, y) {
+    const neighbours = [win, ...shownPanels().filter((other) => other !== panel)].map(rect);
+    const w = rect(win);
+    const sideTargets = [...blocks.children].map(rect).filter((b) => b.top >= w.top && b.top < w.bottom).map((b) => ({ left: w.left, top: b.top, right: w.right, bottom: Math.min(b.bottom, w.bottom) }));
+    // Positions are set from the stage's inner edge, measured from its outer edge
+    const inset = stage.clientLeft;
+    const [sx, sy] = snapPosition(x + inset, y + stage.clientTop, panel.offsetWidth, panel.offsetHeight, neighbours, sideTargets);
+    return [sx - inset, sy - stage.clientTop];
+  }
+
+  function dockSlotFor(panel, pointerX, pointerY, x, y) {
+    // As the app: it docks with the pointer over the window, or with its top let go just below the window's bottom,
+    // mostly in line with it; elsewhere it floats
+    if (state.settingsOpen) return null;
+    const w = rect(win);
+    if (pointerX >= w.left && pointerX < w.right && pointerY >= w.top && pointerY < w.bottom) return dockSlot(pointerX, pointerY);
+    const width = panel.offsetWidth;
+    const inLine = Math.min(x + width, w.right) - Math.max(x, w.left) > Math.min(width, w.width) / 2;
+    if (inLine && y >= w.bottom - SNAP_DISTANCE && y <= w.bottom + DOCK_ZONE) return dockSlot(w.left + 1, w.bottom + 1);
+    return null;
+  }
   const shownPanels = () => Object.values(state.floating).filter((f) => !f.panel.hidden).map((f) => f.panel);
 
   function touching(a, b) {
@@ -1077,27 +1151,71 @@
   function moveFloating(panel, event) {
     // A floating panel taken by anything but its title moves with everything snapped to it, the window included
     const group = groupOf(panel);
+    if (group.size === 1) return dragPanel(panel.querySelector(".psf-block").dataset.name, event);
+    event.preventDefault();
     const start = { x: event.clientX, y: event.clientY, places: [...group].map((node) => [node, node.offsetLeft, node.offsetTop]) };
-    const target = event.target;
-    try { target.setPointerCapture(event.pointerId); } catch (error) { /* moves still reach it */ }
+    const room = lowest(group);
     const move = (moveEvent) => {
-      const dx = moveEvent.clientX - start.x, dy = moveEvent.clientY - start.y;
+      const dx = moveEvent.clientX - start.x, dy = Math.min(moveEvent.clientY - start.y, room);
       start.places.forEach(([node, left, top]) => { node.style.left = `${left + dx}px`; node.style.top = `${Math.max(0, top + dy)}px`; });
       hideTip();
     };
-    const up = () => {
-      target.removeEventListener("pointermove", move);
-      target.removeEventListener("pointerup", up);
-      target.removeEventListener("pointercancel", up);
-      settle(panel, group);
+    follow(move, () => settle(panel, group));
+  }
+
+  function dragPanel(name, event) {
+    // A panel moved alone, by its title or, floating, by its body: out of the window it snaps to what it comes near as it
+    // moves; with the pointer over the window, or its top just below the window, a blue space shows where it will dock
+    // and it turns see-through, as in the app
+    event.preventDefault();
+    const block = blockOf[name];
+    const start = { x: event.clientX, y: event.clientY };
+    const blockRect = rect(block);
+    const s0 = stage.getBoundingClientRect();
+    const grab = { x: start.x - s0.left - blockRect.left, y: start.y - s0.top - blockRect.top };
+    let panel = state.floating[name]?.panel || null;
+    let dragging = false;
+    let slot = null;
+    const move = (moveEvent) => {
+      const s = stage.getBoundingClientRect();
+      const px = moveEvent.clientX - s.left, py = moveEvent.clientY - s.top;
+      if (!dragging) {
+        if (Math.hypot(moveEvent.clientX - start.x, moveEvent.clientY - start.y) < 6) return;
+        dragging = true;
+        markUsed("drag");
+        if (!panel) panel = floatOut(name, px - grab.x, py - grab.y);
+        panel.classList.add("psf-dragging");
+      }
+      let x = px - grab.x - stage.clientLeft, y = Math.max(0, py - grab.y - stage.clientTop);
+      // Where the pointer puts it decides docking, though it is drawn no lower than the scene's bottom
+      const newSlot = dockSlotFor(panel, px, py, x + stage.clientLeft, y + stage.clientTop);
+      if (!touch.matches) y = Math.min(y, Math.max(0, stageHeight() - 24 - panel.offsetHeight));
+      if (newSlot == null) [x, y] = liveSnap(panel, x, y);
+      panel.style.left = `${x}px`;
+      panel.style.top = `${y}px`;
+      panel.classList.toggle("psf-docking", newSlot != null);
+      if (newSlot !== slot) { slot = newSlot; arrange(slot, panel.offsetHeight - 2, panel.offsetWidth); }
+      state.pointerInside.main = true;
+      updateGlass();
+      hideTip();
     };
-    target.addEventListener("pointermove", move);
-    target.addEventListener("pointerup", up);
-    target.addEventListener("pointercancel", up);
+    follow(move, () => {
+      if (!dragging) return;
+      panel.classList.remove("psf-dragging", "psf-docking");
+      if (slot != null) dockBack(name, slot);
+      else { refreshAttached(); arrange(); fitStage(); }
+      updateGlass();
+    });
   }
 
   function snap(panel) {
-    settle(panel, new Set([panel]));
+    // A panel put down alone snaps as it would while dragged
+    const [x, y] = liveSnap(panel, panel.offsetLeft, panel.offsetTop);
+    panel.style.left = `${x}px`;
+    panel.style.top = `${y}px`;
+    refreshAttached();
+    fitStage();
+    updateGlass();
     return groupOf(win).has(panel);
   }
 
@@ -1129,9 +1247,9 @@
     fitStage();
   }
 
-  // What a press keeps for itself, rather than moving the window: buttons and fields, calendar days, the chart's
-  // readout, the friends list, which scrolls, a friend request, and a panel's title, which takes the panel
-  const CLICKED = "button, input, label, .psf-day, .psf-chart, .psf-friend-list, .psf-strip, .psf-grip, .psf-account-name";
+  // What a press keeps for itself, rather than moving the window, as in the app: buttons and fields, calendar days, a
+  // friend request, your name, and a panel's title, which takes the panel. The graph and friends' rows move it
+  const CLICKED = "button, input, label, .psf-day, .psf-strip, .psf-grip, .psf-account-name, .psf-request-row";
 
   win.addEventListener("pointerdown", (event) => {
     if (touch.matches || event.button !== 0 || event.target.closest(CLICKED)) return;
@@ -1139,27 +1257,22 @@
     // Everything snapped to the window, directly or through another panel, moves with it
     const group = groupOf(win);
     const attached = [...group].filter((node) => node !== win).map((node) => ({ panel: node, left: node.offsetLeft, top: node.offsetTop }));
-    const grip = event.target;
-    try { grip.setPointerCapture(event.pointerId); } catch (error) { /* moves still reach it */ }
+    const room = lowest(group);
+    event.preventDefault();
     const move = (moveEvent) => {
       const dx = Math.max(-start.left, Math.min(moveEvent.clientX - start.x, stage.clientWidth - win.offsetWidth - start.left));
-      const dy = Math.max(-start.top, moveEvent.clientY - start.y);
+      const dy = Math.min(Math.max(-start.top, moveEvent.clientY - start.y), room);
       win.style.left = `${start.left + dx}px`;
       win.style.top = `${start.top + dy}px`;
       attached.forEach((a) => { a.panel.style.left = `${a.left + dx}px`; a.panel.style.top = `${a.top + dy}px`; });
       fitStage();
       hideTip();
     };
-    const up = () => {
-      grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up);
-      // The window snaps to a panel it was brought up to, as a panel snaps to it
-      if (!touch.matches) settle(win, group);
-    };
-    grip.addEventListener("pointermove", move);
-    grip.addEventListener("pointerup", up);
-    grip.addEventListener("pointercancel", up);
+    // The window snaps to a panel it was brought up to, as a panel snaps to it
+    follow(move, () => { if (!touch.matches) settle(win, group); });
   });
 
+  stage.addEventListener("dragstart", (event) => event.preventDefault());
   stage.addEventListener("pointerdown", (event) => {
     const dock = event.target.closest("[data-dock]");
     if (dock) {
@@ -1171,49 +1284,7 @@
     if (floatingPanel && !touch.matches && event.button === 0 && !event.target.closest(CLICKED)) return moveFloating(floatingPanel, event);
     const stripNode = event.target.closest(".psf-strip");
     if (!stripNode || touch.matches || event.button !== 0 || event.target.closest("button, input")) return;
-    const block = stripNode.closest(".psf-block");
-    const name = block.dataset.name;
-    const start = { x: event.clientX, y: event.clientY };
-    const blockRect = rect(block);
-    const grab = { x: start.x - stage.getBoundingClientRect().left - blockRect.left, y: start.y - stage.getBoundingClientRect().top - blockRect.top };
-    let panel = state.floating[name]?.panel || null;
-    let dragging = false;
-    let slot = null;
-    // Kept on the strip as it moves, so the drag carries on outside it; a browser refusing still lets the drag work
-    try { stripNode.setPointerCapture(event.pointerId); } catch (error) { /* moves still reach the strip */ }
-    const move = (moveEvent) => {
-      const s = stage.getBoundingClientRect();
-      const x = moveEvent.clientX - s.left, y = moveEvent.clientY - s.top;
-      if (!dragging) {
-        if (Math.hypot(moveEvent.clientX - start.x, moveEvent.clientY - start.y) < 6) return;
-        dragging = true;
-        markUsed("drag");
-        if (!panel) panel = floatOut(name, x - grab.x, y - grab.y);
-        panel.classList.add("psf-dragging");
-      }
-      panel.style.left = `${x - grab.x}px`;
-      panel.style.top = `${y - grab.y}px`;
-      // Over the window, a blue space shows where it would go back in
-      const w = rect(win);
-      const over = x > w.left && x < w.right && y > w.top && y < w.bottom + 30;
-      const newSlot = over ? dockSlot(x, y) : null;
-      if (newSlot !== slot) { slot = newSlot; arrange(slot, panel.offsetHeight - 2, panel.offsetWidth); }
-      state.pointerInside.main = true;
-      updateGlass();
-    };
-    const up = () => {
-      stripNode.removeEventListener("pointermove", move);
-      stripNode.removeEventListener("pointerup", up);
-      stripNode.removeEventListener("pointercancel", up);
-      if (!dragging) return;
-      panel.classList.remove("psf-dragging");
-      if (slot != null) dockBack(name, slot);
-      else { snap(panel); arrange(); }
-      updateGlass();
-    };
-    stripNode.addEventListener("pointermove", move);
-    stripNode.addEventListener("pointerup", up);
-    stripNode.addEventListener("pointercancel", up);
+    dragPanel(stripNode.closest(".psf-block").dataset.name, event);
   });
 
   // ----- Glass: backgrounds fade while the pointer is elsewhere, text staying solid with a soft glow -----
@@ -1353,5 +1424,5 @@
   updateGlass();
 
   // For checking states while the page is built, from the browser's console
-  window.psfDemo = { state, toggleModule, toggleSettings, chooseOrientation, requestArrives, floatOut, snap, updateGlass, renderCalendar, renderGraph, setPointer: (x, y) => { pointer = x == null ? null : { x, y }; updateGlass(); } };
+  window.psfDemo = { state, toggleModule, toggleSettings, chooseOrientation, requestArrives, floatOut, snap, dockBack, updateGlass, renderCalendar, renderGraph, setPointer: (x, y) => { pointer = x == null ? null : { x, y }; updateGlass(); } };
 })();
