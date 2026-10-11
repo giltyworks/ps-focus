@@ -11,7 +11,7 @@ body_class: home
 <p class="what">Automatically tracks your time in Photoshop, Krita, and Clip Studio Paint.</p>
 <p class="what-sub">Free for Windows. Your hours become charts, a calendar, and a level.</p>
 
-<a class="button" href="https://github.com/giltyworks/ps-focus/releases/latest">Download for Windows</a>
+<a class="button" href="https://github.com/giltyworks/ps-focus/releases/latest">Download for Windows</a> <a class="try-link" href="#try">or try it in your browser</a>
 
 </div>
 
@@ -50,10 +50,22 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 </div>
 </div>
 
+<section class="try" id="try" markdown="0">
+  <h2>Try it</h2>
+  <p class="try-intro">A working sample of PS Focus, beside a painting on an art app's canvas. Switch drawing on and off, change the graph, open the calendar and Friends, pull a panel out by its title, and move your mouse away to watch it fade.</p>
+  <div class="psf-demo" data-painting="{{ '/assets/demo/sorolla.jpg' | relative_url }}" data-logo="{{ '/assets/logo-v2.png' | relative_url }}"></div>
+  <p class="caption">Sample data and made-up friends; nothing you do here is sent anywhere. Painting: Joaquín Sorolla, <em>Strolling along the Seashore</em> (1909), public domain.</p>
+  <noscript><p class="caption">The demo needs JavaScript.</p></noscript>
+</section>
+<link rel="stylesheet" href="{{ '/assets/demo/demo.css' | relative_url }}">
+<script src="{{ '/assets/demo/demo.js' | relative_url }}" defer></script>
+
+<!-- The demo reel, parked for now: tools/demo_reel.py
 <figure class="wide-shot natural">
   <video src="{{ '/assets/demo-reel.mp4' | relative_url }}" poster="{{ '/assets/demo-reel-poster.png' | relative_url }}" width="720" height="640" autoplay muted loop playsinline aria-label="PS Focus beside a painting in an art app: the time counts while drawing and stops when stepping away, the graph and calendar show habits, a level-up with fireworks, a panel pulled out beside the canvas fades see-through, a friend request is accepted, and the window becomes a slim strip"></video>
   <figcaption class="caption">PS Focus in use, with sample data</figcaption>
 </figure>
+-->
 
 <figure class="wide-shot">
   <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1587" height="237" alt="PS Focus in landscape: today's time in Photoshop, then the hours graph, the September calendar and the stats side by side in one wide, short window">
