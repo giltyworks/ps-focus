@@ -89,7 +89,8 @@
     startWithWindows: true,
     startMinimized: true,
     fanfareOff: false,
-    order: ["today", "graph", "calendar", "friends"],
+    // Every block in the window's order, program panels and modules alike, as in the app
+    order: ["today", "Clip Studio Paint", "Krita", "graph", "calendar", "friends"],
     floating: {},
     status: "online",
     favourites: new Set(),
@@ -215,8 +216,8 @@
   win.append(titlebar, header, icons, blocks, settingsPage, grip);
   stage.append(win);
 
-  const strip = (title, extra = []) => el("div", { class: "psf-strip" }, el("span", {}, title), el("span", { class: "psf-spacer" }), extra,
-    el("button", { type: "button", class: "psf-icon-button psf-dock", title: "Back into the window", "data-dock": "" }, svg(ICONS.dock)));
+  const dockIcon = () => el("button", { type: "button", class: "psf-icon-button psf-dock", title: "Back into the window", "data-dock": "" }, svg(ICONS.dock));
+  const strip = (title, extra = []) => el("div", { class: "psf-strip" }, el("span", {}, title), el("span", { class: "psf-spacer" }), extra, dockIcon());
 
   // The program panel
   const today_ = {
@@ -228,7 +229,7 @@
     last: el("span", {}),
   };
   const todayBlock = el("div", { class: "psf-block psf-today", "data-name": "today" },
-    el("div", { class: "psf-strip" }, el("span", {}, "Photoshop"), today_.two),
+    el("div", { class: "psf-strip" }, el("span", {}, "Photoshop"), today_.two, dockIcon()),
     el("div", { class: "psf-today-body" }, today_.metric,
       el("div", { class: "psf-row" }, today_.sessions, today_.record),
       el("div", { class: "psf-row" }, today_.status, today_.last)));
@@ -635,7 +636,7 @@
 
   // The other programs' panels, quieter: this visitor draws in Photoshop
   const otherProgram = (program, two, record, sessions, last) => el("div", { class: "psf-block psf-today", "data-name": program },
-    el("div", { class: "psf-strip" }, el("span", {}, program), el("span", { class: "psf-two-week" }, `${two} hrs past 2 weeks`)),
+    el("div", { class: "psf-strip" }, el("span", {}, program), el("span", { class: "psf-two-week" }, `${two} hrs past 2 weeks`), dockIcon()),
     el("div", { class: "psf-today-body" }, el("div", { class: "psf-metric" }, "0s"),
       el("div", { class: "psf-row" }, el("span", { class: "psf-small" }, `${sessions} SESSIONS`), el("span", {}, `${record} hrs on record`)),
       el("div", { class: "psf-row" }, el("span", { class: "psf-status" }, "NOT ACTIVE"), el("span", {}, `last session on ${last}`))));
@@ -645,10 +646,13 @@
     Krita: otherProgram("Krita", "0.0", "2.5", 2, `${daysAgo(23).getDate()} ${MONTHS[daysAgo(23).getMonth()]}`),
   };
   const PROGRAM_BLOCKS = { Photoshop: "today", "Clip Studio Paint": "Clip Studio Paint", Krita: "Krita" };
+  const PROGRAM_OF = { today: "Photoshop", "Clip Studio Paint": "Clip Studio Paint", Krita: "Krita" };
+  // A block is wanted when its program is ticked in Settings, or its module in the icons
+  const wanted = (name) => (PROGRAM_OF[name] ? state.programs[PROGRAM_OF[name]] : state.shown[name]);
 
   function toggleModule(name) {
     state.shown[name] = !state.shown[name];
-    if (state.floating[name]) state.floating[name].panel.hidden = !state.shown[name];
+    if (state.floating[name]) state.floating[name].panel.hidden = !wanted(name);
     arrange();
     if (name === "friends" && state.shown.friends && !state.requestShown) setTimeout(requestArrives, 1600);
   }
@@ -664,22 +668,30 @@
 
   function arrange(placeholderAt = null, placeholderHeight = 0, placeholderWidth = 300) {
     Object.entries(iconButtons).forEach(([name, button]) => button.classList.toggle("psf-on", state.shown[name]));
-    const programs = Object.entries(state.programs).filter(([, on]) => on).map(([program]) => PROGRAM_BLOCKS[program]);
-    const docked = [...programs, ...state.order.filter((name) => name !== "today" && state.shown[name] && !state.floating[name])];
+    // A floating panel shows while its block is wanted
+    Object.entries(state.floating).forEach(([name, f]) => (f.panel.hidden = !wanted(name)));
+    const docked = state.order.filter((name) => wanted(name) && !state.floating[name]);
     const children = docked.map((name) => blockOf[name]);
+    if (state.landscape && !state.settingsOpen) {
+      // The header and icons head the column of the Photoshop panel, or the first program panel shown, wherever it
+      // stands; with none in the window they stand first on their own, as in the app
+      const anchor = docked.find((name) => name === "today") || docked.find((name) => PROGRAM_OF[name]);
+      if (anchor) {
+        anchorColumn.replaceChildren(header, icons, blockOf[anchor]);
+        children[docked.indexOf(anchor)] = anchorColumn;
+      } else {
+        anchorColumn.replaceChildren(header, icons);
+        children.unshift(anchorColumn);
+      }
+    } else {
+      win.insertBefore(header, blocks);
+      win.insertBefore(icons, blocks);
+    }
     if (placeholderAt != null) {
       const holder = el("div", { class: "psf-placeholder" });
       holder.style.height = `${placeholderHeight}px`;
       if (state.landscape) holder.style.width = `${placeholderWidth - 2}px`;
       children.splice(placeholderAt, 0, holder);
-    }
-    if (state.landscape && !state.settingsOpen && children.length) {
-      // The header and icons head the first column, on top of the first program panel
-      anchorColumn.replaceChildren(header, icons, children[0]);
-      children[0] = anchorColumn;
-    } else {
-      win.insertBefore(header, blocks);
-      win.insertBefore(icons, blocks);
     }
     blocks.replaceChildren(...children);
     fitStage();
@@ -712,16 +724,19 @@
     return { left: r.left - s.left, top: r.top - s.top, right: r.right - s.left, bottom: r.bottom - s.top, width: r.width, height: r.height };
   }
 
+  // Whether the header stands first on its own in landscape, with no program panel in the window to head
+  const headerAlone = () => anchorColumn.parentNode === blocks && anchorColumn.children.length === 2;
+
   function dockSlot(pointerX, pointerY) {
-    // Where among the window's blocks a panel dropped here goes, the program panels always first; in landscape by
-    // where across, in portrait by how far down
+    // Where among the window's blocks a panel dropped here goes: in landscape by where across, in portrait by how far
+    // down; never before the header standing on its own
     const docked = [...blocks.children].filter((child) => !child.classList.contains("psf-placeholder"));
-    const programs = Object.values(state.programs).filter(Boolean).length;
+    const least = headerAlone() ? 1 : 0;
     let slot = docked.length;
     docked.forEach((child, index) => {
       const r = rect(child);
       const before = state.landscape ? pointerX < r.left + r.width / 2 : pointerY < r.top + r.height / 2;
-      if (slot === docked.length && before) slot = Math.max(programs, index);
+      if (slot === docked.length && before) slot = Math.max(least, index);
     });
     return slot;
   }
@@ -744,10 +759,9 @@
     if (!floating) return;
     delete state.floating[name];
     floating.panel.remove();
-    // The modules in the window, in order; the slot counts the program panels, which always come first
-    const docked = state.order.filter((n) => n !== "today" && state.shown[n] && !state.floating[n] && n !== name);
-    const programs = Object.values(state.programs).filter(Boolean).length;
-    const before = slot == null ? undefined : docked[Math.max(0, slot - programs)];
+    // The blocks in the window, in order, which the slot counts, past the header if it stands on its own
+    const docked = state.order.filter((n) => wanted(n) && !state.floating[n] && n !== name);
+    const before = slot == null ? undefined : docked[Math.max(0, slot - (headerAlone() ? 1 : 0))];
     state.order = state.order.filter((n) => n !== name);
     state.order.splice(before ? state.order.indexOf(before) : state.order.length, 0, name);
     arrange();
@@ -829,7 +843,6 @@
     if (!stripNode || touch.matches || event.button !== 0 || event.target.closest("button, input")) return;
     const block = stripNode.closest(".psf-block");
     const name = block.dataset.name;
-    if (name === "today" || PROGRAM_BLOCKS[name]) return;
     const start = { x: event.clientX, y: event.clientY };
     const blockRect = rect(block);
     const grab = { x: start.x - stage.getBoundingClientRect().left - blockRect.left, y: start.y - stage.getBoundingClientRect().top - blockRect.top };
