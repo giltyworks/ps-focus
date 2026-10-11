@@ -136,6 +136,35 @@
     chevron: '<path d="M4 5.5L7 8.5L10 5.5"/>',
     dock: '<path d="M6 4L3 7L6 10M10 4L7 7L10 10"/>',
   };
+  // The calendar's small pictures, drawn as the app draws them rather than as emoji: the week streak's flame, the rest
+  // days' moon, and a rating's star
+  const FLAME_OUTLINE = [[0.58, 0.03], [0.70, 0.24], [0.84, 0.48], [0.85, 0.70], [0.72, 0.90], [0.50, 0.97], [0.28, 0.90],
+    [0.15, 0.70], [0.18, 0.50], [0.29, 0.34], [0.37, 0.50], [0.45, 0.30], [0.50, 0.14]];
+  const flamePoints = (() => {
+    // A smooth closed curve through the outline points, as the app traces it
+    const points = [], n = FLAME_OUTLINE.length;
+    for (let i = 0; i < n; i++) {
+      const [b, a, e, f] = [-1, 0, 1, 2].map((o) => FLAME_OUTLINE[(i + o + n) % n]);
+      for (let k = 0; k < 12; k++) {
+        const t = k / 12;
+        points.push([0, 1].map((x) => (0.5 * (2 * a[x] + (e[x] - b[x]) * t + (2 * b[x] - 5 * a[x] + 4 * e[x] - f[x]) * t * t + (3 * a[x] - b[x] - 3 * e[x] + f[x]) * t ** 3) * 14).toFixed(2)).join(","));
+      }
+    }
+    return points.join(" ");
+  })();
+  const picture = (markup, size, cls) => {
+    const holder = document.createElement("span");
+    holder.innerHTML = `<svg class="${cls}" width="${size}" height="${size}" viewBox="0 0 14 14" aria-hidden="true">${markup}</svg>`;
+    return holder.firstChild;
+  };
+  const flameIcon = () => picture(`<polygon points="${flamePoints}" fill="#f28c28"/>`, 14, "psf-streak-icon");
+  let moonId = 0;
+  const moonIcon = () => {
+    const id = `psf-moon-${moonId++}`;
+    return picture(`<mask id="${id}"><rect width="14" height="14" fill="#fff"/><circle cx="9.24" cy="5.6" r="5.04" fill="#000"/></mask><circle cx="7" cy="7" r="6.16" fill="#3d5ce6" mask="url(#${id})"/>`, 14, "psf-streak-icon");
+  };
+  // The rating star: the emoji's outline in one colour, as the app draws it
+  const ratingStar = () => picture('<path d="M7 1.3l1.62 3.5 3.83.42-2.86 2.6.8 3.77L7 9.66l-3.39 1.93.8-3.77-2.86-2.6 3.83-.42z" fill="currentColor" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>', 10, "psf-star-icon");
   const PERSON = '<circle cx="7" cy="4.2" r="2.6" fill="currentColor" stroke="none"/><path d="M1.6 13C1.6 8 12.4 8 12.4 13Z" fill="currentColor" stroke="none"/>';
   const PERSON_PLUS = '<circle cx="6" cy="4.2" r="2.4" fill="currentColor" stroke="none"/><path d="M1 13C1 8.4 11 8.4 11 13Z" fill="currentColor" stroke="none"/><circle cx="11" cy="10.4" r="3.4" fill="#080808" stroke="none"/><circle cx="11" cy="10.4" r="2.4" stroke-width="1.1"/><path d="M9.8 10.4H12.2M11 9.2V11.6" stroke-width="1.1"/>';
 
@@ -477,7 +506,7 @@
     renderStats();
     const [weeks, rest] = streaks();
     calLegend.replaceChildren(el("span", { class: "psf-square" }), "15 min+", el("span", { class: "psf-spacer" }),
-      `🔥 ${weeks} week streak`, el("span", { style: "width:8px" }), `🌙 ${rest} rest days`);
+      flameIcon(), `${weeks} week streak`, el("span", { style: "width:6px" }), moonIcon(), `${rest} rest days`);
     const m = state.calendarMonth;
     calToggle.textContent = state.calendarView.toLowerCase();
     if (state.calendarView === "Year") {
@@ -504,7 +533,7 @@
       const rating = ratings.get(key(date));
       const future = date > today;
       const cell = el("div", { class: `psf-day${seconds >= SESSION_MINIMUM ? " psf-active" : ""}${date.getTime() === today.getTime() ? " psf-today-cell" : ""}${future ? " psf-future" : ""}` },
-        String(d), rating ? el("span", { class: "psf-rating" }, `★ ${rating}`) : null);
+        String(d), rating ? el("span", { class: "psf-rating" }, ratingStar(), ` ${rating}`) : null);
       if (!future) {
         // Under the mouse, the day's date and time tracked; a click opens the day
         cell.addEventListener("pointerenter", () => showTip(cell, `${longDate(date)}${seconds ? ` · ${hm(seconds)}` : ""}`));
@@ -561,7 +590,7 @@
     // The start of the highest-rated days, averaged
     const top = Math.max(0, ...ratings.values());
     const starts = [...ratings].filter(([, r]) => r === top).map(([k]) => { const [y, m, d] = k.split("-").map(Number); return startOf(new Date(y, m, d)); }).filter((v) => v != null);
-    if (top && starts.length) rows.push(row("Best start time", clockOf(Math.round(starts.reduce((a, b) => a + b, 0) / starts.length)), { note: `⭐ ${top}`, noteClass: "psf-gold" }));
+    if (top && starts.length) rows.push(row("Best start time", clockOf(Math.round(starts.reduce((a, b) => a + b, 0) / starts.length)), { note: [ratingStar(), ` ${top}`], noteClass: "psf-gold" }));
     // The sessions in the period the calendar shows
     const m = state.calendarMonth, year = state.calendarView === "Year";
     const from = year ? new Date(m.getFullYear(), 0, 1) : m, to = year ? new Date(m.getFullYear(), 11, 31) : new Date(m.getFullYear(), m.getMonth() + 1, 0);

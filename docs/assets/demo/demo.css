@@ -69,6 +69,8 @@
 .psf-floating.psf-dragging { z-index: 10; opacity: .97; }
 /* While it would dock if let go, as the app */
 .psf-floating.psf-docking { opacity: .7; }
+/* A panel being put in a new place has a blue border, as in the app */
+.psf-floating.psf-docking > .psf-block { border-color: var(--psf-blue); }
 
 .psf-titlebar { height: 28px; display: flex; align-items: center; padding-left: 8px; font-size: 12px; background: rgba(var(--psf-background), var(--a)); }
 .psf-titlebar img { width: 16px; height: 16px; margin-right: 8px; }
@@ -106,7 +108,8 @@
 .psf-strip .psf-strip-text { font-weight: 400; color: var(--psf-muted); font-size: 12px; }
 .psf-dock { width: 18px; height: 18px; display: none; }
 .psf-floating .psf-dock { display: grid; }
-.psf-placeholder { margin-top: 4px; border: 1px solid var(--psf-blue); background: rgba(61, 92, 230, .18); }
+/* The space a panel will dock into, as the app's: a blue outline, lightly filled in */
+.psf-placeholder { margin-top: 4px; border: 2px solid var(--psf-blue); background: rgba(61, 92, 230, .24); }
 
 .psf-today .psf-strip { font-weight: 400; font-size: 16px; color: var(--psf-muted); height: 32px; }
 .psf-today .psf-strip .psf-two-week { margin-left: auto; font-size: 16px; }
@@ -282,7 +285,8 @@
 .psf-point-down svg { transform: rotate(90deg); }
 .psf-hotspot.psf-aside { visibility: hidden; }
 @keyframes psf-nudge { 0%, 100% { translate: 0 0; } 50% { translate: var(--nudge-x) var(--nudge-y); } }
-.psf-tip-wrap { white-space: normal; width: 230px; line-height: 1.4; }
+/* A tip as wide as its words, wrapping only past 230 pixels */
+.psf-tip-wrap { white-space: normal; width: max-content; max-width: 230px; line-height: 1.4; }
 
 /* Signed out, and the simulated sign-in */
 .psf-account.psf-local { color: var(--psf-muted); font-size: 12px; }
@@ -344,3 +348,8 @@
 .psf-medal.psf-bronze { background: #c98a52; }
 /* A nickname, typed over a friend's name */
 .psf-nick-input { width: 130px; background: #151515; border: 1px solid #2c2c2c; border-radius: 4px; color: var(--psf-text); font: inherit; padding: 1px 5px; outline: none; }
+
+/* The calendar's flame, moon and rating star, drawn as in the app */
+.psf-streak-icon { display: block; flex: none; }
+.psf-star-icon { display: inline-block; vertical-align: -1px; }
+.psf-stat-note .psf-star-icon { vertical-align: -1px; }
