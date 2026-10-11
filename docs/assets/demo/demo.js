@@ -164,7 +164,7 @@
     return picture(`<mask id="${id}"><rect width="14" height="14" fill="#fff"/><circle cx="9.24" cy="5.6" r="5.04" fill="#000"/></mask><circle cx="7" cy="7" r="6.16" fill="#3d5ce6" mask="url(#${id})"/>`, 14, "psf-streak-icon");
   };
   // The rating star: the emoji's outline in one colour, as the app draws it
-  const ratingStar = () => picture('<path d="M7 1.3l1.62 3.5 3.83.42-2.86 2.6.8 3.77L7 9.66l-3.39 1.93.8-3.77-2.86-2.6 3.83-.42z" fill="currentColor" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>', 10, "psf-star-icon");
+  const ratingStar = () => picture('<path d="M7 1.3l1.62 3.5 3.83.42-2.86 2.6.8 3.77L7 9.66l-3.39 1.93.8-3.77-2.86-2.6 3.83-.42z" fill="currentColor" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>', 12, "psf-star-icon");
   const PERSON = '<circle cx="7" cy="4.2" r="2.6" fill="currentColor" stroke="none"/><path d="M1.6 13C1.6 8 12.4 8 12.4 13Z" fill="currentColor" stroke="none"/>';
   const PERSON_PLUS = '<circle cx="6" cy="4.2" r="2.4" fill="currentColor" stroke="none"/><path d="M1 13C1 8.4 11 8.4 11 13Z" fill="currentColor" stroke="none"/><circle cx="11" cy="10.4" r="3.4" fill="#080808" stroke="none"/><circle cx="11" cy="10.4" r="2.4" stroke-width="1.1"/><path d="M9.8 10.4H12.2M11 9.2V11.6" stroke-width="1.1"/>';
 
@@ -324,12 +324,13 @@
   const readoutValue = el("b"), readoutCaption = el("span");
   const chart = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   chart.setAttribute("class", "psf-chart");
-  chart.setAttribute("viewBox", "0 0 298 165");
+  chart.setAttribute("viewBox", "0 0 298 210");
   const graphBlock = el("div", { class: "psf-block psf-graph", "data-name": "graph" },
     strip("Usage over time"),
     el("div", { class: "psf-graph-head" }, `${MONTHS[today.getMonth()]} ${today.getFullYear()}`, el("span", { class: "psf-spacer" }),
       PERIODS.map(([period, label]) => (periodButtons[period] = el("button", { type: "button", class: "psf-period", onclick: () => { state.period = period; renderGraph(); } }, label)))),
-    el("div", { class: "psf-readout" }, readoutValue, readoutCaption), chart);
+    // As the app: the total and its caption drawn over the top of the chart's 210-pixel picture
+    el("div", { class: "psf-chart-box" }, el("div", { class: "psf-readout" }, readoutValue, readoutCaption), chart));
 
   function series() {
     const now = new Date();
@@ -364,21 +365,21 @@
     const total = data.values.reduce((a, b) => a + b, 0);
     if (hover == null) { readoutValue.textContent = hm(total * 3600); readoutCaption.textContent = data.caption; }
     else { readoutValue.textContent = hm(data.values[hover] * 3600); readoutCaption.textContent = data.labels[hover]; }
-    // The plot's edges, as the app's: 34 in from the left, 18 short of the right
-    const left = 35, right = 281, top = 10, bottom = 136;
-    const peak = Math.max(1, ...data.values);
-    const step = peak <= 4 ? 1 : peak <= 8 ? 2 : peak <= 20 ? 5 : peak <= 40 ? 10 : 20;
-    const ceiling = Math.ceil(peak / step) * step;
+    // The plot's edges and hour lines, as the app's: 34 in from the left, 18 short of the right, 64 down under the
+    // total, 26 up from the bottom for the labels; whole hours, at most about four steps
+    const left = 34, right = 280, top = 64, bottom = 184;
+    let ceiling = Math.max(1, Math.ceil(Math.max(Math.max(0, ...data.values) * 60, 60) / 60));
+    const step = Math.max(1, Math.ceil(ceiling / 4));
+    ceiling = Math.ceil(ceiling / step) * step;
     const x = (i) => left + (data.values.length === 1 ? 0 : i * (right - left) / (data.values.length - 1));
     const y = (v) => bottom - v / ceiling * (bottom - top);
     const shown = data.values.map((v, i) => (data.upTo != null && i > data.upTo ? null : v));
     const points = shown.map((v, i) => (v == null ? null : [x(i), y(v)])).filter(Boolean);
     let markup = "";
     for (let v = 0; v <= ceiling; v += step) {
-      markup += `<line x1="${left}" x2="${right}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(34,34,34,1)"/><text x="${left - 6}" y="${y(v) + 4}" text-anchor="end">${v}h</text>`;
+      markup += `<line x1="${left}" x2="${right}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(34,34,34,1)"/><text x="${left - 8}" y="${y(v)}" text-anchor="end" dominant-baseline="central">${v}h</text>`;
     }
-    // A label at either end keeps inside the panel
-    data.ticks.forEach(([i, label]) => { const anchor = x(i) > 298 - 20 ? "end" : "middle"; markup += `<text x="${anchor === "end" ? 296 : x(i)}" y="${bottom + 18}" text-anchor="${anchor}">${label}</text>`; });
+    data.ticks.forEach(([i, label]) => { markup += `<text x="${x(i)}" y="${bottom + 15}" text-anchor="middle" dominant-baseline="central">${label}</text>`; });
     if (points.length) {
       const line = points.map(([px, py], i) => `${i ? "L" : "M"}${px.toFixed(1)},${py.toFixed(1)}`).join("");
       markup += `<defs><linearGradient id="psf-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3d5ce6" stop-opacity=".45"/><stop offset="1" stop-color="#3d5ce6" stop-opacity="0"/></linearGradient></defs>`;
@@ -559,6 +560,15 @@
   const statsBody = el("div", { class: "psf-stats" });
   const statsBlock = el("div", { class: "psf-block psf-stats-block", "data-name": "stats" }, strip("Stats"), statsBody);
   const MEDALS = [[10, "gold"], [25, "silver"], [50, "bronze"]];
+  const MEDAL_COLORS = { gold: "#f0c33c", silver: "#c3cbd1", bronze: "#d0874a" };
+  // The app's award: a disc over two swallowtailed ribbons, a thin gap between them
+  const AWARD_TAIL = [[0.03, 0.50], [0.25, 0.50], [0.37, 0.96], [0.26, 0.89], [0.15, 1.0]];
+  let awardId = 0;
+  const awardIcon = (medal) => {
+    const id = `psf-award-${awardId++}`, fill = MEDAL_COLORS[medal];
+    const tails = [1, -1].map((m) => `<polygon points="${AWARD_TAIL.map(([x, y]) => `${((0.5 - m * x) * 14).toFixed(2)},${(y * 14).toFixed(2)}`).join(" ")}"/>`).join("");
+    return picture(`<mask id="${id}"><rect width="14" height="14" fill="#fff"/><circle cx="7" cy="4.76" r="5.53" fill="#000"/></mask><g fill="${fill}" mask="url(#${id})">${tails}</g><circle cx="7" cy="4.76" r="4.48" fill="${fill}"/>`, 14, "psf-award");
+  };
   const firstDay = daysAgo(STARTED_DAYS_AGO);
   const average = (days, end) => rangeTotal(new Date(end.getTime() - (days - 1) * DAY), end) / days;
   const change = (seconds) => (Math.round(Math.abs(seconds) / 60) === 0 ? "same" : `${seconds > 0 ? "+" : "-"}${hm(Math.abs(seconds))}`);
@@ -579,9 +589,10 @@
     const medal = rank != null ? (MEDALS.find(([limit]) => rank <= limit) || [])[1] : null;
     const row = (label, value, { note = "", noteClass = "", valueClass = "", medalName = null, gap = false } = {}) =>
       el("div", { class: `psf-stat${gap ? " psf-stat-gap" : ""}` }, el("span", { class: "psf-stat-label" }, label),
-        el("span", { class: `psf-stat-value ${valueClass}` }, medalName ? el("i", { class: `psf-medal psf-${medalName}` }) : null, value),
+        el("span", { class: `psf-stat-value ${valueClass}` }, medalName ? awardIcon(medalName) : null, value),
         el("span", { class: `psf-stat-note ${noteClass}` }, note));
     const rows = [row("This week", hm(week), { valueClass: "psf-bold", medalName: medal })];
+    rows[0].classList.add("psf-stat-big");
     if (medal) rows.push(row("", `top ${rank}% of your weeks`, { valueClass: "psf-muted" }));
     rows[rows.length - 1].classList.add("psf-stat-gap");
     for (const days of [7, 30]) {

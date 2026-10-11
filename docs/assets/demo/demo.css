@@ -138,27 +138,28 @@
 .psf-graph-head { display: flex; align-items: center; gap: 4px; padding: 5px 9px 0 8px; font-size: 12px; color: var(--psf-muted); }
 .psf-graph-head .psf-spacer { flex: 1; }
 /* Buttons and cells the app's size: periods 24 by 27, the calendar's 58 and 36 by 27, days 40 by 38 three apart */
-.psf-period { border: 0; background: none; color: var(--psf-muted); font: 13px/1 inherit; font-family: inherit; width: 24px; height: 27px; padding: 0; border-radius: 4px; cursor: pointer; }
+.psf-period { border: 0; background: none; color: var(--psf-muted); font-size: 12px; line-height: 1; font-family: inherit; width: 24px; height: 27px; padding: 0; border-radius: 4px; cursor: pointer; }
 .psf-period:hover { background: rgba(var(--psf-border), max(var(--a), .6)); }
 .psf-period.psf-selected { background: rgba(var(--psf-border), max(var(--a), .6)); color: var(--psf-text); }
-.psf-readout { padding: 2px 8px 0; }
-.psf-readout b { display: block; font-size: 21.333px; font-weight: 600; }
-.psf-readout span { font-size: 10.667px; color: var(--psf-muted); }
-.psf-chart { display: block; width: 298px; height: 165px; }
+.psf-chart-box { position: relative; margin-top: 6px; height: 210px; }
+.psf-readout { position: absolute; left: 7px; top: 2px; pointer-events: none; }
+.psf-readout b { display: block; font-size: 21.333px; font-weight: 600; line-height: 28px; }
+.psf-readout span { position: absolute; left: 1px; top: 32px; white-space: nowrap; font-size: 10.667px; line-height: 14px; color: var(--psf-muted); }
+.psf-chart { display: block; width: 298px; height: 210px; }
 .psf-chart text { fill: var(--psf-muted); font-size: 10.667px; font-family: inherit; }
 
 /* The calendar */
 .psf-cal-head { background: rgba(var(--psf-panel), var(--a)); display: flex; align-items: center; padding: 5px 6px 0 8px; gap: 4px; }
 .psf-cal-title { flex: 1; text-align: center; font-size: 16px; }
-.psf-cal-button { border: 0; background: none; color: var(--psf-text); font: 13px/1 inherit; font-family: inherit; width: 36px; height: 27px; padding: 0; border-radius: 4px; cursor: pointer; }
+.psf-cal-button { border: 0; background: none; color: var(--psf-text); font-size: 12px; line-height: 1; font-family: inherit; width: 36px; height: 27px; padding: 0; border-radius: 4px; cursor: pointer; }
 .psf-cal-toggle { width: 58px; }
 .psf-cal-head .psf-cal-button:last-child { margin-left: 1px; }
 .psf-cal-button:hover { background: rgba(var(--psf-border), max(var(--a), .6)); }
-.psf-cal-legend { background: rgba(var(--psf-panel), var(--a)); display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--psf-muted); padding: 5px 8px; }
+.psf-cal-legend { background: rgba(var(--psf-panel), var(--a)); display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--psf-muted); height: 29px; padding: 0 8px; }
 .psf-cal-legend .psf-square { width: 13px; height: 13px; border-radius: 3px; background: var(--psf-blue); }
 .psf-cal-legend .psf-spacer { flex: 1; }
 .psf-weekdays, .psf-days { display: grid; grid-template-columns: repeat(7, 40px); gap: 3px; padding: 0; }
-.psf-weekdays { font-size: 12px; color: var(--psf-muted); text-align: center; padding-bottom: 4px; background: rgba(var(--psf-background), var(--a)); }
+.psf-weekdays { font-size: 12px; color: var(--psf-muted); text-align: center; height: 19px; line-height: 19px; margin-bottom: 1px; background: rgba(var(--psf-background), var(--a)); }
 .psf-day { height: 38px; border-radius: 6px; background: rgba(21, 21, 21, var(--a)); position: relative; z-index: 1; font-size: 12px; text-align: center; padding-top: 4px; cursor: pointer; }
 .psf-day:hover { background: rgba(34, 34, 34, max(var(--a), .5)); }
 .psf-day.psf-blank { background: rgba(16, 16, 16, var(--a)); cursor: default; }
@@ -168,12 +169,14 @@
 .psf-day.psf-active:hover { background: #5470ec; }
 .psf-day.psf-today-cell:not(.psf-active) { color: var(--psf-blue); font-weight: 600; }
 .psf-day .psf-rating { position: absolute; left: 0; right: 0; bottom: 2px; font-size: 10.667px; color: var(--psf-gold); }
-.psf-days { padding-bottom: 3px; }
-.psf-year { background: rgba(var(--psf-panel), var(--a)); display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 0; padding: 0 0 6px; }
-.psf-mini { text-align: center; }
-.psf-mini b { display: block; font-size: 13.333px; font-weight: 600; margin: 2px 0 4px; }
-.psf-mini-grid { display: inline-grid; grid-template-columns: repeat(7, 11px); gap: 2px; }
-.psf-mini-grid i { width: 11px; height: 8px; border-radius: 2px; background: rgba(21, 21, 21, max(var(--a), .35)); }
+.psf-days { padding-bottom: 0; }
+/* The year as the app draws it: three months to a row, each 82 tall, its name at the top and its weeks 22 below,
+   squares 11 by 8 on a 13 by 9 pitch */
+.psf-year { background: rgba(var(--psf-panel), var(--a)); display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 82px; padding: 0; }
+.psf-mini { position: relative; text-align: center; }
+.psf-mini b { position: absolute; left: 0; right: 0; top: 0; height: 18px; line-height: 18px; font-size: 13.333px; font-weight: 600; }
+.psf-mini-grid { position: absolute; top: 24px; left: 50%; transform: translateX(-50%); display: grid; grid-template-columns: repeat(7, 11px); gap: 1px 2px; }
+.psf-mini-grid i { width: 11px; height: 8px; border-radius: 2px; background: rgba(21, 21, 21, var(--a)); }
 .psf-mini-grid i.psf-active { background: var(--psf-blue); }
 .psf-mini-grid i.psf-none { background: none; }
 .psf-tip {
@@ -183,7 +186,7 @@
 
 /* Friends */
 .psf-friends .psf-strip { gap: 2px; }
-.psf-copy { border: 0; background: none; color: var(--psf-muted); font: 12px/1 inherit; font-family: inherit; padding: 4px; border-radius: 4px; cursor: pointer; margin-right: 2px; font-weight: 400; }
+.psf-copy { border: 0; background: none; color: var(--psf-muted); font-size: 12px; line-height: 1; font-family: inherit; padding: 4px; border-radius: 4px; cursor: pointer; margin-right: 2px; font-weight: 400; }
 .psf-copy:hover { background: rgba(var(--psf-border), max(var(--a), .6)); }
 .psf-copy b { color: var(--psf-text); font-weight: 600; }
 .psf-copy em { color: var(--psf-green); font-style: normal; }
@@ -346,23 +349,24 @@
 }
 
 /* Stats: labels on the left, values in a column, a narrow note after */
-.psf-stats { padding: 8px 10px 9px; font-size: 13.333px; display: grid; gap: 4px; }
-.psf-stat { display: grid; grid-template-columns: 1fr auto 46px; align-items: center; gap: 8px; }
-.psf-stat-gap { margin-bottom: 6px; }
-.psf-stat-summary { margin-top: 6px; grid-template-columns: auto 1fr; }
+/* Rows as the app's: 19 tall with a pixel under each, the first 21 for its bolder figure, a little more after the first
+   figures and before the session summary; labels 8 in from the left, notes 8 in from the right */
+.psf-stats { padding: 5px 8px 5px; font-size: 12px; display: block; }
+.psf-stat { display: grid; grid-template-columns: 1fr auto 34px; align-items: center; column-gap: 8px; height: 19px; line-height: 19px; margin-bottom: 1px; }
+.psf-stat-big { height: 21px; line-height: 21px; }
+.psf-stat-big:has(+ .psf-stat .psf-stat-label:empty) { margin-bottom: 0; }
+.psf-stat-gap { margin-bottom: 3px; }
+.psf-stat-summary { margin-top: 4px; }
 .psf-stat-summary .psf-stat-label { white-space: nowrap; }
 .psf-stat-summary .psf-stat-note { display: none; }
 .psf-stat-label { color: var(--psf-muted); white-space: nowrap; }
-.psf-stat-value { text-align: right; display: inline-flex; align-items: center; justify-content: flex-end; gap: 6px; }
-.psf-stat-value.psf-bold { font-weight: 700; }
+.psf-stat-value { text-align: right; display: inline-flex; align-items: center; justify-content: flex-end; gap: 4px; }
+.psf-stat-value.psf-bold { font-weight: 600; font-size: 13.333px; }
 .psf-stat-value.psf-muted { color: var(--psf-muted); }
 .psf-stat-note { color: var(--psf-muted); font-size: 12px; text-align: right; }
 .psf-stat-note.psf-up { color: var(--psf-green); }
 .psf-stat-note.psf-gold { color: var(--psf-gold); }
-.psf-medal { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
-.psf-medal.psf-gold { background: #f0c33c; }
-.psf-medal.psf-silver { background: #c9d1d6; }
-.psf-medal.psf-bronze { background: #c98a52; }
+.psf-award { display: block; flex: none; }
 /* A nickname, typed over a friend's name */
 .psf-nick-input { width: 130px; background: #151515; border: 1px solid #2c2c2c; border-radius: 4px; color: var(--psf-text); font: inherit; padding: 1px 5px; outline: none; }
 
