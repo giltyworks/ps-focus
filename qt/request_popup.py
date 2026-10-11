@@ -1,11 +1,11 @@
-"""The popup that tells the user someone wants to be friends, with Accept and Decline, shown in the corner of the screen
-above the taskbar whether or not the friends module is open"""
+"""The notice that tells the user someone wants to be friends, with Accept and Decline, shown inside the main window at
+its bottom right, over whatever is there, whether or not the friends module is open"""
 
 from __future__ import annotations
 
 from typing import Callable
 
-from PySide6.QtCore import QPoint, QRectF, Qt
+from PySide6.QtCore import QEvent, QObject, QPoint, QRectF, Qt
 from PySide6.QtGui import QMouseEvent, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QWidget
 
@@ -17,22 +17,22 @@ POPUP_WIDTH = 260
 PADDING = 10
 BUTTON_GAP = 4
 CLOSE_SIZE = 16
-# Space from the screen's corner, and between popups stacked above one another
-SCREEN_MARGIN = 12
-STACK_GAP = 8
+# Space from the window's corner, and between notices stacked above one another
+WINDOW_MARGIN = 8
+STACK_GAP = 6
 
 
 class RequestPopup(QWidget):
     def __init__(
         self, owner: QWidget, fonts: Fonts, code: str, name: str, on_accept: Callable[[], None], on_decline: Callable[[], None],
     ) -> None:
-        # Owned by the main window, so it goes when the app does
-        super().__init__(owner, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint)
+        # A part of the main window, never a window of its own
+        super().__init__(owner)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        # It comes up without taking the keyboard from whatever the user is doing
-        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setMouseTracking(True)
-        self.setWindowTitle("PS Focus friend request")
+        # Its place among the notices, counted up from the bottom; kept in the corner as the window changes size
+        self.index = 0
+        owner.installEventFilter(self)
         self.fonts = fonts
         self.code = code
         self.name = fit_text(name, fonts.bold, POPUP_WIDTH - 2 * PADDING - CLOSE_SIZE)
@@ -54,9 +54,16 @@ class RequestPopup(QWidget):
         return QRectF(self.width() - PADDING - CLOSE_SIZE + 4, PADDING - 4, CLOSE_SIZE, CLOSE_SIZE)
 
     def place(self, index: int) -> None:
-        """In the bottom right corner of the main screen, above any popups shown before it"""
-        work = self.screen().availableGeometry()
-        self.move(work.right() - SCREEN_MARGIN - self.width(), work.bottom() - SCREEN_MARGIN - (index + 1) * self.height() - index * STACK_GAP)
+        """In the bottom right corner of the main window, above any notices shown before it, in front of the rest"""
+        self.index = index
+        window = self.parentWidget()
+        self.move(window.width() - WINDOW_MARGIN - self.width(), window.height() - WINDOW_MARGIN - (index + 1) * self.height() - index * STACK_GAP)
+        self.raise_()
+
+    def eventFilter(self, watched: QObject, event: QEvent) -> bool:
+        if watched is self.parentWidget() and event.type() == QEvent.Type.Resize:
+            self.place(self.index)
+        return False
 
     def closeEvent(self, event) -> None:
         super().closeEvent(event)

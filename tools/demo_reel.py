@@ -43,7 +43,7 @@ from shiboken6 import isValid  # noqa: E402
 import google_drive  # noqa: E402
 import qt.app as qt_app  # noqa: E402
 from qt.app import PSFocusQt  # noqa: E402
-from qt import docking, friends_sync, request_popup  # noqa: E402
+from qt import docking, friends_sync  # noqa: E402
 from qt.docking import FloatingPanel  # noqa: E402
 
 FPS = 30
@@ -116,8 +116,6 @@ application = QApplication(sys.argv)
 screen = application.primaryScreen().availableGeometry()
 # Where on the screen the recorded picture's windows stand
 area = QRect(screen.x() + 200, screen.y() + 80, WIDTH, HEIGHT)
-# A friend request pops up in the recorded area's corner rather than the screen's
-request_popup.RequestPopup.place = lambda self, index: self.move(area.right() - 24 - self.width(), area.bottom() - 24 - self.height())
 app = PSFocusQt(application)
 
 

@@ -256,6 +256,11 @@ class QtFriendsTests(unittest.TestCase):
         popup = self.sync.popups["BBBB2222"]
         self.addCleanup(lambda: [open_popup.close() for open_popup in list(self.sync.popups.values())])
         self.assertTrue(popup.isVisible())
+        # Inside the main window, at its bottom right, never a window of its own
+        self.assertFalse(popup.isWindow())
+        self.assertIs(popup.window(), self.app.window)
+        self.assertLessEqual(popup.geometry().right(), self.app.window.width())
+        self.assertLessEqual(popup.geometry().bottom(), self.app.window.height())
         # Checking in again does not show it twice
         self.sync.sync()
         self._settle()
