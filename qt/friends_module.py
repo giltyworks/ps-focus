@@ -439,7 +439,7 @@ class FriendsModule(ModuleBlock):
             elif presence == "online":
                 details, details_color = (f"{amount} today" if today > 0 else "Online"), "friend_online"
             elif presence == "away":
-                details, details_color = "Away", "muted"
+                details, details_color = "Away", "friend_online"
             else:
                 details, details_color = f"{amount} today", "muted"
             details_room = right - text_width(fonts.small, total) - 8 - name_left

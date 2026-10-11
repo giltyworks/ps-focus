@@ -699,7 +699,9 @@
         // Online: today's time in blue, or just Online with none yet, as the app
         : friend.presence === "online"
           ? el("span", { class: "psf-sub psf-online-today" }, friend.today > 0 ? `${todayAmount(friend.today)} today` : "Online")
-          : el("span", { class: "psf-sub" }, friend.presence === "away" ? "Away" : `${todayAmount(friend.today)} today`), el("span", { class: "psf-sub-right" }, `${friend.total.toFixed(1)} hrs total`));
+          : friend.presence === "away"
+            ? el("span", { class: "psf-sub psf-online-today" }, "Away")
+            : el("span", { class: "psf-sub" }, `${todayAmount(friend.today)} today`), el("span", { class: "psf-sub-right" }, `${friend.total.toFixed(1)} hrs total`));
     friend.fresh = false;
     return row;
   }
