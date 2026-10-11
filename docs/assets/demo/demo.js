@@ -17,7 +17,7 @@
   const GLASS_MIN = 2 / 255;
   const touch = window.matchMedia("(max-width: 760px), (pointer: coarse)");
 
-  // ----- Made-up history: ten weeks and more of believable sessions, the same on every visit -----
+  // ----- Made-up history: an aspiring artist about ten weeks in, drawing most days, the same on every visit -----
 
   let seed = 11;
   const random = () => ((seed = (seed * 16807) % 2147483647) - 1) / 2147483646;
@@ -29,23 +29,28 @@
   // For each day, the seconds in each hour
   const history = new Map();
   const ratings = new Map();
-  for (let ago = 400; ago >= 1; ago--) {
+  const STARTED_DAYS_AGO = 72;
+  for (let ago = STARTED_DAYS_AGO; ago >= 1; ago--) {
     const day = daysAgo(ago);
     const weekend = day.getDay() === 0 || day.getDay() === 6;
-    if (random() < (weekend ? 0.45 : 0.2)) continue;
+    // Sessions come more often as the habit takes hold
+    const skip = (weekend ? 0.3 : 0.45) - (STARTED_DAYS_AGO - ago) / STARTED_DAYS_AGO * 0.15;
+    if (random() < skip) continue;
     const hours = new Array(24).fill(0);
-    let hour = pick([9, 10, 13, 14, 19, 20]);
-    let remaining = pick([35, 50, 75, 90, 110, 140, 170, 205]) * 60;
+    let hour = pick([17, 18, 19, 20, 21, 10, 14]);
+    let remaining = pick([25, 35, 45, 60, 75, 90, 120]) * 60;
     while (remaining > 0 && hour < 24) {
       const seconds = Math.min(remaining, 2400 + Math.floor(random() * 1200));
       hours[hour++] = seconds;
       remaining -= seconds;
     }
     history.set(key(day), hours);
-    if (random() < 0.4) ratings.set(key(day), 5 + Math.floor(random() * 5));
+    if (random() < 0.3) ratings.set(key(day), 4 + Math.floor(random() * 5));
   }
   const todayHours = new Array(24).fill(0);
-  todayHours[9] = 2900; todayHours[10] = 3400; todayHours[11] = 2170;
+  // Today so far: an hour and a bit, in the session going on
+  const thisHour = new Date().getHours();
+  todayHours[Math.max(0, thisHour - 1)] = 2460; todayHours[thisHour] = 1690;
   history.set(key(today), todayHours);
 
   const dayTotal = (date) => (history.get(key(date)) || []).reduce((sum, value) => sum + value, 0);
@@ -76,16 +81,23 @@
     period: "Week",
     calendarView: "Month",
     calendarMonth: new Date(today.getFullYear(), today.getMonth(), 1),
-    shown: { graph: true, calendar: false, friends: false },
+    shown: { graph: true, calendar: true, friends: false },
+    programs: { Photoshop: true, "Clip Studio Paint": false, Krita: false },
+    paused: false,
+    settingsOpen: false,
+    landscape: false,
+    startWithWindows: true,
+    startMinimized: true,
+    fanfareOff: false,
     order: ["today", "graph", "calendar", "friends"],
     floating: {},
     status: "online",
     favourites: new Set(),
     friends: [
-      { code: "MIAA", name: "Mia", level: 47, presence: "drawing", program: "Krita", two: 41.6, total: 1288.4, today: 2.4 },
-      { code: "LEOO", name: "Leo", level: 33, presence: "online", two: 27.9, total: 655.0, today: 1.1 },
-      { code: "AVAA", name: "Ava", level: 26, presence: "away", two: 18.3, total: 402.7, today: 0.0 },
-      { code: "NOAH", name: "Noah", level: 17, presence: "offline", two: 9.4, total: 210.2, today: 0.0 },
+      { code: "MIAA", name: "Mia", level: 19, presence: "drawing", program: "Krita", two: 16.4, total: 121.6, today: 1.4 },
+      { code: "LEOO", name: "Leo", level: 14, presence: "online", two: 10.2, total: 71.3, today: 0.6 },
+      { code: "AVAA", name: "Ava", level: 11, presence: "away", two: 6.8, total: 47.9, today: 0.0 },
+      { code: "NOAH", name: "Noah", level: 8, presence: "offline", two: 3.1, total: 28.4, today: 0.0 },
     ],
     request: null,
     requestShown: false,
@@ -146,11 +158,13 @@
 
   const drawingSwitch = el("button", { class: "psf-switch", role: "switch", "aria-checked": "true", type: "button" },
     el("span", { class: "psf-track" }), el("span", {}, "Drawing in Photoshop"));
-  const slider = el("input", { type: "range", min: 0, max: 100, value: state.transparency, "aria-label": "Transparency" });
+  // Fully right is fully solid, as the app's slider
+  const slider = el("input", { type: "range", min: 0, max: 100, value: 100 - state.transparency, "aria-label": "Transparency, solid at the right" });
   const controls = el("div", { class: "psf-controls" },
     drawingSwitch,
     el("label", { class: "psf-slider" }, "Transparency", slider),
-    el("span", { class: "psf-hint" }, touch.matches ? "Tap the painting to let PS Focus fade" : "Drag a panel out by its title · move your mouse away to see it fade"));
+    el("span", { class: "psf-hint" }, touch.matches ? "The icons at the top show and hide each part · tap the painting to let PS Focus fade"
+      : "The icons at the top show and hide each part · drag a panel out by its title · move your mouse onto the painting"));
   const stage = el("div", { class: "psf-stage" });
   const canvas = el("div", { class: "psf-canvas", role: "img", "aria-label": "A painting on the art app's canvas" });
   canvas.style.backgroundImage = `url("${PAINTING}")`;
@@ -158,11 +172,18 @@
   root.append(controls, stage);
 
   drawingSwitch.addEventListener("click", () => {
+    markUsed("timer");
     state.drawing = !state.drawing;
     drawingSwitch.setAttribute("aria-checked", String(state.drawing));
     renderToday();
   });
-  slider.addEventListener("input", () => { state.transparency = Number(slider.value); updateGlass(); });
+  const setTransparency = (amount) => {
+    state.transparency = amount;
+    slider.value = 100 - amount;
+    settingsSlider.value = 100 - amount;
+    updateGlass();
+  };
+  slider.addEventListener("input", () => setTransparency(100 - Number(slider.value)));
 
   // ----- The window -----
 
@@ -176,15 +197,22 @@
   const accountName = el("span", {}, "gilty");
   const statusButton = el("button", { type: "button", class: "psf-icon-button psf-chevron", title: "Status", onclick: (event) => statusMenu(event.currentTarget) }, svg(ICONS.chevron));
   const account = el("div", { class: "psf-account" }, progressDot, accountName, statusButton);
-  const settingsButton = el("button", { type: "button", class: "psf-icon-button psf-settings", title: "Settings", onclick: (event) => settingsMenu(event.currentTarget) }, "···");
-  const header = el("div", { class: "psf-header" }, el("div", { class: "psf-level" }, "Level", levelBadge), account, settingsButton);
+  const settingsButton = el("button", { type: "button", class: "psf-icon-button psf-settings", title: "Settings", onclick: () => toggleSettings() }, "···");
+  const level = el("div", { class: "psf-level" }, "Level", levelBadge);
+  // In Settings the header shows the version and the credit in place of the level and account
+  const credit = el("div", { class: "psf-credit", hidden: true }, el("span", { class: "psf-version" }, "Version 1.2.0"), el("span", { class: "psf-by" }, "by giltyworks"));
+  const header = el("div", { class: "psf-header" }, level, account, credit, settingsButton);
   const iconButtons = {};
   const icons = el("div", { class: "psf-icons" }, ["graph", "calendar", "friends"].map((name) => {
-    iconButtons[name] = el("button", { type: "button", class: "psf-icon-button", title: `Show or hide ${name}`, onclick: () => toggleModule(name) }, svg(ICONS[name]));
+    iconButtons[name] = el("button", { type: "button", class: "psf-icon-button", title: `Show or hide ${name}`, onclick: () => { markUsed("icons"); toggleModule(name); } }, svg(ICONS[name]));
     return iconButtons[name];
   }));
   const blocks = el("div", { class: "psf-blocks" });
-  win.append(titlebar, header, icons, blocks);
+  // Settings takes the place of the icons and blocks while open, see toggleSettings
+  const settingsPage = el("div", { class: "psf-settings-page", hidden: true });
+  // The grip the window is resized by: its bottom edge in portrait, its right edge in landscape
+  const grip = el("div", { class: "psf-grip", "aria-hidden": "true" });
+  win.append(titlebar, header, icons, blocks, settingsPage, grip);
   stage.append(win);
 
   const strip = (title, extra = []) => el("div", { class: "psf-strip" }, el("span", {}, title), el("span", { class: "psf-spacer" }), extra,
@@ -205,7 +233,7 @@
       el("div", { class: "psf-row" }, today_.sessions, today_.record),
       el("div", { class: "psf-row" }, today_.status, today_.last)));
   const sessionsCount = [...history.values()].filter((hours) => hours.reduce((a, b) => a + b, 0) >= SESSION_MINIMUM).length;
-  const lastSession = (() => { for (let ago = 1; ago < 400; ago++) if (dayTotal(daysAgo(ago)) > 0) return daysAgo(ago); return today; })();
+  const lastSession = (() => { for (let ago = 1; ago <= STARTED_DAYS_AGO; ago++) if (dayTotal(daysAgo(ago)) > 0) return daysAgo(ago); return today; })();
 
   function renderToday() {
     const todaySeconds = dayTotal(today);
@@ -213,8 +241,9 @@
     today_.metric.textContent = clock(todaySeconds);
     today_.sessions.textContent = `${sessionsCount} SESSIONS`;
     today_.record.textContent = `${(lifetime / 3600).toFixed(1)} hrs on record`;
-    today_.status.textContent = state.drawing ? "ACTIVE" : "NOT ACTIVE";
-    today_.status.classList.toggle("psf-active", state.drawing);
+    const active = state.drawing && !state.paused;
+    today_.status.textContent = active ? "ACTIVE" : state.paused ? "PAUSED" : "NOT ACTIVE";
+    today_.status.classList.toggle("psf-active", active);
     today_.last.textContent = `last session on ${lastSession.getDate()} ${MONTHS[lastSession.getMonth()]}`;
     progressDot.classList.toggle("psf-reached", todaySeconds >= SESSION_MINIMUM);
     levelBadge.textContent = String(levelFor(lifetime / 3600));
@@ -334,14 +363,14 @@
       weeks++;
     }
     let rest = 0;
-    while (rest < 400 && dayTotal(daysAgo(rest)) < SESSION_MINIMUM) rest++;
+    while (rest < STARTED_DAYS_AGO && dayTotal(daysAgo(rest)) < SESSION_MINIMUM) rest++;
     return [weeks, rest];
   }
 
   let tip = null;
-  const showTip = (target, text) => {
+  const showTip = (target, text, wrap = false) => {
     hideTip();
-    tip = el("div", { class: "psf-tip" }, text);
+    tip = el("div", { class: `psf-tip${wrap ? " psf-tip-wrap" : ""}` }, text);
     stage.append(tip);
     const t = target.getBoundingClientRect(), s = stage.getBoundingClientRect();
     tip.style.left = `${Math.max(4, Math.min(t.left - s.left + t.width / 2 - tip.offsetWidth / 2, stage.clientWidth - tip.offsetWidth - 4))}px`;
@@ -480,7 +509,7 @@
   function requestArrives() {
     if (state.requestShown) return;
     state.requestShown = true;
-    state.request = { code: "SAMM", name: "Sam", level: 39, presence: "drawing", program: "Photoshop", two: 33.0, total: 870.5, today: 1.6 };
+    state.request = { code: "SAMM", name: "Sam", level: 16, presence: "drawing", program: "Photoshop", two: 12.7, total: 92.4, today: 1.1 };
     renderFriends();
     popup = el("div", { class: "psf-popup", role: "dialog", "aria-label": "Friend request" },
       el("button", { type: "button", class: "psf-x", title: "Later", onclick: closePopup }, "✕"),
@@ -496,6 +525,12 @@
     state.request = null;
     state.requestsOpen = false;
     closePopup();
+    // Friends opens to show the new friend, the calendar making room in the tall window
+    if (!state.shown.friends) {
+      if (!state.landscape && state.shown.calendar && !state.floating.calendar) state.shown.calendar = false;
+      state.shown.friends = true;
+      arrange();
+    }
     renderFriends();
   }
   function declineRequest() {
@@ -514,21 +549,102 @@
   }
 
   function statusMenu(anchor) {
+    markUsed("status");
     const choices = [["online", "Online", ""], ["away", "Away", "Friends see you're away"], ["invisible", "Invisible", "Appear offline, but still see your friends"], ["offline", "Offline", "Stop sharing with friends"]];
     openMenu(anchor, choices.map(([status, name, note]) => el("button", { type: "button", class: status === state.status ? "psf-current" : "",
       onclick: () => { state.status = status; account.classList.toggle("psf-hidden-name", status === "invisible" || status === "offline"); closeMenu(); renderFriends(); } }, name, note ? el("small", {}, note) : null)));
   }
 
-  function settingsMenu(anchor) {
-    const range = el("input", { type: "range", min: 0, max: 100, value: state.transparency });
-    range.addEventListener("input", () => { state.transparency = Number(range.value); slider.value = range.value; updateGlass(); });
-    openMenu(anchor, [el("label", {}, "Transparency", range)]);
-    menu.style.left = `${Math.max(4, parseFloat(menu.style.left) - 120)}px`;
+  // ----- Settings -----
+
+  const checkbox = (checked, label, onToggle) => {
+    const box = el("button", { type: "button", class: `psf-check${checked ? " psf-checked" : ""}`, role: "checkbox", "aria-checked": String(checked), "aria-label": label });
+    box.addEventListener("click", () => { onToggle(); });
+    return box;
+  };
+  const settingsSlider = el("input", { type: "range", min: 0, max: 100, value: 100 - state.transparency, "aria-label": "Transparency, solid at the right" });
+  settingsSlider.addEventListener("input", () => setTransparency(100 - Number(settingsSlider.value)));
+  const backupStatus = el("div", { class: "psf-backup-line psf-green" }, "Activity backup saved to Google Drive");
+
+  function boxedRow(title, text, control) {
+    return el("div", { class: "psf-boxed" }, el("div", { class: "psf-boxed-text" }, el("b", {}, title), el("span", {}, text)), control);
+  }
+
+  function renderSettings() {
+    const programs = Object.entries(state.programs).map(([program, on]) => el("label", { class: "psf-check-label" },
+      program === "Clip Studio Paint" ? "CSP" : program === "Photoshop" ? "PS" : program,
+      checkbox(on, program, () => {
+        // One program panel is always shown, as in the app
+        if (on && Object.values(state.programs).filter(Boolean).length === 1) return toast("One program stays shown");
+        state.programs[program] = !on;
+        renderSettings();
+      })));
+    const orientation = el("div", { class: "psf-orientation" },
+      el("button", { type: "button", class: `psf-shape psf-tall${state.landscape ? "" : " psf-chosen"}`, "aria-label": "Portrait", onclick: () => chooseOrientation(false) }),
+      el("button", { type: "button", class: `psf-shape psf-wide${state.landscape ? " psf-chosen" : ""}`, "aria-label": "Landscape", onclick: () => chooseOrientation(true) }));
+    const toggle = (key) => checkbox(state[key], key, () => { state[key] = !state[key]; renderSettings(); });
+    settingsPage.replaceChildren(
+      el("h3", {}, "Settings"),
+      el("p", { class: "psf-settings-text" }, "PS Focus counts time in Photoshop, Krita and CSP while they are in front and pauses when you're inactive"),
+      el("div", { class: "psf-check-row" }, programs),
+      boxedRow("Orientation", "Modules below or beside the program panels", orientation),
+      boxedRow("Transparency", "PS Focus turns see-through while the mouse is elsewhere", settingsSlider),
+      boxedRow("Start with Windows", "Launch PS Focus when you sign in to Windows", toggle("startWithWindows")),
+      boxedRow("Start minimized", "Open PS Focus minimized when launched at sign-in", toggle("startMinimized")),
+      el("div", { class: "psf-check-row" },
+        el("label", { class: "psf-check-label" }, "Pause tracking", checkbox(state.paused, "Pause tracking", () => { state.paused = !state.paused; renderSettings(); renderToday(); })),
+        el("label", { class: "psf-check-label" }, "Disable fanfare sound", toggle("fanfareOff"))),
+      el("div", { class: "psf-backups" },
+        el("b", {}, "Settings and activity backups"),
+        el("span", {}, "Activity is saved locally on this PC and backed up to Google Drive when connected"),
+        el("div", { class: "psf-backup-line psf-green" }, "demo@example.com"), backupStatus,
+        el("div", { class: "psf-backup-buttons" },
+          el("button", { type: "button", onclick: () => { backupStatus.textContent = "Local activity backups saved"; setTimeout(() => (backupStatus.textContent = "Activity backup saved to Google Drive"), 1200); } }, "Back up now"),
+          el("button", { type: "button", onclick: () => toast("Switch to another Google account") }, "Switch account"),
+          el("button", { type: "button", onclick: () => toast("Log out of Google; your history stays on this PC") }, "Log out"))),
+      el("button", { type: "button", class: "psf-exit", onclick: () => toast("Exit closes PS Focus; it counts nothing until you open it again") }, "Exit"));
+  }
+
+  function toggleSettings(open = !state.settingsOpen) {
+    state.settingsOpen = open;
+    if (open) { renderSettings(); markUsed("settings"); }
+    // Settings stands under the header, which leaves the landscape column while it is open
+    arrange();
+    settingsPage.hidden = !open;
+    icons.hidden = open;
+    blocks.hidden = open;
+    level.hidden = open;
+    account.hidden = open;
+    credit.hidden = !open;
+    settingsButton.classList.toggle("psf-open", open);
+    if (!open) arrange();
+    applySize();
+    updateGlass();
+  }
+
+  function chooseOrientation(landscape) {
+    // Choosing one docks every floating panel and goes back to that layout, as in the app
+    Object.keys(state.floating).forEach((name) => dockBack(name, null));
+    state.landscape = landscape;
+    state.size = null;
+    win.classList.toggle("psf-landscape", landscape);
+    toggleSettings(false);
   }
 
   // ----- Showing, hiding and arranging the modules -----
 
-  const blockOf = { today: todayBlock, graph: graphBlock, calendar: calendarBlock, friends: friendsBlock };
+  // The other programs' panels, quieter: this visitor draws in Photoshop
+  const otherProgram = (program, two, record, sessions, last) => el("div", { class: "psf-block psf-today", "data-name": program },
+    el("div", { class: "psf-strip" }, el("span", {}, program), el("span", { class: "psf-two-week" }, `${two} hrs past 2 weeks`)),
+    el("div", { class: "psf-today-body" }, el("div", { class: "psf-metric" }, "0s"),
+      el("div", { class: "psf-row" }, el("span", { class: "psf-small" }, `${sessions} SESSIONS`), el("span", {}, `${record} hrs on record`)),
+      el("div", { class: "psf-row" }, el("span", { class: "psf-status" }, "NOT ACTIVE"), el("span", {}, `last session on ${last}`))));
+  const blockOf = {
+    today: todayBlock, graph: graphBlock, calendar: calendarBlock, friends: friendsBlock,
+    "Clip Studio Paint": otherProgram("Clip Studio Paint", "1.8", "6.2", 4, `${daysAgo(9).getDate()} ${MONTHS[daysAgo(9).getMonth()]}`),
+    Krita: otherProgram("Krita", "0.0", "2.5", 2, `${daysAgo(23).getDate()} ${MONTHS[daysAgo(23).getMonth()]}`),
+  };
+  const PROGRAM_BLOCKS = { Photoshop: "today", "Clip Studio Paint": "Clip Studio Paint", Krita: "Krita" };
 
   function toggleModule(name) {
     state.shown[name] = !state.shown[name];
@@ -537,18 +653,39 @@
     if (name === "friends" && state.shown.friends && !state.requestShown) setTimeout(requestArrives, 1600);
   }
 
-  function arrange(placeholderAt = null, placeholderHeight = 0) {
+  // A few seconds after the demo comes into view, a friend request arrives, as one would in the app; accepting it
+  // opens Friends, which is how a visitor finds it
+  if ("IntersectionObserver" in window) {
+    const watch = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) { watch.disconnect(); setTimeout(requestArrives, 6000); }
+    }, { threshold: 0.4 });
+    watch.observe(stage);
+  }
+
+  function arrange(placeholderAt = null, placeholderHeight = 0, placeholderWidth = 300) {
     Object.entries(iconButtons).forEach(([name, button]) => button.classList.toggle("psf-on", state.shown[name]));
-    const docked = state.order.filter((name) => (name === "today" || state.shown[name]) && !state.floating[name]);
+    const programs = Object.entries(state.programs).filter(([, on]) => on).map(([program]) => PROGRAM_BLOCKS[program]);
+    const docked = [...programs, ...state.order.filter((name) => name !== "today" && state.shown[name] && !state.floating[name])];
     const children = docked.map((name) => blockOf[name]);
     if (placeholderAt != null) {
       const holder = el("div", { class: "psf-placeholder" });
       holder.style.height = `${placeholderHeight}px`;
+      if (state.landscape) holder.style.width = `${placeholderWidth - 2}px`;
       children.splice(placeholderAt, 0, holder);
+    }
+    if (state.landscape && !state.settingsOpen && children.length) {
+      // The header and icons head the first column, on top of the first program panel
+      anchorColumn.replaceChildren(header, icons, children[0]);
+      children[0] = anchorColumn;
+    } else {
+      win.insertBefore(header, blocks);
+      win.insertBefore(icons, blocks);
     }
     blocks.replaceChildren(...children);
     fitStage();
   }
+
+  const anchorColumn = el("div", { class: "psf-anchor-column" });
 
   function fitStage() {
     const panels = Object.values(state.floating).filter((f) => !f.panel.hidden);
@@ -558,8 +695,15 @@
     const room = stage.clientWidth - 16;
     win.style.transform = touch.matches ? `translateX(-50%)${room < 300 ? ` scale(${room / 300})` : ""}` : "";
     win.style.transformOrigin = "top center";
+    // A wide window keeps inside the scene, moving left as far as it must
+    if (!touch.matches && win.offsetLeft + win.offsetWidth > stage.clientWidth - 8) {
+      win.style.left = `${Math.max(8, stage.clientWidth - 8 - win.offsetWidth)}px`;
+    }
+    placeHotspots();
   }
   window.addEventListener("resize", fitStage);
+  // Fonts arriving late change sizes, and so where the dots go
+  document.fonts?.ready.then(fitStage);
 
   // ----- Panels: pulled out by their title, snapped beside the window, dropped back in -----
 
@@ -568,11 +712,17 @@
     return { left: r.left - s.left, top: r.top - s.top, right: r.right - s.left, bottom: r.bottom - s.top, width: r.width, height: r.height };
   }
 
-  function dockSlot(pointerY) {
-    // Where among the window's blocks a panel dropped at this height goes, the program panel always first
+  function dockSlot(pointerX, pointerY) {
+    // Where among the window's blocks a panel dropped here goes, the program panels always first; in landscape by
+    // where across, in portrait by how far down
     const docked = [...blocks.children].filter((child) => !child.classList.contains("psf-placeholder"));
+    const programs = Object.values(state.programs).filter(Boolean).length;
     let slot = docked.length;
-    docked.forEach((child, index) => { const r = rect(child); if (slot === docked.length && pointerY < r.top + r.height / 2) slot = Math.max(1, index); });
+    docked.forEach((child, index) => {
+      const r = rect(child);
+      const before = state.landscape ? pointerX < r.left + r.width / 2 : pointerY < r.top + r.height / 2;
+      if (slot === docked.length && before) slot = Math.max(programs, index);
+    });
     return slot;
   }
 
@@ -594,10 +744,12 @@
     if (!floating) return;
     delete state.floating[name];
     floating.panel.remove();
-    const docked = state.order.filter((n) => (n === "today" || state.shown[n]) && !state.floating[n] && n !== name);
-    const after = docked[slot - 1];
+    // The modules in the window, in order; the slot counts the program panels, which always come first
+    const docked = state.order.filter((n) => n !== "today" && state.shown[n] && !state.floating[n] && n !== name);
+    const programs = Object.values(state.programs).filter(Boolean).length;
+    const before = slot == null ? undefined : docked[Math.max(0, slot - programs)];
     state.order = state.order.filter((n) => n !== name);
-    state.order.splice(after ? state.order.indexOf(after) + 1 : state.order.length, 0, name);
+    state.order.splice(before ? state.order.indexOf(before) : state.order.length, 0, name);
     arrange();
     updateGlass();
   }
@@ -617,6 +769,55 @@
     return attached;
   }
 
+  grip.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    const start = { x: event.clientX, y: event.clientY, width: win.offsetWidth, height: win.offsetHeight };
+    // Never smaller than the header with the first program panel under it, as the app keeps it in view
+    const least = state.landscape ? 300 : titlebar.offsetHeight + header.offsetHeight + icons.offsetHeight + todayBlock.offsetHeight + 12;
+    const most = state.landscape ? blocks.scrollWidth : win.scrollHeight;
+    try { grip.setPointerCapture(event.pointerId); } catch (error) { /* moves still reach it */ }
+    const move = (moveEvent) => {
+      if (state.landscape) state.size = Math.max(least, Math.min(most, start.width + moveEvent.clientX - start.x));
+      else state.size = Math.max(least, Math.min(most, start.height + moveEvent.clientY - start.y));
+      // Dragged back out as far as everything goes, the window follows what it shows again
+      if (state.size >= most) state.size = null;
+      applySize();
+    };
+    const up = () => { grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up); };
+    grip.addEventListener("pointermove", move);
+    grip.addEventListener("pointerup", up);
+    grip.addEventListener("pointercancel", up);
+  });
+
+  function applySize() {
+    win.style.height = !state.landscape && state.size && !state.settingsOpen ? `${state.size}px` : "";
+    win.style.width = state.landscape && state.size && !state.settingsOpen ? `${state.size}px` : "";
+    win.classList.toggle("psf-clipped", !!state.size && !state.settingsOpen);
+    fitStage();
+  }
+
+  win.addEventListener("pointerdown", (event) => {
+    if (touch.matches || event.button !== 0 || !event.target.closest(".psf-titlebar, .psf-header, .psf-icons") || event.target.closest("button, input")) return;
+    const start = { x: event.clientX, y: event.clientY, left: win.offsetLeft, top: win.offsetTop };
+    const attached = Object.values(state.floating).filter((f) => f.attached).map((f) => ({ panel: f.panel, left: f.panel.offsetLeft, top: f.panel.offsetTop }));
+    const grip = event.target;
+    try { grip.setPointerCapture(event.pointerId); } catch (error) { /* moves still reach it */ }
+    const move = (moveEvent) => {
+      const dx = Math.max(-start.left, Math.min(moveEvent.clientX - start.x, stage.clientWidth - win.offsetWidth - start.left));
+      const dy = Math.max(-start.top, moveEvent.clientY - start.y);
+      win.style.left = `${start.left + dx}px`;
+      win.style.top = `${start.top + dy}px`;
+      attached.forEach((a) => { a.panel.style.left = `${a.left + dx}px`; a.panel.style.top = `${a.top + dy}px`; });
+      fitStage();
+      hideTip();
+    };
+    const up = () => { grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up); };
+    grip.addEventListener("pointermove", move);
+    grip.addEventListener("pointerup", up);
+    grip.addEventListener("pointercancel", up);
+  });
+
   stage.addEventListener("pointerdown", (event) => {
     const dock = event.target.closest("[data-dock]");
     if (dock) {
@@ -628,7 +829,7 @@
     if (!stripNode || touch.matches || event.button !== 0 || event.target.closest("button, input")) return;
     const block = stripNode.closest(".psf-block");
     const name = block.dataset.name;
-    if (name === "today") return;
+    if (name === "today" || PROGRAM_BLOCKS[name]) return;
     const start = { x: event.clientX, y: event.clientY };
     const blockRect = rect(block);
     const grab = { x: start.x - stage.getBoundingClientRect().left - blockRect.left, y: start.y - stage.getBoundingClientRect().top - blockRect.top };
@@ -643,6 +844,7 @@
       if (!dragging) {
         if (Math.hypot(moveEvent.clientX - start.x, moveEvent.clientY - start.y) < 6) return;
         dragging = true;
+        markUsed("drag");
         if (!panel) panel = floatOut(name, x - grab.x, y - grab.y);
         panel.classList.add("psf-dragging");
       }
@@ -651,8 +853,8 @@
       // Over the window, a blue space shows where it would go back in
       const w = rect(win);
       const over = x > w.left && x < w.right && y > w.top && y < w.bottom + 30;
-      const newSlot = over ? dockSlot(y) : null;
-      if (newSlot !== slot) { slot = newSlot; arrange(slot, panel.offsetHeight - 2); }
+      const newSlot = over ? dockSlot(x, y) : null;
+      if (newSlot !== slot) { slot = newSlot; arrange(slot, panel.offsetHeight - 2, panel.offsetWidth); }
       state.pointerInside.main = true;
       updateGlass();
     };
@@ -680,6 +882,7 @@
     const inside = (node) => pointer && (() => { const r = rect(node); return pointer.x >= r.left && pointer.x <= r.right && pointer.y >= r.top && pointer.y <= r.bottom; })();
     const attached = Object.values(state.floating).filter((f) => f.attached && !f.panel.hidden);
     const mainSolid = touch.matches ? !stageAway : inside(win) || attached.some((f) => inside(f.panel)) || !!menu;
+    if (!mainSolid && (touch.matches ? stageAway : pointer && inside(canvas))) markUsed("fade");
     const set = (node, solid) => { node.style.setProperty("--a", solid ? 1 : alpha); node.style.setProperty("--g", solid ? 0 : glow); };
     set(win, mainSolid);
     Object.values(state.floating).forEach((f) => set(f.panel, f.attached ? mainSolid : (touch.matches ? !stageAway : inside(f.panel))));
@@ -698,10 +901,55 @@
     updateGlass();
   });
 
+  // ----- Tips: a pulsing dot on each main feature, explained under the pointer, gone once the feature is used. A few
+  // at a time, in this order, so the demo grows quieter as it is learnt, as the app does -----
+
+  const HOTSPOTS = [
+    { id: "timer", target: () => today_.metric, at: (r) => [r.left + 196, r.top + 6],
+      text: "Counts by itself while your art app is in front, and stops when you step away. Try the switch above." },
+    { id: "icons", target: () => icons, at: (r) => [r.right - 86, r.top - 4], text: "Show or hide the graph, calendar and friends." },
+    { id: "drag", target: () => [...blocks.querySelectorAll(".psf-block:not(.psf-today) .psf-strip")][0], at: (r) => [r.left + 140, r.top + 8],
+      text: "Drag a panel out by its title to keep it beside your canvas. Drop it back in, or press « on it." },
+    { id: "fade", target: () => canvas, at: (r) => [r.left + 28, r.top + 28],
+      text: "Move your mouse onto the painting: PS Focus fades so your art shows through, and comes back when you point at it." },
+    { id: "status", target: () => statusButton, at: (r) => [r.right - 2, r.top - 6], text: "Show friends you're Away, or go Invisible or Offline." },
+    { id: "settings", target: () => settingsButton, at: (r) => [r.right - 4, r.top - 6], text: "Settings: your programs, portrait or landscape, transparency, and backups." },
+  ];
+  const TIPS_AT_ONCE = 3;
+  const used = new Set();
+  const hotspots = el("div", { class: "psf-hotspots" });
+  stage.append(hotspots);
+
+  function markUsed(id) {
+    if (used.has(id)) return;
+    used.add(id);
+    hideTip();
+    placeHotspots();
+  }
+
+  function placeHotspots() {
+    if (!hotspots.isConnected) return;
+    const shown = HOTSPOTS.filter((spot) => {
+      if (used.has(spot.id)) return false;
+      const target = spot.target();
+      return target && target.offsetParent !== null && !target.closest("[hidden]");
+    }).slice(0, TIPS_AT_ONCE);
+    hotspots.replaceChildren(...shown.map((spot) => {
+      const [x, y] = spot.at(rect(spot.target()));
+      const dot = el("button", { type: "button", class: "psf-hotspot", "aria-label": spot.text });
+      dot.style.left = `${x}px`;
+      dot.style.top = `${y}px`;
+      dot.addEventListener("pointerenter", () => showTip(dot, spot.text, true));
+      dot.addEventListener("pointerleave", hideTip);
+      dot.addEventListener("click", () => showTip(dot, spot.text, true));
+      return dot;
+    }));
+  }
+
   // ----- The clock -----
 
   setInterval(() => {
-    if (!state.drawing) return;
+    if (!state.drawing || state.paused) return;
     const hour = new Date().getHours();
     todayHours[hour] += 1;
     lifetime += 1;
@@ -717,5 +965,5 @@
   updateGlass();
 
   // For checking states while the page is built, from the browser's console
-  window.psfDemo = { state, toggleModule, requestArrives, floatOut, snap, updateGlass, renderCalendar, renderGraph, setPointer: (x, y) => { pointer = x == null ? null : { x, y }; updateGlass(); } };
+  window.psfDemo = { state, toggleModule, toggleSettings, chooseOrientation, requestArrives, floatOut, snap, updateGlass, renderCalendar, renderGraph, setPointer: (x, y) => { pointer = x == null ? null : { x, y }; updateGlass(); } };
 })();
