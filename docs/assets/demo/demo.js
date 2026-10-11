@@ -148,10 +148,15 @@
     toastTimer = setTimeout(() => note.remove(), 2600);
   };
 
-  let menu = null;
-  const closeMenu = () => { menu?.remove(); menu = null; };
+  let menu = null, menuAnchor = null, closedFrom = null;
+  const closeMenu = () => { menu?.remove(); menu = null; menuAnchor = null; };
+  // Clicking what opened a menu while it is open closes it, rather than closing and opening it again
   const openMenu = (anchor, items) => {
+    const reopening = closedFrom === anchor;
+    closedFrom = null;
+    if (reopening) return;
     closeMenu();
+    menuAnchor = anchor;
     menu = el("div", { class: "psf-menu", role: "menu" }, items);
     stage.append(menu);
     const a = anchor.getBoundingClientRect(), s = stage.getBoundingClientRect();
@@ -159,7 +164,11 @@
     menu.style.left = `${Math.max(4, left)}px`;
     menu.style.top = `${a.bottom - s.top + 2}px`;
   };
-  document.addEventListener("pointerdown", (event) => { if (menu && !menu.contains(event.target)) closeMenu(); }, true);
+  document.addEventListener("pointerdown", (event) => {
+    if (!menu || menu.contains(event.target)) return;
+    if (menuAnchor?.contains(event.target)) { closedFrom = menuAnchor; setTimeout(() => (closedFrom = null), 400); }
+    closeMenu();
+  }, true);
 
   // ----- The page's controls and the scene -----
 

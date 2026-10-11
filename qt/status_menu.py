@@ -3,6 +3,7 @@ one a friend's row opens"""
 
 from __future__ import annotations
 
+import time
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QRect, Qt
@@ -21,15 +22,30 @@ CHOICES = (
 PADDING_X = 12
 PADDING_Y = 5
 MIN_WIDTH = 150
+# A click that closes a menu, landing on what opened it, closes it only, if it reopens within this many seconds
+REOPEN_GUARD_SECONDS = 0.4
 
 
 class PopupMenu(QWidget):
     """A popup list, closed by choosing or by clicking anywhere else. Each choice is (key, name, note), the note a
     muted line under the name, or empty; the current choice is picked out in a light blue, and a choice whose key starts
-    with "danger" in red"""
+    with "danger" in red
+
+    `opener` names what opened the menu, such as the arrow by the user's name. Clicking it again while the menu is
+    open closes the menu, rather than closing and reopening it, see opens"""
+
+    # What opened the last menu closed by a click outside it, and when
+    dismissed: tuple[object, float] | None = None
+
+    @classmethod
+    def opens(cls, opener: object) -> bool:
+        """Whether a click on `opener` should open its menu: not when that click has just closed it"""
+        dismissed, cls.dismissed = cls.dismissed, None
+        return not (opener is not None and dismissed is not None and dismissed[0] == opener and time.monotonic() - dismissed[1] < REOPEN_GUARD_SECONDS)
 
     def __init__(
         self, parent: QWidget, fonts: Fonts, choices, current: str | None, on_chosen: Callable[[str], None], min_width: int = MIN_WIDTH,
+        opener: object = None,
     ) -> None:
         super().__init__(parent, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
@@ -37,6 +53,7 @@ class PopupMenu(QWidget):
         self.fonts = fonts
         self.current = current
         self.on_chosen = on_chosen
+        self.opener = opener
         self.hovered: str | None = None
         self.pressed = False
         self.rows: list[tuple[str, str, str, QRect]] = []
@@ -85,6 +102,7 @@ class PopupMenu(QWidget):
         if self.rect().contains(event.position().toPoint()):
             self.pressed = True
         else:
+            PopupMenu.dismissed = (self.opener, time.monotonic())
             super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
@@ -97,4 +115,4 @@ class PopupMenu(QWidget):
 
 class StatusMenu(PopupMenu):
     def __init__(self, parent: QWidget, fonts: Fonts, current: str, on_chosen: Callable[[str], None]) -> None:
-        super().__init__(parent, fonts, CHOICES, current, on_chosen)
+        super().__init__(parent, fonts, CHOICES, current, on_chosen, opener="status")

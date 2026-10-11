@@ -277,6 +277,8 @@ class FriendsSync:
 
     def person_menu(self, code: str, name: str, point) -> None:
         """The menu a friend's row opens: favourite or not, a nickname, and removing them"""
+        if not PopupMenu.opens(("person", code)):
+            return
         favourite = code in self._local("friends_favourites")
         nickname = self._local("friends_nicknames").get(code)
         choices = [
@@ -286,7 +288,7 @@ class FriendsSync:
         if nickname:
             choices.append(("clear_nickname", "Clear nickname", ""))
         choices.append(("danger_remove", "Remove friend", ""))
-        PopupMenu(self.app.window, self.app.fonts, choices, None, lambda key: self._person_chosen(key, code, name)).show_at(point)
+        PopupMenu(self.app.window, self.app.fonts, choices, None, lambda key: self._person_chosen(key, code, name), opener=("person", code)).show_at(point)
 
     def _person_chosen(self, key: str, code: str, name: str) -> None:
         if key == "favourite":
@@ -360,4 +362,6 @@ class FriendsSync:
             header.update()
 
     def open_status_menu(self, point) -> None:
+        if not PopupMenu.opens("status"):
+            return
         StatusMenu(self.app.window, self.app.fonts, self.status(), self.set_status).show_at(point)

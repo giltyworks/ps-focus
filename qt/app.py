@@ -261,10 +261,12 @@ class PSFocusQt:
             self.docking.sync_visibility()
 
     def _title_bar_menu(self, point) -> None:
+        if not PopupMenu.opens("title"):
+            return
         choices = [("always_on_top", "Always on top", ""), ("minimize", "Minimise", ""), ("close", "Close to the tray", "")]
         chosen = {"always_on_top": self._toggle_always_on_top, "minimize": self.window.showMinimized, "close": self.window.close}
         current = "always_on_top" if self.settings.get("always_on_top") else None
-        PopupMenu(self.window, self.fonts, choices, current, lambda key: chosen[key]()).show_at(point)
+        PopupMenu(self.window, self.fonts, choices, current, lambda key: chosen[key](), opener="title").show_at(point)
 
     def _toggle_always_on_top(self) -> None:
         self.settings["always_on_top"] = not self.settings.get("always_on_top")

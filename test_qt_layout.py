@@ -206,3 +206,18 @@ class CalendarDayTipTests(unittest.TestCase):
         calendar.store = Store()
         self.assertEqual(calendar.day_summary(date(2026, 10, 8)), "Thu 8 Oct · 1h 20m")
         self.assertEqual(calendar.day_summary(date(2026, 10, 9)), "Fri 9 Oct · nothing tracked")
+
+
+@unittest.skipIf(QApplication is None, "PySide6 is not installed")
+class PopupMenuToggleTests(unittest.TestCase):
+    def test_clicking_the_opener_of_an_open_menu_closes_it_only(self):
+        import time
+
+        from qt.status_menu import PopupMenu
+
+        PopupMenu.dismissed = ("status", time.monotonic())
+        self.assertFalse(PopupMenu.opens("status"))
+        # The next click opens it again, as does a click on something else
+        self.assertTrue(PopupMenu.opens("status"))
+        PopupMenu.dismissed = (("person", "A"), time.monotonic())
+        self.assertTrue(PopupMenu.opens(("person", "B")))
