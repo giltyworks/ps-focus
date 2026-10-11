@@ -777,6 +777,8 @@ def main(preview: bool, smoke_test: bool = False) -> None:
     # Hidden in the tray the app keeps running
     application.setQuitOnLastWindowClosed(False)
     application.setApplicationName(APP_NAME)
+    # The small tooltips on buttons are dark like the app's own tips, see hover_tip
+    application.setStyleSheet("QToolTip { background: #151515; color: #eef3f1; border: 1px solid #2c2c2c; padding: 4px 6px; }")
     app = PSFocusQt(application, instance)
     if preview:
         app.window.setWindowTitle("PS Focus Qt Preview")

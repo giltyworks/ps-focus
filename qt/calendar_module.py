@@ -7,14 +7,14 @@ import calendar
 from datetime import date
 from typing import Callable
 
-from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, Qt
+from PySide6.QtCore import QPoint, QRect, QRectF, Qt
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent, QPixmap
-from PySide6.QtWidgets import QToolTip
 
 from app_config import EDGE_PADDING, LINE_PADDING, MODULE_CANVAS_WIDTH, MODULE_MARGIN, SESSION_MINIMUM_SECONDS
 from stat_lines import DAY_ABBREVIATIONS, format_hours_minutes
 from tracker import ActivityStore
 
+from .hover_tip import hover_tip
 from .icons import icon
 from .module import STRIP_GAP, ModuleBlock, PaintedButton
 from .theme import Fonts, anchored_top_left, color, draw_anchored, draw_outline_text, draw_text, halo_strength, line_height, text_width
@@ -435,14 +435,13 @@ class CalendarModule(ModuleBlock):
         seconds = self.store.total_for_range(day, day)
         return f"{DAY_ABBREVIATIONS[day.weekday()]} {day.day} {day.strftime('%b')} · {format_hours_minutes(seconds) if seconds else 'nothing tracked'}"
 
-    def event(self, event: QEvent) -> bool:
-        # Resting on a day shows its summary, which goes as the mouse leaves that day's square
-        if event.type() == QEvent.Type.ToolTip:
-            found = self._day_box_at(event.pos())
-            if found is not None:
-                QToolTip.showText(event.globalPos(), self.day_summary(found[1]), self, found[0])
-                return True
-        return super().event(event)
+    def _show_day_tip(self, point: QPoint | None) -> None:
+        """The day under the mouse shows its summary straight away, above its square; elsewhere none shows"""
+        found = None if point is None else self._day_box_at(point)
+        if found is None:
+            hover_tip(self).hide_for(self)
+        else:
+            hover_tip(self).show_for(self, found[0], self.day_summary(found[1]))
 
     def interactive_at(self, point: QPoint) -> bool:
         return super().interactive_at(point) or self._day_at(point) is not None
@@ -452,6 +451,7 @@ class CalendarModule(ModuleBlock):
         if event.button() == Qt.MouseButton.LeftButton:
             day = self._day_at(event.position().toPoint())
             if day is not None:
+                self._show_day_tip(None)
                 self.on_open_day(day)
 
     def _day_fill(self, day: date, active: bool) -> QColor:
@@ -474,9 +474,12 @@ class CalendarModule(ModuleBlock):
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
         day = self._day_at(point)
+        if day != self.hovered_day:
+            self._show_day_tip(point)
         self._hover_day(day)
         self.update_cursor(point, any(button.contains(point) for button in self.buttons) or day is not None)
 
     def leaveEvent(self, event) -> None:
         super().leaveEvent(event)
+        self._show_day_tip(None)
         self._hover_day(None)

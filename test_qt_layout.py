@@ -171,10 +171,9 @@ class PanelTipTests(unittest.TestCase):
 
     def test_resting_on_a_name_strip_says_what_the_block_is_for(self):
         from PySide6.QtGui import QHelpEvent
-        from PySide6.QtTest import QTest
-        from PySide6.QtWidgets import QToolTip
 
-        from qt.module import PANEL_TIPS, ModuleBlock
+        from qt.hover_tip import hover_tip
+        from qt.module import PANEL_TIPS, ModuleBlock, hide_title_tip
         from qt.theme import Fonts
         from qt.today_panel import TodayPanel
 
@@ -183,12 +182,12 @@ class PanelTipTests(unittest.TestCase):
             block.show()
             title = block.title_rect().center()
             self.assertTrue(block.event(QHelpEvent(QEvent.Type.ToolTip, title, block.mapToGlobal(title))))
-            self.assertEqual(QToolTip.text(), tip)
-            # Off the strip, no tip
-            below = QPoint(title.x(), block.title_rect().bottom() + 8)
-            block.event(QHelpEvent(QEvent.Type.ToolTip, below, block.mapToGlobal(below)))
-            QTest.qWait(600)
-            self.assertFalse(QToolTip.isVisible())
+            shown = hover_tip(block)
+            self.assertTrue(shown.isVisible())
+            self.assertEqual(shown.text, tip)
+            # Off the strip, it goes
+            hide_title_tip(block, None)
+            self.assertFalse(shown.isVisible())
             block.hide()
 
 
