@@ -732,7 +732,11 @@
       const name = section(friend);
       if (name !== current) {
         current = name;
-        if (name !== "Online" || hasFavourites) parts.push(el("div", { class: "psf-section" }, `${name} — ${sorted.filter((f) => section(f) === name).length}`));
+        if (name !== "Online" || hasFavourites) {
+          // A count only from four up, such as "Online (4)", as the app
+          const count = sorted.filter((f) => section(f) === name).length;
+          parts.push(el("div", { class: "psf-section" }, count > 3 ? `${name} (${count})` : name));
+        }
       }
       parts.push(friendRow(friend));
     }

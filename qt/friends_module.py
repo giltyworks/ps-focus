@@ -39,6 +39,8 @@ NAME_ARROW_ARM = 3
 # A friend's name: green drawing, blue online or away, grey offline
 NAME_COLORS = {"drawing": "active_green", "online": "friend_online", "away": "friend_online", "offline": "muted"}
 # Short names for the programs, which share a line with the person's name
+# A section's heading counts its friends from this many up
+SECTION_COUNT_FROM = 4
 PROGRAM_SHORT_NAMES = {"Clip Studio Paint": "Clip Studio"}
 # The list of requests and friends scrolls beyond this many friends' rows in portrait, and beyond the height the
 # modules share in landscape; a turn of the mouse wheel moves it this far
@@ -396,7 +398,10 @@ class FriendsModule(ModuleBlock):
                 if section != "Online" or "Favourites" in sections:
                     if index:
                         y += GROUP_GAP - ROW_GAP
-                    self.items.append(("text", left, y, f"{section} \u2014 {sections.count(section)}", "muted", fonts.small))
+                    # A count only once a section holds more than a glance takes in, such as "Online (4)"
+                    count = sections.count(section)
+                    heading = f"{section} ({count})" if count >= SECTION_COUNT_FROM else section
+                    self.items.append(("text", left, y, heading, "muted", fonts.small))
                     y += small_line
             top = y
             hours = f"{stats.get('two_weeks', 0):.1f} hrs past 2 weeks"
