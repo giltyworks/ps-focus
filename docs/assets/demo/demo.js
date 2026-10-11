@@ -180,7 +180,8 @@
   const controls = el("div", { class: "psf-controls" },
     pauseControl,
     el("label", { class: "psf-slider" }, "Transparency", slider),
-    el("span", { class: "psf-hint" }, touch.matches ? "Tap the painting to let PS Focus fade" : "Drag the window by any empty spot to move it"));
+    // On a phone, where there is no pointer to hover the tips with, a line says how the fading works
+    touch.matches ? el("span", { class: "psf-hint" }, "Tap the painting to let PS Focus fade") : null);
   const stage = el("div", { class: "psf-stage" });
   const canvas = el("div", { class: "psf-canvas", role: "img", "aria-label": "A painting on the art app's canvas" });
   canvas.style.backgroundImage = `url("${PAINTING}")`;
@@ -842,7 +843,6 @@
     level.hidden = open;
     account.hidden = open;
     credit.hidden = !open;
-    settingsButton.classList.toggle("psf-open", open);
     if (!open) arrange();
     applySize();
     updateGlass();
