@@ -600,8 +600,8 @@
       })));
     const orientation = el("div", { class: "psf-orientation" },
       el("button", { type: "button", class: `psf-shape psf-tall${state.landscape ? "" : " psf-chosen"}`, "aria-label": "Portrait", onclick: () => chooseOrientation(false) }),
-      el("button", { type: "button", class: "psf-shape psf-wide psf-disabled", "aria-label": "Landscape, in the app", title: "Landscape is in the app",
-        onclick: () => toast("Landscape lays PS Focus out as one wide strip, in the app") }));
+      el("button", { type: "button", class: "psf-shape psf-wide psf-disabled", "aria-label": "Landscape, disabled in the demo", title: "Disabled in the demo",
+        onclick: () => toast("Landscape is disabled in the demo. In the app it lays PS Focus out as one wide strip") }));
     const toggle = (key) => checkbox(state[key], key, () => { state[key] = !state[key]; renderSettings(); });
     settingsPage.replaceChildren(
       el("h3", {}, "Settings"),
