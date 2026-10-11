@@ -28,6 +28,8 @@
 .psf-demo [hidden] { display: none !important; }
 
 /* The bar of demo controls above the scene */
+.psf-pause-control { font-size: 14px; color: var(--text, #eef3f1); gap: 10px; }
+.psf-pause-control .psf-check { width: 16px; height: 16px; }
 .psf-controls {
   display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;
   margin: 0 0 12px; font-size: 14px; color: var(--muted, #8d9a98);
@@ -279,6 +281,32 @@
 .psf-hotspot.psf-aside { visibility: hidden; }
 @keyframes psf-nudge { 0%, 100% { translate: 0 0; } 50% { translate: var(--nudge-x) var(--nudge-y); } }
 .psf-tip-wrap { white-space: normal; width: 230px; line-height: 1.4; }
+
+/* Signed out, and the simulated sign-in */
+.psf-account.psf-local { color: var(--psf-muted); font-size: 12px; }
+.psf-account.psf-local .psf-account-name { cursor: pointer; }
+.psf-muted { color: var(--psf-muted); }
+.psf-center { text-align: center; margin-top: 8px; }
+.psf-backup-buttons .psf-connect { color: var(--psf-green); }
+.psf-sheet { position: absolute; inset: 0; z-index: 35; background: rgba(0, 0, 0, .55); display: grid; place-items: center; text-shadow: none; }
+.psf-sheet-card { width: 300px; background: #0c0c0c; border: 1px solid #2c2c2c; border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.psf-sheet-card b { font-size: 16px; font-weight: 600; }
+.psf-sheet-note { font-size: 12px; color: var(--psf-muted); line-height: 1.4; }
+.psf-sheet-account { display: flex; align-items: center; gap: 10px; text-align: left; border: 1px solid #222; background: #121212; color: var(--psf-text); border-radius: 6px; padding: 8px 10px; font: 13px inherit; font-family: inherit; cursor: pointer; }
+.psf-sheet-account:hover { background: #1a1a1a; }
+.psf-sheet-account small { display: block; font-size: 12px; color: var(--psf-muted); }
+.psf-avatar { width: 28px; height: 28px; border-radius: 50%; background: var(--psf-blue); display: grid; place-items: center; font-weight: 600; flex: none; }
+.psf-sheet-cancel { align-self: flex-end; border: 0; background: none; color: var(--psf-muted); font: 12px inherit; font-family: inherit; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+.psf-sheet-cancel:hover { background: #222; }
+
+/* A day's overview, with its rating */
+.psf-day-overview { position: absolute; z-index: 32; width: 300px; background: #080808; outline: 1px solid #2b2b2b; text-shadow: none; box-shadow: 0 8px 30px rgba(0, 0, 0, .5); padding-bottom: 12px; }
+.psf-overview-rows { display: flex; justify-content: space-between; margin: 14px 16px 0; padding: 10px; background: #0c0c0c; border: 1px solid #222; font-size: 12px; }
+.psf-overview-empty { margin: 14px 19px 0; font-size: 12px; color: var(--psf-muted); }
+.psf-overview-ask { display: block; margin: 14px 19px 6px; font-size: 13px; font-weight: 600; }
+.psf-stars { display: flex; gap: 2px; padding: 0 15px; }
+.psf-star { border: 0; background: none; color: #5c5c5c; font-size: 20px; line-height: 1; padding: 2px 1px; cursor: pointer; font-family: "Segoe UI Symbol", "Segoe UI", sans-serif; }
+.psf-star.psf-lit { color: var(--psf-gold); }
 
 /* Phones and narrow screens: the painting fills the scene behind the window, and panels stay in it */
 @media (max-width: 760px), (pointer: coarse) {

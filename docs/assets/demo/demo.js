@@ -83,6 +83,8 @@
     calendarMonth: new Date(today.getFullYear(), today.getMonth(), 1),
     shown: { graph: true, calendar: true, friends: true },
     programs: { Photoshop: true, "Clip Studio Paint": false, Krita: false },
+    // A made-up Google account; in the app the real one is chosen on Google's own page in the browser
+    account: { name: "gilty", email: "demo@example.com" },
     paused: false,
     settingsOpen: false,
     landscape: false,
@@ -157,12 +159,13 @@
 
   // ----- The page's controls and the scene -----
 
-  const drawingSwitch = el("button", { class: "psf-switch", role: "switch", "aria-checked": "true", type: "button" },
-    el("span", { class: "psf-track" }), el("span", {}, "Drawing in Photoshop"));
+  // Pause tracking, as the checkbox in the app's Settings, which it stays in step with
+  const pauseBox = el("button", { type: "button", class: "psf-check", role: "checkbox", "aria-checked": "false", "aria-label": "Pause tracking" });
+  const pauseControl = el("label", { class: "psf-check-label psf-pause-control" }, "Pause tracking", pauseBox);
   // Fully right is fully solid, as the app's slider
   const slider = el("input", { type: "range", min: 0, max: 100, value: 100 - state.transparency, "aria-label": "Transparency, solid at the right" });
   const controls = el("div", { class: "psf-controls" },
-    drawingSwitch,
+    pauseControl,
     el("label", { class: "psf-slider" }, "Transparency", slider),
     el("span", { class: "psf-hint" }, touch.matches ? "The icons at the top show and hide each part · tap the painting to let PS Focus fade"
       : "The icons at the top show and hide each part · drag a panel out by its title · move your mouse onto the painting"));
@@ -172,12 +175,14 @@
   stage.append(canvas);
   root.append(controls, stage);
 
-  drawingSwitch.addEventListener("click", () => {
-    markUsed("timer");
-    state.drawing = !state.drawing;
-    drawingSwitch.setAttribute("aria-checked", String(state.drawing));
+  function setPaused(paused) {
+    state.paused = paused;
+    pauseBox.classList.toggle("psf-checked", paused);
+    pauseBox.setAttribute("aria-checked", String(paused));
     renderToday();
-  });
+    if (state.settingsOpen) renderSettings();
+  }
+  pauseBox.addEventListener("click", () => { markUsed("timer"); setPaused(!state.paused); });
   const setTransparency = (amount) => {
     state.transparency = amount;
     slider.value = 100 - amount;
@@ -198,14 +203,17 @@
   const accountName = el("span", { class: "psf-account-name", title: "Double-click to change your name" }, "gilty");
   // A double click on the name edits it, as in the app: Enter or clicking away keeps it, Escape leaves it as it was,
   // and an empty name goes back to the first one
+  accountName.addEventListener("click", () => { if (!state.account) signIn(); });
   accountName.addEventListener("dblclick", () => {
+    if (!state.account) return;
     markUsed("rename");
     const field = el("input", { class: "psf-name-field", type: "text", maxlength: 32, value: accountName.textContent, "aria-label": "Your name" });
     let done = false;
     const finish = (keep) => {
       if (done) return;
       done = true;
-      if (keep) accountName.textContent = field.value.trim() || "gilty";
+      if (keep) state.account.name = field.value.trim() || state.account.email.split("@")[0];
+      renderAccount();
       field.replaceWith(accountName);
     };
     field.addEventListener("keydown", (event) => { if (event.key === "Enter") finish(true); if (event.key === "Escape") finish(false); });
@@ -413,6 +421,46 @@
     document.querySelectorAll(".psf-aside").forEach((arrow) => arrow.classList.remove("psf-aside"));
   };
 
+  // A day's overview: its time in each program, when it started, and the day's rating from 1 to 10, which a click on
+  // the same star clears, as in the app
+  const clockTime = (hour, minute) => `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour < 12 ? "AM" : "PM"}`;
+  function dayOverview(date) {
+    document.querySelector(".psf-day-overview")?.remove();
+    const hours = history.get(key(date)) || [];
+    const seconds = hours.reduce((a, b) => a + b, 0);
+    const first = hours.findIndex((value) => value > 0);
+    const dialog = el("div", { class: "psf-day-overview", role: "dialog", "aria-label": `${longDate(date)} overview` });
+    const stars = el("div", { class: "psf-stars" });
+    const paintStars = (shown) => [...stars.children].forEach((star, index) => {
+      star.textContent = index < shown ? "★" : "☆";
+      star.classList.toggle("psf-lit", index < shown);
+    });
+    for (let value = 1; value <= 10; value++) {
+      const star = el("button", { type: "button", class: "psf-star", "aria-label": `Rate ${value} out of 10` }, "☆");
+      star.addEventListener("pointerenter", () => paintStars(value));
+      star.addEventListener("click", () => {
+        if (ratings.get(key(date)) === value) ratings.delete(key(date));
+        else ratings.set(key(date), value);
+        paintStars(ratings.get(key(date)) || 0);
+        renderCalendar();
+      });
+      stars.append(star);
+    }
+    stars.addEventListener("pointerleave", () => paintStars(ratings.get(key(date)) || 0));
+    paintStars(ratings.get(key(date)) || 0);
+    dialog.append(
+      el("div", { class: "psf-titlebar" }, el("img", { src: LOGO, alt: "" }), `${WEEKDAYS[(date.getDay() + 6) % 7]}, ${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`,
+        el("span", { class: "psf-spacer" }), el("button", { type: "button", class: "psf-close", title: "Close", onclick: () => dialog.remove() }, "✕")),
+      seconds
+        ? el("div", { class: "psf-overview-rows" }, el("span", {}, "Photoshop"), el("span", { class: "psf-muted" }, `${clock(seconds)} · started ${clockTime(first, 10 + (date.getDate() * 7) % 40)}`))
+        : el("div", { class: "psf-overview-empty" }, "No activity recorded"),
+      el("b", { class: "psf-overview-ask" }, "How productive was this session?"), stars);
+    stage.append(dialog);
+    const w = rect(win);
+    dialog.style.left = `${Math.max(8, Math.min(w.left + (w.width - dialog.offsetWidth) / 2, stage.clientWidth - dialog.offsetWidth - 8))}px`;
+    dialog.style.top = `${Math.max(8, rect(calendarBlock).top + 40)}px`;
+  }
+
   function renderCalendar() {
     const [weeks, rest] = streaks();
     calLegend.replaceChildren(el("span", { class: "psf-square" }), "15 min+", el("span", { class: "psf-spacer" }),
@@ -445,9 +493,8 @@
       const cell = el("div", { class: `psf-day${seconds >= SESSION_MINIMUM ? " psf-active" : ""}${date.getTime() === today.getTime() ? " psf-today-cell" : ""}${future ? " psf-future" : ""}` },
         String(d), rating ? el("span", { class: "psf-rating" }, `★ ${rating}`) : null);
       if (!future) {
-        cell.addEventListener("pointerenter", () => showTip(cell, `${longDate(date)} · ${seconds ? hm(seconds) : "nothing tracked"}${rating ? ` · rated ${rating}/10` : ""}`));
-        cell.addEventListener("pointerleave", hideTip);
-        cell.addEventListener("click", () => showTip(cell, `${longDate(date)} · ${seconds ? hm(seconds) : "nothing tracked"}${rating ? ` · rated ${rating}/10` : ""}`));
+        cell.title = "Open this day";
+        cell.addEventListener("click", () => { hideTip(); dayOverview(date); });
       }
       cells.push(cell);
     }
@@ -513,6 +560,13 @@
     requestsIcon.querySelector(".psf-count")?.remove();
     if (state.request) requestsIcon.append(el("span", { class: "psf-count" }, "1"));
     requestsIcon.classList.toggle("psf-open", state.requestsOpen && !!state.request);
+    [copyButton, addIcon].forEach((control) => (control.hidden = !state.account));
+    if (!state.account) {
+      requestsIcon.hidden = true;
+      friendList.replaceChildren(el("div", { class: "psf-offline-note" }, "Sign in with Google to add friends and see each other's hours.",
+        el("div", { class: "psf-center" }, el("button", { type: "button", class: "psf-accept", onclick: () => signIn() }, "Sign in with Google"))));
+      return;
+    }
     if (state.status === "offline") {
       friendList.replaceChildren(el("div", { class: "psf-offline-note" }, "You're offline, so friends don't see your hours change. Go online from the menu next to your name."));
       return;
@@ -588,6 +642,58 @@
   settingsSlider.addEventListener("input", () => setTransparency(100 - Number(settingsSlider.value)));
   const backupStatus = el("div", { class: "psf-backup-line psf-green" }, "Activity backup saved to Google Drive");
 
+  // ----- Google sign-in, simulated: in the app Google's own page opens in the browser, which the demo says rather
+  // than imitates; two made-up accounts to choose from -----
+
+  const ACCOUNTS = [{ name: "gilty", email: "demo@example.com" }, { name: "Lena", email: "lena@example.com" }];
+
+  function renderAccount() {
+    const signedIn = !!state.account;
+    accountName.textContent = signedIn ? state.account.name : "Local only";
+    accountName.title = signedIn ? "Double-click to change your name" : "Sign in with Google";
+    account.classList.toggle("psf-local", !signedIn);
+    statusButton.hidden = !signedIn;
+  }
+
+  function signIn(switching = false) {
+    closeMenu();
+    const sheet = el("div", { class: "psf-sheet", role: "dialog", "aria-label": "Sign in, simulated" });
+    const card = el("div", { class: "psf-sheet-card" },
+      el("b", {}, switching ? "Switch Google account" : "Sign in with Google"),
+      el("span", { class: "psf-sheet-note" }, "Simulated. In the app, Google's own sign-in page opens in your browser."),
+      ACCOUNTS.filter((choice) => !switching || choice.email !== state.account?.email).map((choice) =>
+        el("button", { type: "button", class: "psf-sheet-account", onclick: () => connect(choice) },
+          el("span", { class: "psf-avatar" }, choice.name[0].toUpperCase()), el("span", {}, choice.name, el("small", {}, choice.email)))),
+      el("button", { type: "button", class: "psf-sheet-cancel", onclick: () => sheet.remove() }, "Cancel"));
+    sheet.append(card);
+    stage.append(sheet);
+    function connect(choice) {
+      card.replaceChildren(el("b", {}, "Connecting…"), el("span", { class: "psf-sheet-note" }, "PS Focus is connected, you can close this browser tab"));
+      setTimeout(() => {
+        sheet.remove();
+        state.account = { ...choice };
+        backupStatus.textContent = "Activity backup saved to Google Drive";
+        backupStatus.className = "psf-backup-line psf-green";
+        renderAccount();
+        renderFriends();
+        if (state.settingsOpen) renderSettings();
+        toast(`Connected as ${choice.email}`);
+      }, 900);
+    }
+  }
+
+  function logOut() {
+    state.account = null;
+    state.request = null;
+    state.requestsOpen = false;
+    backupStatus.textContent = "Local activity backups saved";
+    backupStatus.className = "psf-backup-line psf-muted";
+    renderAccount();
+    renderFriends();
+    if (state.settingsOpen) renderSettings();
+    toast("Logged out of Google; your history stays on this PC");
+  }
+
   function boxedRow(title, text, control) {
     return el("div", { class: "psf-boxed" }, el("div", { class: "psf-boxed-text" }, el("b", {}, title), el("span", {}, text)), control);
   }
@@ -615,16 +721,22 @@
       boxedRow("Start with Windows", "Launch PS Focus when you sign in to Windows", toggle("startWithWindows")),
       boxedRow("Start minimized", "Open PS Focus minimized when launched at sign-in", toggle("startMinimized")),
       el("div", { class: "psf-check-row" },
-        el("label", { class: "psf-check-label" }, "Pause tracking", checkbox(state.paused, "Pause tracking", () => { state.paused = !state.paused; renderSettings(); renderToday(); })),
+        el("label", { class: "psf-check-label" }, "Pause tracking", checkbox(state.paused, "Pause tracking", () => setPaused(!state.paused))),
         el("label", { class: "psf-check-label" }, "Disable fanfare sound", toggle("fanfareOff"))),
       el("div", { class: "psf-backups" },
         el("b", {}, "Settings and activity backups"),
         el("span", {}, "Activity is saved locally on this PC and backed up to Google Drive when connected"),
-        el("div", { class: "psf-backup-line psf-green" }, "demo@example.com"), backupStatus,
+        state.account ? el("div", { class: "psf-backup-line psf-green" }, state.account.email) : el("div", { class: "psf-backup-line psf-muted" }, "Not connected"),
+        backupStatus,
         el("div", { class: "psf-backup-buttons" },
-          el("button", { type: "button", onclick: () => { backupStatus.textContent = "Local activity backups saved"; setTimeout(() => (backupStatus.textContent = "Activity backup saved to Google Drive"), 1200); } }, "Back up now"),
-          el("button", { type: "button", onclick: () => toast("Switch to another Google account") }, "Switch account"),
-          el("button", { type: "button", onclick: () => toast("Log out of Google; your history stays on this PC") }, "Log out"))),
+          el("button", { type: "button", onclick: () => {
+            backupStatus.textContent = "Local activity backups saved";
+            if (state.account) setTimeout(() => (backupStatus.textContent = "Activity backup saved to Google Drive"), 1200);
+          } }, "Back up now"),
+          ...(state.account ? [
+            el("button", { type: "button", onclick: () => signIn(true) }, "Switch account"),
+            el("button", { type: "button", onclick: logOut }, "Log out"),
+          ] : [el("button", { type: "button", class: "psf-connect", onclick: () => signIn() }, "Connect Google")]))),
       el("button", { type: "button", class: "psf-exit", onclick: () => toast("Exit closes PS Focus; it counts nothing until you open it again") }, "Exit"));
   }
 
@@ -1051,7 +1163,7 @@
   // Each tip is an arrow pointing at its feature: where the arrow's tip goes, and which way it points
   const HOTSPOTS = [
     { id: "timer", target: () => today_.metric, at: (r) => [r.left + 206, r.top + r.height / 2, "left"],
-      text: "Counts while you draw, stops when you don't. Try the switch above." },
+      text: "Counts while you draw, by itself. Pause tracking above stops it." },
     { id: "icons", target: () => icons, at: (r) => [r.right - 76, r.top + r.height / 2, "right"], text: "Show or hide each panel." },
     { id: "drag", target: () => [...blocks.querySelectorAll(".psf-block:not(.psf-today) .psf-strip")][0], at: (r) => [r.left + 112, r.top + r.height / 2, "left"],
       text: "Drag a title to move a panel out. Drop it back, or press «." },
@@ -1137,6 +1249,7 @@
     title.addEventListener("pointerdown", () => { clearTimeout(panelTipTimer); hideTip(); });
   });
 
+  renderAccount();
   renderToday();
   renderGraph();
   renderCalendar();
