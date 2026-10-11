@@ -62,6 +62,8 @@
 }
 .psf-window { left: 24px; top: 24px; background: rgba(var(--psf-background), var(--a)); outline: 1px solid rgba(var(--psf-border), max(var(--a), .43)); }
 .psf-floating { z-index: 5; }
+/* Floating, a panel has no space above it, so snapped panels meet edge to edge */
+.psf-floating > .psf-block { margin-top: 0; }
 .psf-floating.psf-dragging { z-index: 10; opacity: .97; }
 
 .psf-titlebar { height: 28px; display: flex; align-items: center; padding-left: 8px; font-size: 12px; background: rgba(var(--psf-background), var(--a)); }
