@@ -195,7 +195,25 @@
     el("button", { type: "button", class: "psf-close", title: "Close to the tray", onclick: () => toast("PS Focus keeps counting in the tray when closed") }, "✕"));
   const progressDot = el("span", { class: "psf-dot" });
   const levelBadge = el("span", { class: "psf-badge" });
-  const accountName = el("span", {}, "gilty");
+  const accountName = el("span", { class: "psf-account-name", title: "Double-click to change your name" }, "gilty");
+  // A double click on the name edits it, as in the app: Enter or clicking away keeps it, Escape leaves it as it was,
+  // and an empty name goes back to the first one
+  accountName.addEventListener("dblclick", () => {
+    markUsed("rename");
+    const field = el("input", { class: "psf-name-field", type: "text", maxlength: 32, value: accountName.textContent, "aria-label": "Your name" });
+    let done = false;
+    const finish = (keep) => {
+      if (done) return;
+      done = true;
+      if (keep) accountName.textContent = field.value.trim() || "gilty";
+      field.replaceWith(accountName);
+    };
+    field.addEventListener("keydown", (event) => { if (event.key === "Enter") finish(true); if (event.key === "Escape") finish(false); });
+    field.addEventListener("blur", () => finish(true));
+    accountName.replaceWith(field);
+    field.focus();
+    field.select();
+  });
   const statusButton = el("button", { type: "button", class: "psf-icon-button psf-chevron", title: "Status", onclick: (event) => statusMenu(event.currentTarget) }, svg(ICONS.chevron));
   const account = el("div", { class: "psf-account" }, progressDot, accountName, statusButton);
   const settingsButton = el("button", { type: "button", class: "psf-icon-button psf-settings", title: "Settings", onclick: () => toggleSettings() }, "···");
@@ -838,7 +856,7 @@
 
   // What a press keeps for itself, rather than moving the window: buttons and fields, calendar days, the chart's
   // readout, the friends list, which scrolls, a friend request, and a panel's title, which takes the panel
-  const CLICKED = "button, input, label, .psf-day, .psf-chart, .psf-friend-list, .psf-popup, .psf-strip, .psf-grip";
+  const CLICKED = "button, input, label, .psf-day, .psf-chart, .psf-friend-list, .psf-popup, .psf-strip, .psf-grip, .psf-account-name";
 
   win.addEventListener("pointerdown", (event) => {
     if (touch.matches || event.button !== 0 || event.target.closest(CLICKED)) return;
@@ -957,7 +975,8 @@
     { id: "fade", target: () => canvas, at: (r) => [r.left + 28, r.top + 28],
       text: "Move your mouse onto the painting: PS Focus fades so your art shows through, and comes back when you point at it." },
     { id: "status", target: () => statusButton, at: (r) => [r.right - 2, r.top - 6], text: "Show friends you're Away, or go Invisible or Offline." },
-    { id: "settings", target: () => settingsButton, at: (r) => [r.right - 4, r.top - 6], text: "Settings: your programs, portrait or landscape, transparency, and backups." },
+    { id: "settings", target: () => settingsButton, at: (r) => [r.right - 4, r.top - 6], text: "Settings: your programs, transparency, and backups." },
+    { id: "rename", target: () => accountName, at: (r) => [r.left - 2, r.top - 4], text: "Double-click your name to change what friends see." },
   ];
   const TIPS_AT_ONCE = 3;
   const used = new Set();

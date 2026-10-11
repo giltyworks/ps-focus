@@ -74,6 +74,9 @@
 .psf-badge { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--psf-red); display: grid; place-items: center; font-size: 12px; margin-left: 2px; }
 .psf-account { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 15px; color: var(--psf-green); }
 .psf-account.psf-hidden-name { color: var(--psf-muted); }
+.psf-account-name { cursor: text; }
+.psf-name-field { width: 160px; background: #151515; border: 0; border-radius: 4px; color: var(--psf-text); font: 15px inherit; font-family: inherit; text-align: center; padding: 1px 4px; outline: none; }
+.psf-name-field::selection { background: #284e45; }
 .psf-dot { width: 13px; height: 13px; border-radius: 50%; background: #151515; border: 1px solid rgba(var(--psf-border), 1); }
 .psf-dot.psf-reached { background: var(--psf-blue); border-color: var(--psf-blue); }
 .psf-icon-button { border: 0; background: none; color: var(--psf-muted); cursor: pointer; border-radius: 4px; padding: 0; display: grid; place-items: center; }
