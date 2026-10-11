@@ -16,7 +16,6 @@ from friends import FriendsService
 from google_drive import GoogleAccountAccessRequired
 
 from .friends_module import FriendsModule, FriendsView, friend_section
-from .request_popup import RequestPopup
 from .header import NAME_MAX_LENGTH
 from .status_menu import PopupMenu, StatusMenu
 
@@ -61,11 +60,8 @@ class FriendsSync:
         self.present = True
         # Whether friends have been told the user went offline, after which nothing more is sent
         self.offline_announced = False
-        # Answers to requests waiting for a check-in to finish; the requests a popup has been shown for this session,
-        # and the popups open, by the sender's code
+        # Answers to requests waiting for a check-in to finish
         self.pending_actions: list = []
-        self.seen_requests: set[str] = set()
-        self.popups: dict[str, RequestPopup] = {}
         actions = module.actions
         actions.sign_in = app.google_sync.connect
         actions.delete_data = self.delete_data
@@ -99,9 +95,6 @@ class FriendsSync:
             self.state = None
             self.message = None
             self.pending_actions.clear()
-            saved = self.app.settings.get("friends_seen_requests")
-            seen = saved.get(account, []) if isinstance(saved, dict) else []
-            self.seen_requests = {code for code in seen if isinstance(code, str)}
         self.refresh_view()
         # Called after every Google result, backups included, so it checks in only for an account not yet asked about
         if self.enabled() and self.asked_account != account:
@@ -190,7 +183,7 @@ class FriendsSync:
         if self.app.closing:
             return
         if self.busy:
-            # Something the user did, such as accepting from a popup, waits for the check-in under way
+            # Something the user did, such as accepting a request, waits for the check-in under way
             if kind != "sync":
                 self.pending_actions.append((kind, work))
             return
@@ -360,54 +353,11 @@ class FriendsSync:
 
     def refresh_view(self) -> None:
         self.module.show_view(self.view())
-        self._update_popups()
         # The status menu is offered next to the account name while friends are on
         header = self.app.header
         if header.status_arrow_shown != self.enabled():
             header.status_arrow_shown = self.enabled()
             header.update()
-
-    def _update_popups(self) -> None:
-        """A popup for each friend request not yet shown, and none for requests answered or withdrawn since"""
-        state = self.state if self.state_account == self.account() and self.enabled() and self.status() != "offline" else None
-        incoming = {request["code"]: request["name"] for request in (state or {}).get("incoming", [])}
-        for code in [code for code in self.popups if code not in incoming]:
-            self.popups[code].close()
-        if state is not None:
-            self._remember_seen_requests(set(incoming))
-        for code, name in incoming.items():
-            if code in self.seen_requests:
-                continue
-            self.seen_requests.add(code)
-            self._remember_seen_requests(set(incoming))
-            popup = RequestPopup(
-                self.app.window, self.app.fonts, code, name,
-                lambda code=code: self.module.actions.accept(code), lambda code=code: self.module.actions.decline(code),
-            )
-            popup.on_closed = self._popup_closed
-            self.popups[code] = popup
-            popup.place(len(self.popups) - 1)
-            popup.show()
-
-    def _remember_seen_requests(self, waiting: set[str]) -> None:
-        """Keep the requests popped up for, of those still waiting, so a restart does not show them again"""
-        seen = sorted(self.seen_requests & waiting)
-        saved = self.app.settings.get("friends_seen_requests")
-        saved = dict(saved) if isinstance(saved, dict) else {}
-        if saved.get(self.account()) != seen:
-            saved[self.account()] = seen
-            self.app.settings["friends_seen_requests"] = saved
-            self.app._save_settings(upload=False)
-
-    def close_popups(self) -> None:
-        for popup in list(self.popups.values()):
-            popup.close()
-
-    def _popup_closed(self, popup: RequestPopup) -> None:
-        self.popups.pop(popup.code, None)
-        # Those left close up into the corner
-        for index, other in enumerate(self.popups.values()):
-            other.place(index)
 
     def open_status_menu(self, point) -> None:
         StatusMenu(self.app.window, self.app.fonts, self.status(), self.set_status).show_at(point)

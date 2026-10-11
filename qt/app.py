@@ -730,7 +730,6 @@ class PSFocusQt:
         self.poll_timer.stop()
         self.backup_timer.stop()
         self.update_timer.stop()
-        self.friends_sync.close_popups()
         if self.fireworks is not None:
             self.fireworks.stop()
         self.docking.save_positions()

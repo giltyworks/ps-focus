@@ -393,7 +393,11 @@
     stage.append(tip);
     const t = target.getBoundingClientRect(), s = stage.getBoundingClientRect();
     tip.style.left = `${Math.max(4, Math.min(t.left - s.left + t.width / 2 - tip.offsetWidth / 2, stage.clientWidth - tip.offsetWidth - 4))}px`;
-    tip.style.top = `${t.top - s.top - tip.offsetHeight - 6}px`;
+    // Above what it explains, or below it when there is no room above, and always inside the scene
+    const above = t.top - s.top - tip.offsetHeight - 6;
+    const below = t.bottom - s.top + 6;
+    const top = above >= 4 ? above : Math.min(below, stage.clientHeight - tip.offsetHeight - 4);
+    tip.style.top = `${Math.max(4, top)}px`;
   };
   const hideTip = () => { tip?.remove(); tip = null; };
 
@@ -476,7 +480,7 @@
   });
   codeField.querySelector("input").addEventListener("keydown", (event) => { if (event.key === "Enter") finishAdding(true); if (event.key === "Escape") finishAdding(false); });
   codeField.querySelector("button").addEventListener("click", () => finishAdding(true));
-  requestsIcon.addEventListener("click", () => { state.requestsOpen = !state.requestsOpen; renderFriends(); });
+  requestsIcon.addEventListener("click", () => { markUsed("requests"); state.requestsOpen = !state.requestsOpen; renderFriends(); });
 
   function friendRow(friend) {
     const nameClass = { drawing: "psf-drawing", online: "psf-online", away: "psf-online", offline: "psf-offline" }[friend.presence];
@@ -523,39 +527,26 @@
     friendList.replaceChildren(...parts);
   }
 
-  let popup = null;
-  const closePopup = () => { popup?.remove(); popup = null; };
   function requestArrives() {
+    // A request shows on the requests icon in the friends strip, with its count, as in the app; its list holds it
     if (state.requestShown) return;
     state.requestShown = true;
     state.request = { code: "SAMM", name: "Sam", level: 16, presence: "drawing", program: "Photoshop", two: 12.7, total: 92.4, today: 1.1 };
+    // In the demo the list opens by itself, so the request is seen without hunting for it
+    state.requestsOpen = true;
     renderFriends();
-    popup = el("div", { class: "psf-popup", role: "dialog", "aria-label": "Friend request" },
-      el("button", { type: "button", class: "psf-x", title: "Later", onclick: closePopup }, "✕"),
-      el("b", {}, "Sam"), el("span", {}, "wants to be friends on PS Focus"),
-      el("div", { class: "psf-popup-buttons" },
-        el("button", { type: "button", class: "psf-accept", onclick: acceptRequest }, "Accept"),
-        el("button", { type: "button", class: "psf-decline", onclick: declineRequest }, "Decline")));
-    win.append(popup);
+    placeHotspots();
   }
   function acceptRequest() {
     if (!state.request) return;
     state.friends.push({ ...state.request, fresh: true });
     state.request = null;
     state.requestsOpen = false;
-    closePopup();
-    // Friends opens to show the new friend, the calendar making room in the tall window
-    if (!state.shown.friends) {
-      if (!state.landscape && state.shown.calendar && !state.floating.calendar) state.shown.calendar = false;
-      state.shown.friends = true;
-      arrange();
-    }
     renderFriends();
   }
   function declineRequest() {
     state.request = null;
     state.requestsOpen = false;
-    closePopup();
     renderFriends();
   }
 
@@ -674,15 +665,6 @@
     if (state.floating[name]) state.floating[name].panel.hidden = !wanted(name);
     arrange();
     if (name === "friends" && state.shown.friends && !state.requestShown) setTimeout(requestArrives, 1600);
-  }
-
-  // A few seconds after the demo comes into view, a friend request arrives, as one would in the app; accepting it
-  // opens Friends, which is how a visitor finds it
-  if ("IntersectionObserver" in window) {
-    const watch = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) { watch.disconnect(); setTimeout(requestArrives, 6000); }
-    }, { threshold: 0.4 });
-    watch.observe(stage);
   }
 
   function arrange(placeholderAt = null, placeholderHeight = 0, placeholderWidth = 300) {
@@ -920,7 +902,7 @@
 
   // What a press keeps for itself, rather than moving the window: buttons and fields, calendar days, the chart's
   // readout, the friends list, which scrolls, a friend request, and a panel's title, which takes the panel
-  const CLICKED = "button, input, label, .psf-day, .psf-chart, .psf-friend-list, .psf-popup, .psf-strip, .psf-grip, .psf-account-name";
+  const CLICKED = "button, input, label, .psf-day, .psf-chart, .psf-friend-list, .psf-strip, .psf-grip, .psf-account-name";
 
   win.addEventListener("pointerdown", (event) => {
     if (touch.matches || event.button !== 0 || event.target.closest(CLICKED)) return;
@@ -1052,6 +1034,8 @@
       text: "Drag a panel out by its title to keep it beside your canvas. Drop it back in, or press « on it." },
     { id: "fade", target: () => canvas, at: (r) => [r.left + 28, r.top + 28],
       text: "Move your mouse onto the painting: PS Focus fades so your art shows through, and comes back when you point at it." },
+    { id: "requests", target: () => (requestsIcon.hidden ? null : requestsIcon), at: (r) => [r.left - 4, r.top - 4],
+      text: "Someone wants to be friends: open your requests to accept or decline." },
     { id: "status", target: () => statusButton, at: (r) => [r.right - 2, r.top - 6], text: "Show friends you're Away, or go Invisible or Offline." },
     { id: "settings", target: () => settingsButton, at: (r) => [r.right - 4, r.top - 6], text: "Settings: your programs, transparency, and backups." },
     { id: "rename", target: () => accountName, at: (r) => [r.left - 2, r.top - 4], text: "Double-click your name to change what friends see." },

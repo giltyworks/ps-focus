@@ -29,6 +29,8 @@ BOTTOM_PADDING = 6
 # The dot beside someone's name: green drawing, blue online, orange away; none offline
 ACTIVE_DOT_SIZE = 6
 PRESENCE_COLORS = {"drawing": "active_green"}
+# The red ring round a friend's level
+LEVEL_RING_SIZE = 20
 # Away friends have a small zzz after their name, this wide, which shows Away under the mouse
 AWAY_MARK_WIDTH = 15
 # The arrow at the end of a friend's name, which opens their menu: the square it takes, and its half-width
@@ -381,8 +383,8 @@ class FriendsModule(ModuleBlock):
             y += accept.height + ROW_GAP
         if incoming:
             y += GROUP_GAP - ROW_GAP
-        # Each friend's level stands at the left of their name, in a column as wide as two digits
-        level_width = text_width(fonts.small, "00") + 6
+        # Each friend's level stands at the left of their name in a red ring, as the user's own level badge
+        level_width = LEVEL_RING_SIZE + 7
         name_line = line_height(fonts.account) + LINE_PADDING
         self.name_rects = {}
         # Favourites first under a heading of their own, then the others online, then those offline or invisible; the
@@ -401,7 +403,7 @@ class FriendsModule(ModuleBlock):
             hours = f"{stats.get('two_weeks', 0):.1f} hrs past 2 weeks"
             hours_left = right - text_width(fonts.small, hours)
             middle = y + name_line // 2
-            self.items.append(("anchored", left, middle, "w", str(stats.get("level", 0)), "muted", fonts.small))
+            self.items.append(("level", left + LEVEL_RING_SIZE / 2, middle, str(stats.get("level", 0))))
             self.items.append(("anchored", right, middle, "e", hours, "muted" if offline else "text", fonts.small))
             name_left = left + level_width
             # Beside the name: what they are drawing in, or a zzz while they are away
@@ -717,6 +719,16 @@ class FriendsModule(ModuleBlock):
                 _kind, x, y = item
                 for offset, rise, font in ((0, 3, self.fonts.tiny), (5, 0, self.fonts.tiny), (10, -3, self.fonts.tiny)):
                     draw_anchored(painter, x + offset, y + rise, "w", "z", color("muted"), font)
+            elif kind == "level":
+                _kind, x, y, text = item
+                painter.save()
+                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+                painter.setPen(QPen(color("red"), 1.5))
+                painter.setBrush(Qt.BrushStyle.NoBrush)
+                radius = LEVEL_RING_SIZE / 2 - 0.75
+                painter.drawEllipse(QPointF(x, y), radius, radius)
+                painter.restore()
+                draw_anchored(painter, x, y, "center", text, color("text"), self.fonts.caption)
             elif kind == "dot":
                 _kind, x, y, dot_color = item
                 painter.save()

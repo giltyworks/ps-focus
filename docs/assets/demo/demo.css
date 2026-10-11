@@ -169,8 +169,8 @@
 .psf-code-field button:hover { background: #222; }
 .psf-friend-list { padding: 4px 8px 6px; max-height: 210px; overflow: auto; scrollbar-width: thin; scrollbar-color: #333 transparent; }
 .psf-section { font-size: 12px; color: var(--psf-muted); margin: 6px 0 2px; }
-.psf-friend { display: grid; grid-template-columns: 24px 1fr auto; padding: 3px 0; }
-.psf-friend .psf-lv { font-size: 12px; color: var(--psf-muted); padding-top: 3px; }
+.psf-friend { display: grid; grid-template-columns: 27px 1fr auto; padding: 3px 0; }
+.psf-friend .psf-lv { width: 17px; height: 17px; border: 1.5px solid var(--psf-red); border-radius: 50%; font-size: 10px; display: grid; place-items: center; margin-top: 1px; }
 .psf-friend .psf-name { font-size: 15px; display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; }
 .psf-friend .psf-name.psf-drawing { color: var(--psf-green); }
 .psf-friend .psf-name.psf-online { color: var(--psf-online); }
@@ -193,17 +193,6 @@
 .psf-accept:hover { background: #24603a; }
 .psf-decline:hover { background: #742a25; }
 .psf-offline-note { padding: 8px; font-size: 12px; color: var(--psf-muted); }
-.psf-popup {
-  position: absolute; right: 8px; bottom: 8px; width: 260px; z-index: 6; background: #0c0c0c; border: 1px solid #222;
-  padding: 10px; text-shadow: none; animation: psf-rise .25s ease-out;
-}
-@keyframes psf-rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
-.psf-popup b { display: block; font-size: 13px; font-weight: 600; }
-.psf-popup span { font-size: 12px; color: var(--psf-muted); }
-.psf-popup .psf-popup-buttons { display: flex; justify-content: flex-end; gap: 4px; margin-top: 8px; }
-.psf-popup .psf-x { position: absolute; top: 4px; right: 4px; border: 0; background: none; color: var(--psf-muted); cursor: pointer; width: 18px; height: 18px; border-radius: 4px; }
-.psf-popup .psf-x:hover { background: #222; }
-
 /* Menus: the status menu, a friend's menu, Settings */
 .psf-menu { position: absolute; z-index: 30; min-width: 150px; background: #0c0c0c; border: 1px solid #222; padding: 1px; text-shadow: none; }
 .psf-menu button { display: block; width: 100%; text-align: left; border: 0; background: none; color: var(--psf-text); font: 13px inherit; font-family: inherit; padding: 5px 11px; cursor: pointer; }
@@ -291,5 +280,5 @@
   .psf-slider input { flex: 1; width: auto; min-width: 0; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .psf-popup, .psf-friend.psf-new, .psf-hotspot { animation: none; }
+  .psf-friend.psf-new, .psf-hotspot { animation: none; }
 }

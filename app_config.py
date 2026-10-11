@@ -150,8 +150,6 @@ DEFAULT_SETTINGS = {
     "show_friends": False,
     # online, away, invisible or offline, chosen in the menu next to the account name
     "friends_status": "online",
-    # For each Google account, the friend requests already popped up for, so they pop up only once
-    "friends_seen_requests": {},
     # Program panels and modules side by side instead of one under another, see PSFocusApp._apply_layout
     "landscape": False,
     # Programs whose panel the user has shown or hidden, or that switched on by itself at first use, see

@@ -98,15 +98,12 @@ class QtFriendsTests(unittest.TestCase):
         self.addCleanup(lambda: self.app.store.close())
         self.addCleanup(self.app.window.hide)
         self.sync = self.app.friends_sync
-        # Popups are windows of their own, which must not outlive the app they belong to
-        self.addCleanup(self.sync.close_popups)
         self.app.google_sync.email = self.account
         # Whatever the start-up check-in did is forgotten, so each test counts its own
         self._settle()
         self.service.calls.clear()
         self.sync.asked_account = ""
         self.sync.state, self.sync.state_account = None, ""
-        self.sync.seen_requests.clear()
         self.sync.refresh_view()
 
     def _settle(self):
@@ -250,37 +247,20 @@ class QtFriendsTests(unittest.TestCase):
         self._settle()
         self.assertEqual(len(self.service.calls), 2)
 
-    def test_a_new_request_pops_up_once_and_can_be_answered_there(self):
+    def test_a_new_request_shows_on_the_requests_icon_and_is_answered_from_its_list(self):
         self.service.answer = server_state(incoming=[{"code": "BBBB2222", "name": "Bo"}])
         self._turn_on()
-        popup = self.sync.popups["BBBB2222"]
-        self.addCleanup(lambda: [open_popup.close() for open_popup in list(self.sync.popups.values())])
-        self.assertTrue(popup.isVisible())
-        # Inside the main window, at its bottom right, never a window of its own
-        self.assertFalse(popup.isWindow())
-        self.assertIs(popup.window(), self.app.window)
-        self.assertLessEqual(popup.geometry().right(), self.app.window.width())
-        self.assertLessEqual(popup.geometry().bottom(), self.app.window.height())
-        # Checking in again does not show it twice
-        self.sync.sync()
-        self._settle()
-        self.assertEqual(list(self.sync.popups), ["BBBB2222"])
+        module = self.app.friends
+        # No window of its own: the requests icon shows it, with its count
+        self.assertFalse(any(widget.isVisible() and widget.windowTitle() == "PS Focus friend request" for widget in QApplication.topLevelWidgets()))
+        self.assertIn("requests", module.strip_controls())
+        module.toggle_requests()
+        accept = next(button for button in module.buttons if button.text == "Accept")
         self.service.answer = server_state()
-        popup.accept_button.command()
+        accept.command()
         self._settle()
         self.assertEqual(self.service.calls[-1], ("accept", "BBBB2222"))
-        self.assertEqual(self.sync.popups, {})
-
-    def test_a_request_answered_elsewhere_closes_its_popup(self):
-        self.service.answer = server_state(incoming=[{"code": "BBBB2222", "name": "Bo"}, {"code": "CCCC3333", "name": "Cy"}])
-        self._turn_on()
-        self.assertEqual(len(self.sync.popups), 2)
-        self.service.answer = server_state(incoming=[{"code": "CCCC3333", "name": "Cy"}])
-        self.app.friends.actions.decline("BBBB2222")
-        self._settle()
-        self.assertEqual(list(self.sync.popups), ["CCCC3333"])
-        self.sync.popups["CCCC3333"].close()
-        self.assertEqual(self.sync.popups, {})
+        self.assertNotIn("requests", module.strip_controls())
 
     def test_an_answer_made_during_a_check_in_waits_its_turn(self):
         self._turn_on()

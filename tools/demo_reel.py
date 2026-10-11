@@ -186,9 +186,15 @@ def title_of(name) -> QPoint:
 
 
 
-def popup_accept() -> QPoint:
-    popup = next(iter(app.friends_sync.popups.values()))
-    return button_at(popup, popup.accept_button)
+def request_accept() -> QPoint:
+    """Accept, on the request in the friends module's list of requests"""
+    module = app.friends
+    button = next(button for button in module.buttons if button.text == "Accept")
+    return button_at(module, button)
+
+
+def requests_icon() -> QPoint:
+    return app.friends.mapToGlobal(app.friends.strip_controls()["requests"].center())
 
 
 
@@ -307,7 +313,8 @@ SCRIPT = [
     # Friends
     pointer(False), do(to_friends), say("Draw alongside your friends"), wait(1.0),
     do(request_arrives), wait(0.8), pointer(True),
-    move(popup_accept, 0.7), click(), wait(1.6),
+    move(requests_icon, 0.6), click(), wait(0.4),
+    move(request_accept, 0.5), click(), wait(1.4),
     # Or a slim strip, and where to get it
     pointer(False), do(to_landscape), say("Or keep it as a slim strip"), wait(1.9),
     say("Free for Windows"), wait(1.8),
