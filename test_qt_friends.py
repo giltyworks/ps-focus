@@ -167,7 +167,8 @@ class QtFriendsTests(unittest.TestCase):
         self.assertEqual([person[0] for person in people], ["Dee", "Bo", "Ev", "Cy"])
         self.assertEqual([person[2] for person in people], ["away", "drawing", "online", "offline"])
         texts = [item[3] for item in self.app.friends.items if item[0] == "text"]
-        self.assertIn("Offline \u2014 1", texts)
+        # Three or fewer in a section: its name alone; four or more are counted, as "Online (4)"
+        self.assertIn("Offline", texts)
         self.assertEqual([person[3] for person in people], [None, "Krita", None, None])
 
     def test_status_menu_sets_what_friends_see(self):
