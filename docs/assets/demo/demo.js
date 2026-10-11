@@ -324,7 +324,7 @@
   const readoutValue = el("b"), readoutCaption = el("span");
   const chart = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   chart.setAttribute("class", "psf-chart");
-  chart.setAttribute("viewBox", "0 0 298 164");
+  chart.setAttribute("viewBox", "0 0 298 165");
   const graphBlock = el("div", { class: "psf-block psf-graph", "data-name": "graph" },
     strip("Usage over time"),
     el("div", { class: "psf-graph-head" }, `${MONTHS[today.getMonth()]} ${today.getFullYear()}`, el("span", { class: "psf-spacer" }),
@@ -405,7 +405,7 @@
   // ----- The calendar -----
 
   const calTitle = el("span", { class: "psf-cal-title" });
-  const calToggle = el("button", { type: "button", class: "psf-cal-button", onclick: () => { state.calendarView = state.calendarView === "Month" ? "Year" : "Month"; renderCalendar(); } }, "month");
+  const calToggle = el("button", { type: "button", class: "psf-cal-button psf-cal-toggle", onclick: () => { state.calendarView = state.calendarView === "Month" ? "Year" : "Month"; renderCalendar(); } }, "month");
   const step = (offset) => {
     const m = state.calendarMonth;
     state.calendarMonth = state.calendarView === "Year" ? new Date(m.getFullYear() + offset, m.getMonth(), 1) : new Date(m.getFullYear(), m.getMonth() + offset, 1);

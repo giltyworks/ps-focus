@@ -262,7 +262,12 @@ class ModuleBlock(QWidget):
 
     def paint_frame(self, painter: QPainter) -> None:
         painter.halo = halo_strength(self.glass_alpha)
+        # On a see-through window it replaces the window's background under it, so the two do not add up to something
+        # more solid than the rest
+        painter.save()
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
         painter.fillRect(self.rect(), self.surface("panel"))
+        painter.restore()
         self.paint_title(painter)
         painter.save()
         # Like the background, the border fades rather than adding up with what is under it

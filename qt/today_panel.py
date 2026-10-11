@@ -18,8 +18,10 @@ from .theme import Fonts, ascent, color, draw_text, halo_strength, line_height
 TODAY_PANEL_PADDING = 9
 TODAY_PANEL_SIDE_PADDING = 8
 TODAY_FIGURE_SPACE = (12, 15)
-# The name strip: space below the name inside it, and between its line and the big figure's digits
-TODAY_STRIP_PADDING = 7
+# The name strip: space above and below the name inside it, a snug strip as the website's demo has, and between its
+# line and the big figure's digits
+TODAY_STRIP_TOP = 5
+TODAY_STRIP_PADDING = 5
 TODAY_STRIP_GAP = 12
 TODAY_ROW_GAP = 7
 
@@ -64,7 +66,7 @@ class TodayPanel(QWidget):
             line_height(fonts.small, fonts.counter),
             line_height(fonts.bold, fonts.counter),
         )
-        heading_top = 1 + TODAY_PANEL_PADDING
+        heading_top = 1 + TODAY_STRIP_TOP
         # The name row stands on a strip, as a module's name does, with a line under it
         self.title_bottom = heading_top + heights[0] + TODAY_STRIP_PADDING
         digits_top = self.title_bottom + 1 + TODAY_STRIP_GAP
@@ -175,7 +177,12 @@ class TodayPanel(QWidget):
         painter.halo = halo_strength(self.glass_alpha)
         background = color("panel")
         background.setAlpha(self.glass_alpha)
+        # On a see-through window it replaces the window's background under it, so the two do not add up to something
+        # more solid than the rest
+        painter.save()
+        painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
         painter.fillRect(self.rect(), background)
+        painter.restore()
         paint_title_strip(painter, self.title_rect(), self.title_hovered, self.glass_alpha)
         edge = color(self.border_color)
         edge.setAlpha(max(self.glass_alpha, OUTLINE_MIN_ALPHA))
