@@ -582,7 +582,8 @@
       })));
     const orientation = el("div", { class: "psf-orientation" },
       el("button", { type: "button", class: `psf-shape psf-tall${state.landscape ? "" : " psf-chosen"}`, "aria-label": "Portrait", onclick: () => chooseOrientation(false) }),
-      el("button", { type: "button", class: `psf-shape psf-wide${state.landscape ? " psf-chosen" : ""}`, "aria-label": "Landscape", onclick: () => chooseOrientation(true) }));
+      el("button", { type: "button", class: "psf-shape psf-wide psf-disabled", "aria-label": "Landscape, in the app", title: "Landscape is in the app",
+        onclick: () => toast("Landscape lays PS Focus out as one wide strip, in the app") }));
     const toggle = (key) => checkbox(state[key], key, () => { state[key] = !state[key]; renderSettings(); });
     settingsPage.replaceChildren(
       el("h3", {}, "Settings"),
@@ -768,6 +769,30 @@
     updateGlass();
   }
 
+  function moveFloating(panel, event) {
+    // A floating panel taken by anything but its title moves where it is dragged, then snaps to the window if near
+    const start = { x: event.clientX, y: event.clientY, left: panel.offsetLeft, top: panel.offsetTop };
+    const target = event.target;
+    try { target.setPointerCapture(event.pointerId); } catch (error) { /* moves still reach it */ }
+    const move = (moveEvent) => {
+      panel.style.left = `${start.left + moveEvent.clientX - start.x}px`;
+      panel.style.top = `${Math.max(0, start.top + moveEvent.clientY - start.y)}px`;
+      hideTip();
+    };
+    const up = () => {
+      target.removeEventListener("pointermove", move);
+      target.removeEventListener("pointerup", up);
+      target.removeEventListener("pointercancel", up);
+      const name = Object.keys(state.floating).find((key) => state.floating[key].panel === panel);
+      if (name) state.floating[name].attached = snap(panel);
+      fitStage();
+      updateGlass();
+    };
+    target.addEventListener("pointermove", move);
+    target.addEventListener("pointerup", up);
+    target.addEventListener("pointercancel", up);
+  }
+
   function snap(panel) {
     // Within a short distance of the window's side and level with it, a panel snaps to that side and to its top
     const p = rect(panel), w = rect(win), near = 22;
@@ -811,8 +836,12 @@
     fitStage();
   }
 
+  // What a press keeps for itself, rather than moving the window: buttons and fields, calendar days, the chart's
+  // readout, the friends list, which scrolls, a friend request, and a panel's title, which takes the panel
+  const CLICKED = "button, input, label, .psf-day, .psf-chart, .psf-friend-list, .psf-popup, .psf-strip, .psf-grip";
+
   win.addEventListener("pointerdown", (event) => {
-    if (touch.matches || event.button !== 0 || !event.target.closest(".psf-titlebar, .psf-header, .psf-icons") || event.target.closest("button, input")) return;
+    if (touch.matches || event.button !== 0 || event.target.closest(CLICKED)) return;
     const start = { x: event.clientX, y: event.clientY, left: win.offsetLeft, top: win.offsetTop };
     const attached = Object.values(state.floating).filter((f) => f.attached).map((f) => ({ panel: f.panel, left: f.panel.offsetLeft, top: f.panel.offsetTop }));
     const grip = event.target;
@@ -839,6 +868,8 @@
       dockBack(name, null);
       return;
     }
+    const floatingPanel = event.target.closest(".psf-floating");
+    if (floatingPanel && !touch.matches && event.button === 0 && !event.target.closest(CLICKED)) return moveFloating(floatingPanel, event);
     const stripNode = event.target.closest(".psf-strip");
     if (!stripNode || touch.matches || event.button !== 0 || event.target.closest("button, input")) return;
     const block = stripNode.closest(".psf-block");

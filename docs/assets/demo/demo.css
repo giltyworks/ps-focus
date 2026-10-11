@@ -237,6 +237,8 @@
 .psf-shape.psf-chosen { background: var(--psf-text); border-color: var(--psf-text); }
 .psf-tall { width: 16px; height: 24px; }
 .psf-wide { width: 24px; height: 16px; }
+.psf-shape.psf-disabled { opacity: .4; cursor: default; }
+.psf-shape.psf-disabled:hover { background: none; }
 .psf-backups { margin: 8px -8px 4px; padding: 6px 8px; background: rgba(var(--psf-panel), var(--a)); border: 1px solid rgba(var(--psf-border), max(var(--a), .43)); }
 .psf-backups b { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
 .psf-backups span { display: block; font-size: 13px; color: var(--psf-muted); margin-bottom: 6px; }
