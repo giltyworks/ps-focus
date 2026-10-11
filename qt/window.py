@@ -22,6 +22,9 @@ from .title_bar import GRIP_SIZE, TITLE_BAR_HEIGHT, EdgeGrip, TitleBar
 # A normal window's styles, which Windows' snapping and Win + arrow keys, and minimising from the taskbar, look for:
 # WS_CAPTION, WS_THICKFRAME, WS_MINIMIZEBOX and WS_SYSMENU. The frame they would draw is never drawn, see nativeEvent
 WINDOW_STYLES = 0x00C00000 | 0x00040000 | 0x00020000 | 0x00080000
+# WS_POPUP, which Qt gives a window without a frame, as for a menu; Windows' shortcuts such as Win + Down leave such
+# windows alone, so it is taken off
+WS_POPUP = 0x80000000
 WM_NCCALCSIZE = 0x0083
 
 
@@ -34,7 +37,8 @@ def _keep_window_behaviour(window: QWidget) -> None:
     user32.SetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_long]
     handle = wintypes.HWND(int(window.winId()))
     # GWL_STYLE, then SWP_FRAMECHANGED, neither moving, sizing nor activating it, so the new styles take effect
-    user32.SetWindowLongW(handle, -16, user32.GetWindowLongW(handle, -16) | WINDOW_STYLES)
+    style = (user32.GetWindowLongW(handle, -16) & 0xFFFFFFFF & ~WS_POPUP) | WINDOW_STYLES
+    user32.SetWindowLongW(handle, -16, ctypes.c_long(style - (1 << 32) if style >= 1 << 31 else style).value)
     user32.SetWindowPos(handle, None, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0020)
 
 # Space between the header and the module checkboxes under it
