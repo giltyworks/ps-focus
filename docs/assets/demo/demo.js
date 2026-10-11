@@ -1097,6 +1097,27 @@
     if (state.shown.graph && (state.period === "Day" || state.period === "Week") && !chart.matches(":hover")) renderGraph();
   }, 1000);
 
+  // ----- What each panel is for, under the pointer on its title, after a moment -----
+
+  const PANEL_TIPS = {
+    today: "Today's drawing time in Photoshop, counted for you, with your past two weeks and all your hours.",
+    "Clip Studio Paint": "Your time in Clip Studio Paint, counted the same way. Each program you use gets its own panel.",
+    Krita: "Your time in Krita, counted the same way. Each program you use gets its own panel.",
+    graph: "When and how much you draw, from today back to a year, so you can see your rhythm.",
+    calendar: "Every day you draw 15 minutes or more turns blue. Keep your streak going, and rate your days.",
+    friends: "Your friends' hours and who's drawing right now, for a little friendly motivation.",
+  };
+  let panelTipTimer;
+  Object.entries(PANEL_TIPS).forEach(([name, text]) => {
+    const title = blockOf[name].querySelector(".psf-strip");
+    title.addEventListener("pointerenter", () => {
+      clearTimeout(panelTipTimer);
+      panelTipTimer = setTimeout(() => { if (title.matches(":hover")) showTip(title, text, true); }, 500);
+    });
+    title.addEventListener("pointerleave", () => { clearTimeout(panelTipTimer); hideTip(); });
+    title.addEventListener("pointerdown", () => { clearTimeout(panelTipTimer); hideTip(); });
+  });
+
   renderToday();
   renderGraph();
   renderCalendar();
