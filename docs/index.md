@@ -56,7 +56,7 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
   <img class="avatar" src="{{ '/assets/avatar.jpg' | relative_url }}" width="96" height="96" alt="gilty_works">
   <div>
     <h2>gilty_works</h2>
-    <p>Artist in training. I built PS Focus to gamify how much I draw.</p>
+    <p>Artist in training. I built PS Focus to turn my drawing hours into progress I can see, and a place where friends keep each other going.</p>
     <ul class="socials">
       <li><a href="https://www.artstation.com/gilty_works" title="ArtStation">{% include icon-artstation.svg %}</a></li>
       <li><a href="https://www.instagram.com/gilty_works/" title="Instagram">{% include icon-instagram.svg %}</a></li>
