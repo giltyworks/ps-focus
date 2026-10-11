@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import QPoint, QRect, Qt
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QWidget
 
 from app_config import TODAY_PANEL_WIDTH
 
-from .module import OUTLINE_MIN_ALPHA, DOCK_CONTROL_SIZE, paint_dock_icon, paint_title_strip
+from .module import OUTLINE_MIN_ALPHA, DOCK_CONTROL_SIZE, paint_dock_icon, paint_title_strip, show_title_tip
 from .theme import Fonts, ascent, color, draw_text, halo_strength, line_height
 
 # The same measurements as the Tk panel, see main.py: space inside the panel above its first row and below its
@@ -134,6 +134,9 @@ class TodayPanel(QWidget):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         self._hover(self.control_at(event.position().toPoint()))
+
+    def event(self, event: QEvent) -> bool:
+        return show_title_tip(self, event) or super().event(event)
 
     def leaveEvent(self, _event) -> None:
         self._hover(None)

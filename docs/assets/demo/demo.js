@@ -203,13 +203,12 @@
     el("button", { type: "button", class: "psf-close", title: "Close to the tray", onclick: () => toast("PS Focus keeps counting in the tray when closed") }, "✕"));
   const progressDot = el("span", { class: "psf-dot" });
   const levelBadge = el("span", { class: "psf-badge" });
-  const accountName = el("span", { class: "psf-account-name", title: "Double-click to change your name" }, "gilty");
+  const accountName = el("span", { class: "psf-account-name" }, "gilty");
   // A double click on the name edits it, as in the app: Enter or clicking away keeps it, Escape leaves it as it was,
   // and an empty name goes back to the first one
   accountName.addEventListener("click", () => { if (!state.account) signIn(); });
   accountName.addEventListener("dblclick", () => {
     if (!state.account) return;
-    markUsed("rename");
     const field = el("input", { class: "psf-name-field", type: "text", maxlength: 32, value: accountName.textContent, "aria-label": "Your name" });
     let done = false;
     const finish = (keep) => {
@@ -602,7 +601,7 @@
   });
   codeField.querySelector("input").addEventListener("keydown", (event) => { if (event.key === "Enter") finishAdding(true); if (event.key === "Escape") finishAdding(false); });
   codeField.querySelector("button").addEventListener("click", () => finishAdding(true));
-  requestsIcon.addEventListener("click", () => { markUsed("requests"); state.requestsOpen = !state.requestsOpen; renderFriends(); });
+  requestsIcon.addEventListener("click", () => { state.requestsOpen = !state.requestsOpen; renderFriends(); });
 
   function friendRow(friend) {
     const nameClass = { drawing: "psf-drawing", online: "psf-online", away: "psf-online", offline: "psf-offline" }[friend.presence];
@@ -731,7 +730,7 @@
   function renderAccount() {
     const signedIn = !!state.account;
     accountName.textContent = signedIn ? state.account.name : "Local only";
-    accountName.title = signedIn ? "Double-click to change your name" : "Sign in with Google";
+    accountName.title = signedIn ? "" : "Sign in with Google";
     account.classList.toggle("psf-local", !signedIn);
     statusButton.hidden = !signedIn;
   }
@@ -1248,17 +1247,14 @@
   // Each tip is an arrow pointing at its feature: where the arrow's tip goes, and which way it points
   const HOTSPOTS = [
     { id: "timer", target: () => today_.metric, at: (r) => [r.left + 206, r.top + r.height / 2, "left"],
-      text: "Counts while you draw, by itself. Pause tracking above stops it." },
+      text: "Counts by itself while you draw." },
     { id: "icons", target: () => icons, at: (r) => [r.right - 98, r.top + r.height / 2, "right"], text: "Show or hide each panel." },
     { id: "drag", target: () => [...blocks.querySelectorAll(".psf-block:not(.psf-today) .psf-strip")][0], at: (r) => [r.left + 112, r.top + r.height / 2, "left"],
-      text: "Drag a title to move a panel out. Drop it back, or press «." },
+      text: "Drag a title to pull the panel out." },
     { id: "fade", target: () => canvas, at: (r) => [r.left + 4, r.top + 80, "right"],
       text: "Point at the painting: PS Focus fades so your art shows through." },
-    { id: "requests", target: () => (requestsIcon.hidden ? null : requestsIcon), at: (r) => [r.left - 2, r.top + r.height / 2, "right"],
-      text: "A friend request. Open to accept or decline." },
     { id: "status", target: () => statusButton, at: (r) => [r.left + r.width / 2, r.bottom + 2, "up"], text: "Set Away, Invisible or Offline." },
     { id: "settings", target: () => settingsButton, at: (r) => [r.left - 2, r.top + r.height / 2, "right"], text: "Programs, transparency and backups." },
-    { id: "rename", target: () => accountName, at: (r) => [r.left + r.width / 2, r.bottom + 2, "up"], text: "Double-click to rename." },
   ];
   const TIPS_AT_ONCE = 3;
   const used = new Set();

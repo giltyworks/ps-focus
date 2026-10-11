@@ -161,3 +161,32 @@ class QtLayoutTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(QApplication is None, "PySide6 is not installed")
+class PanelTipTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.application = QApplication.instance() or QApplication([])
+
+    def test_resting_on_a_name_strip_says_what_the_block_is_for(self):
+        from PySide6.QtGui import QHelpEvent
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QToolTip
+
+        from qt.module import PANEL_TIPS, ModuleBlock
+        from qt.theme import Fonts
+        from qt.today_panel import TodayPanel
+
+        fonts = Fonts()
+        for block, tip in ((ModuleBlock("Calendar", fonts), PANEL_TIPS["Calendar"]), (TodayPanel("Krita", fonts), "Your time in Krita today, past two weeks and in total.")):
+            block.show()
+            title = block.title_rect().center()
+            self.assertTrue(block.event(QHelpEvent(QEvent.Type.ToolTip, title, block.mapToGlobal(title))))
+            self.assertEqual(QToolTip.text(), tip)
+            # Off the strip, no tip
+            below = QPoint(title.x(), block.title_rect().bottom() + 8)
+            block.event(QHelpEvent(QEvent.Type.ToolTip, below, block.mapToGlobal(below)))
+            QTest.qWait(600)
+            self.assertFalse(QToolTip.isVisible())
+            block.hide()

@@ -5,9 +5,9 @@ from __future__ import annotations
 
 from typing import Callable
 
-from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
+from PySide6.QtCore import QEvent, QPoint, QPointF, QRect, QRectF, Qt
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPainterPath, QPen
-from PySide6.QtWidgets import QWidget
+from PySide6.QtWidgets import QToolTip, QWidget
 
 from app_config import MODULE_MARGIN, TODAY_PANEL_WIDTH
 
@@ -24,6 +24,30 @@ DOCK_CONTROL_SIZE = 18
 STRIP_GAP = 4
 # Borders and the line under a name strip stay at least this solid, a faint outline, however see-through a block turns
 OUTLINE_MIN_ALPHA = 110
+# What each block is for, shown when the mouse rests on its name strip; a program panel's names its program
+PANEL_TIPS = {
+    "Usage over time": "How much you draw, from today to the past year.",
+    "Calendar": "Days with 15+ minutes turn blue. Keep your streak going.",
+    "Stats": "Your averages, best day and longest session.",
+    "Friends": "Friends' hours, and who's drawing now.",
+}
+
+
+def panel_tip(title: str) -> str:
+    return PANEL_TIPS.get(title) or f"Your time in {title} today, past two weeks and in total."
+
+
+def show_title_tip(block: QWidget, event: QEvent) -> bool:
+    """Answer a tooltip event on a block: what the block is for while the mouse rests on its name strip, unless
+    something there has a tooltip of its own. The tip goes as the mouse leaves the strip"""
+    if event.type() != QEvent.Type.ToolTip or block.toolTip():
+        return False
+    if block.control_at(event.pos()) == "title":
+        QToolTip.showText(event.globalPos(), panel_tip(block.title), block, block.title_rect())
+    else:
+        QToolTip.hideText()
+        event.ignore()
+    return True
 
 
 def paint_title_strip(painter: QPainter, rect: QRect, hovered: bool, alpha: int = 255, line: bool = True) -> None:
@@ -333,6 +357,9 @@ class ModuleBlock(QWidget):
             self.hovered_control = control
             self.update()
         return control is not None
+
+    def event(self, event: QEvent) -> bool:
+        return show_title_tip(self, event) or super().event(event)
 
     def leaveEvent(self, _event) -> None:
         self.hover_controls(None)
