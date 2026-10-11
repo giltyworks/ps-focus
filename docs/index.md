@@ -16,7 +16,7 @@ body_class: home
 </div>
 
 <div class="note" markdown="1">
-Free and [open source](https://github.com/giltyworks/ps-focus) Â· Windows 10 and 11 (64-bit)
+Free and [open source](https://github.com/giltyworks/ps-focus) · Windows 10 and 11 (64-bit)
 
 Windows may say "Windows protected your PC" because the app isn't code-signed yet: choose **More info**, then **Run anyway**. Each release lists a SHA-256 checksum for checking your download.
 </div>
@@ -49,6 +49,11 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 <p class="caption">Screenshots of the app, with sample data.</p>
 </div>
 </div>
+
+<figure class="wide-shot natural">
+  <video src="{{ '/assets/demo-reel.mp4' | relative_url }}" poster="{{ '/assets/demo-reel-poster.png' | relative_url }}" width="720" height="640" autoplay muted loop playsinline aria-label="PS Focus in use: the day's time counting up, the graph and calendar changing period, a panel pulled out and snapped back, a friend request accepted, going invisible, and switching to landscape"></video>
+  <figcaption class="caption">PS Focus in use, with sample data</figcaption>
+</figure>
 
 <figure class="wide-shot">
   <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1587" height="237" alt="PS Focus in landscape: today's time in Photoshop, then the hours graph, the September calendar and the stats side by side in one wide, short window">
