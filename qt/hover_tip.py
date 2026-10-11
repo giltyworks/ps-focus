@@ -3,7 +3,7 @@ Drawn by PS Focus itself, as the website's demo draws it, rather than Windows' o
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QRect, QRectF, Qt
+from PySide6.QtCore import QPoint, QRect, QRectF, QSize, Qt
 from PySide6.QtGui import QColor, QFontMetrics, QGuiApplication, QPainter, QPaintEvent
 from PySide6.QtWidgets import QWidget
 
@@ -37,13 +37,22 @@ class HoverTip(QWidget):
         """Show above `target`, a rectangle in `owner`, or below it when there is no room above; inside the screen"""
         self.owner = owner
         self.text = text
-        metrics = QFontMetrics(self.font_)
+        # Measured as this window will draw it, at its screen's scale
+        metrics = QFontMetrics(self.font_, self)
         flags = int(Qt.TextFlag.TextWordWrap) if wrap else 0
-        bounds = metrics.boundingRect(QRect(0, 0, TIP_WRAP_WIDTH - 2 * TIP_PADDING[0], 10_000), flags, text) if wrap else metrics.boundingRect(text)
+        if wrap:
+            bounds = metrics.boundingRect(QRect(0, 0, TIP_WRAP_WIDTH - 2 * TIP_PADDING[0], 10_000), flags, text)
+        else:
+            bounds = QRect(0, 0, metrics.horizontalAdvance(text) + 1, metrics.height())
         width = bounds.width() + 2 * TIP_PADDING[0] + 2
         height = bounds.height() + 2 * TIP_PADDING[1] + 2
         self.text_rect = QRect(1 + TIP_PADDING[0], 1 + TIP_PADDING[1], bounds.width() + 1, bounds.height())
-        self.setFixedSize(width + 2 * TIP_SHADOW, height + 2 * TIP_SHADOW)
+        size = QSize(width + 2 * TIP_SHADOW, height + 2 * TIP_SHADOW)
+        # Windows resizes a see-through window that is showing a moment late, so it would show the new text in the
+        # old size; hidden first, it shows at its new size straight away
+        if self.isVisible() and size != self.size():
+            self.hide()
+        self.setFixedSize(size)
         top_left = owner.mapToGlobal(target.topLeft())
         screen = (QGuiApplication.screenAt(top_left) or QGuiApplication.primaryScreen()).availableGeometry()
         x = top_left.x() + target.width() // 2 - width // 2
