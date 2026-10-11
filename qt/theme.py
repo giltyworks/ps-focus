@@ -8,8 +8,8 @@ import os
 from ctypes import wintypes
 from functools import lru_cache
 
-from PySide6.QtCore import QPoint, QPointF
-from PySide6.QtGui import QColor, QFont, QFontMetrics, QPainter, QPainterPath
+from PySide6.QtCore import QPoint, QPointF, Qt
+from PySide6.QtGui import QColor, QFont, QFontMetrics, QImage, QPainter, QPainterPath
 
 import app_config
 from app_config import COLORS
@@ -105,29 +105,57 @@ def text_width(font_: QFont, text: str) -> int:
     return QFontMetrics(font_).horizontalAdvance(text)
 
 
-# A see-through window outlines its text in a soft dark halo, so it reads over any artwork behind: as strong as this at
+# A see-through window lays a soft dark glow behind its text, so it reads over any artwork behind: as dark as this at
 # its most see-through, none at all when solid. A painter carries the strength for its window as painter.halo
-HALO_MAX = 120
-HALO_OFFSETS = ((-1, 0), (1, 0), (0, -1), (0, 1), (-1, -1), (1, -1), (-1, 1), (1, 1))
+HALO_MAX = 170
+# How far the glow spreads round the letters, and how much the text is shrunk and grown again to soften it
+GLOW_SPREAD = 3
+GLOW_SOFTNESS = 4
 
 
 def halo_strength(glass_alpha: int) -> int:
-    """How dark the halo round text is for a background this solid, from 255 (no halo) down"""
+    """How dark the glow behind text is for a background this solid, from 255 (no glow) down"""
     return round(max(0, 255 - glass_alpha) * HALO_MAX / 253)
+
+
+@lru_cache(maxsize=2048)
+def _glow(text: str, font_description: str, ratio: float) -> QImage:
+    """The text's shape in black, blurred into a soft glow that spreads GLOW_SPREAD pixels round it, ready to draw at
+    the text's top left less the spread. Kept, as the same texts are drawn every second"""
+    font_ = QFont()
+    font_.fromString(font_description)
+    pad = GLOW_SPREAD
+    width = text_width(font_, text) + 2 * pad
+    height = line_height(font_) + 2 * pad
+    image = QImage(max(1, round(width * ratio)), max(1, round(height * ratio)), QImage.Format.Format_ARGB32_Premultiplied)
+    image.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(image)
+    painter.scale(ratio, ratio)
+    painter.setFont(font_)
+    painter.setPen(QColor(0, 0, 0))
+    # Thickened a little before it is blurred, so the glow is dark close to the letters and fades outwards
+    for dx, dy in ((0, 0), (-1, 0), (1, 0), (0, -1), (0, 1)):
+        painter.drawText(QPointF(pad + dx, pad + ascent(font_) + dy), text)
+    painter.end()
+    small = image.scaled(max(1, image.width() // GLOW_SOFTNESS), max(1, image.height() // GLOW_SOFTNESS),
+                         Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
+    glow = small.scaled(image.width(), image.height(), Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
+    glow.setDevicePixelRatio(ratio)
+    return glow
 
 
 def draw_text(painter: QPainter, x: int, top: int, text: str, text_color: QColor, font_: QFont) -> None:
     """Draw text with the top left of its line at this point, as Tk places text anchored at its top left; on a
-    see-through window, over a soft dark halo"""
-    painter.setFont(font_)
-    baseline = QPoint(x, top + ascent(font_))
+    see-through window, over a soft dark glow"""
     halo = getattr(painter, "halo", 0)
-    if halo:
-        painter.setPen(QColor(0, 0, 0, halo))
-        for dx, dy in HALO_OFFSETS:
-            painter.drawText(baseline + QPoint(dx, dy), text)
+    if halo and text.strip():
+        painter.save()
+        painter.setOpacity(painter.opacity() * halo / 255)
+        painter.drawImage(QPointF(x - GLOW_SPREAD, top - GLOW_SPREAD), _glow(text, font_.toString(), painter.device().devicePixelRatioF()))
+        painter.restore()
+    painter.setFont(font_)
     painter.setPen(text_color)
-    painter.drawText(baseline, text)
+    painter.drawText(QPoint(x, top + ascent(font_)), text)
 
 
 def tk_round(value: float) -> int:
