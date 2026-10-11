@@ -192,7 +192,7 @@ class QtFriendsTests(unittest.TestCase):
         self.assertEqual(self.app.header.account_color, "muted")
         self.sync.set_status("online")
         self._settle()
-        self.assertEqual(self.app.header.account_color, "active_green")
+        self.assertEqual(self.app.header.account_color, "name_drawing")
         # Offline tells friends once, then sends nothing more
         self.sync.set_status("offline")
         self._settle()

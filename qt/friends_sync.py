@@ -38,7 +38,7 @@ STALE_SECONDS = 15 * 60
 STATUSES = ("online", "away", "invisible", "offline")
 # What the header says under the user's name for each status, and in what colour, as friends would see them
 STATUS_LABELS = {"online": "Online", "away": "Away", "invisible": "Invisible", "offline": "Offline"}
-STATUS_COLORS = {"online": "friend_online", "away": "friend_away", "invisible": "muted", "offline": "muted"}
+STATUS_COLORS = {"online": "friend_away", "away": "friend_away", "invisible": "muted", "offline": "muted"}
 STATUS_SENT = {"online": "online", "away": "away", "invisible": "offline", "offline": "offline"}
 
 

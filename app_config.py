@@ -136,6 +136,12 @@ COLORS = {
     "friend_online": "#7d95f5",
     # A friend away: the same blue, dimmed towards the panel, as Steam dims its away friends
     "friend_away": "#56659f",
+    # Names, a lighter shade of the colour of the line under them, so a name reads first, as Steam does: drawing,
+    # online, away and offline
+    "name_drawing": "#86e3a6",
+    "name_online": "#aebdfa",
+    "name_away": "#8993bc",
+    "name_offline": "#b0b9b7",
 }
 DEFAULT_SETTINGS = {
     "tracking_enabled": True,

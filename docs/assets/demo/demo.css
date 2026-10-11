@@ -18,6 +18,10 @@
   --psf-green: #22c55e;
   --psf-online: #7d95f5;
   --psf-away: #56659f;
+  --psf-name-drawing: #86e3a6;
+  --psf-name-online: #aebdfa;
+  --psf-name-away: #8993bc;
+  --psf-name-offline: #b0b9b7;
   --psf-gold: #f0c33c;
   --psf-red: #e07e75;
   --psf-badge: #e5484d;
@@ -91,11 +95,13 @@
 .psf-badge { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--psf-red); display: grid; place-items: center; font-size: 12px; margin-left: 2px; }
 .psf-account { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14.667px; color: var(--psf-green); }
 .psf-account.psf-hidden-name { color: var(--psf-muted); }
-.psf-account-name { cursor: pointer; font-weight: 600; }
+/* Names a lighter shade than the line under them, so they read first */
+.psf-account-name { cursor: pointer; font-weight: 600; color: var(--psf-name-drawing); }
+.psf-account.psf-hidden-name .psf-account-name, .psf-account.psf-local .psf-account-name { color: inherit; }
 .psf-account-text { display: flex; flex-direction: column; }
 .psf-account-line { display: flex; align-items: center; gap: 2px; line-height: 18px; }
 .psf-account-status { font-size: 10.667px; line-height: 12px; color: var(--psf-muted); }
-.psf-account-status[data-status="online"] { color: var(--psf-online); }
+.psf-account-status[data-status="online"] { color: var(--psf-away); }
 .psf-account-status[data-status="away"] { color: var(--psf-away); }
 .psf-name-field { width: 160px; background: #151515; border: 0; border-radius: 4px; color: var(--psf-text); font: 15px inherit; font-family: inherit; text-align: center; padding: 1px 4px; outline: none; }
 .psf-name-field::selection { background: #284e45; }
@@ -208,11 +214,12 @@
 .psf-friend { display: grid; grid-template-columns: 27px 1fr auto; grid-template-rows: 18px 17px; align-items: center; padding: 2px 0; }
 .psf-friend .psf-lv { width: 17px; height: 17px; border: 1.5px solid var(--psf-red); border-radius: 50%; font-size: 10px; display: grid; place-items: center; margin-top: 1px; }
 .psf-friend .psf-name { font-weight: 600; font-size: 14.667px; line-height: 18px; display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; }
-.psf-friend .psf-name.psf-drawing { color: var(--psf-green); }
-.psf-friend .psf-name.psf-online { color: var(--psf-online); }
-.psf-friend .psf-name.psf-offline { color: var(--psf-muted); }
+.psf-friend .psf-name.psf-drawing { color: var(--psf-name-drawing); }
+.psf-friend .psf-name.psf-online { color: var(--psf-name-online); }
+.psf-friend .psf-name.psf-offline { color: var(--psf-name-offline); }
 /* Away: the online blue, dimmed */
-.psf-friend .psf-name.psf-away, .psf-friend .psf-sub.psf-away { color: var(--psf-away); }
+.psf-friend .psf-name.psf-away { color: var(--psf-name-away); }
+.psf-friend .psf-sub.psf-away { color: var(--psf-away); }
 .psf-friend .psf-sub.psf-program { color: var(--psf-green); }
 .psf-friend .psf-sub.psf-online-today { color: var(--psf-online); }
 .psf-friend .psf-zzz { font-size: 9px; color: var(--psf-muted); letter-spacing: 1px; }

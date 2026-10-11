@@ -50,7 +50,8 @@ class GoogleSync:
         friends = getattr(app, "friends_sync", None)
         # Invisible or offline to friends, the name is greyed, as friends see it
         hidden = friends is not None and friends.enabled() and friends.status() in ("invisible", "offline")
-        app.header.account_color = "muted" if hidden else tone
+        # Connected, the name is in the lighter green names take, over the status in its own colour
+        app.header.account_color = "muted" if hidden else ("name_drawing" if tone == "active_green" else tone)
         if not self.client.connected or self.reauthentication_required:
             app.header.account_font = app.fonts.small
         else:

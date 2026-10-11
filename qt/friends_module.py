@@ -36,8 +36,8 @@ AWAY_MARK_WIDTH = 15
 # The arrow at the end of a friend's name, which opens their menu: the square it takes, and its half-width
 NAME_ARROW_SIZE = 16
 NAME_ARROW_ARM = 3
-# A friend's name: green drawing, blue online, dimmed blue away, grey offline
-NAME_COLORS = {"drawing": "active_green", "online": "friend_online", "away": "friend_away", "offline": "muted"}
+# A friend's name: green drawing, blue online, dimmed blue away, grey offline, each lighter than the line under it
+NAME_COLORS = {"drawing": "name_drawing", "online": "name_online", "away": "name_away", "offline": "name_offline"}
 # Short names for the programs, which share a line with the person's name
 # A section's heading counts its friends from this many up
 SECTION_COUNT_FROM = 4
