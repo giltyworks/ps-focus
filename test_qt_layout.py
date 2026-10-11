@@ -190,3 +190,20 @@ class PanelTipTests(unittest.TestCase):
             QTest.qWait(600)
             self.assertFalse(QToolTip.isVisible())
             block.hide()
+
+
+@unittest.skipIf(QApplication is None, "PySide6 is not installed")
+class CalendarDayTipTests(unittest.TestCase):
+    def test_a_day_under_the_mouse_shows_its_date_and_time(self):
+        from datetime import date
+
+        from qt.calendar_module import CalendarModule
+
+        class Store:
+            def total_for_range(self, start, end):
+                return 4800 if start == date(2026, 10, 8) else 0
+
+        calendar = CalendarModule.__new__(CalendarModule)
+        calendar.store = Store()
+        self.assertEqual(calendar.day_summary(date(2026, 10, 8)), "Thu 8 Oct · 1h 20m")
+        self.assertEqual(calendar.day_summary(date(2026, 10, 9)), "Fri 9 Oct · nothing tracked")

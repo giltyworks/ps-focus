@@ -7,11 +7,12 @@ import calendar
 from datetime import date
 from typing import Callable
 
-from PySide6.QtCore import QPoint, QRectF, Qt
+from PySide6.QtCore import QEvent, QPoint, QRect, QRectF, Qt
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent, QPixmap
+from PySide6.QtWidgets import QToolTip
 
 from app_config import EDGE_PADDING, LINE_PADDING, MODULE_CANVAS_WIDTH, MODULE_MARGIN, SESSION_MINIMUM_SECONDS
-from stat_lines import DAY_ABBREVIATIONS
+from stat_lines import DAY_ABBREVIATIONS, format_hours_minutes
 from tracker import ActivityStore
 
 from .icons import icon
@@ -418,8 +419,30 @@ class CalendarModule(ModuleBlock):
         painter.end()
 
     def _day_at(self, point: QPoint) -> date | None:
+        found = self._day_box_at(point)
+        return found[1] if found else None
+
+    def _day_box_at(self, point: QPoint) -> tuple[QRect, date] | None:
+        """The day under this point, and the square it is drawn in"""
         x, y = point.x() - self.origin.x(), point.y() - self.origin.y()
-        return next((day for left, top, right, bottom, day in self.day_boxes if left <= x < right and top <= y < bottom), None)
+        for left, top, right, bottom, day in self.day_boxes:
+            if left <= x < right and top <= y < bottom:
+                return QRect(left, top, right - left, bottom - top).translated(self.origin), day
+        return None
+
+    def day_summary(self, day: date) -> str:
+        """What a day shows under the mouse: its date and the time tracked, such as 'Thu 8 Oct · 1h 20m'"""
+        seconds = self.store.total_for_range(day, day)
+        return f"{DAY_ABBREVIATIONS[day.weekday()]} {day.day} {day.strftime('%b')} · {format_hours_minutes(seconds) if seconds else 'nothing tracked'}"
+
+    def event(self, event: QEvent) -> bool:
+        # Resting on a day shows its summary, which goes as the mouse leaves that day's square
+        if event.type() == QEvent.Type.ToolTip:
+            found = self._day_box_at(event.pos())
+            if found is not None:
+                QToolTip.showText(event.globalPos(), self.day_summary(found[1]), self, found[0])
+                return True
+        return super().event(event)
 
     def interactive_at(self, point: QPoint) -> bool:
         return super().interactive_at(point) or self._day_at(point) is not None

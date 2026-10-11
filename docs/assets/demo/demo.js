@@ -496,8 +496,8 @@
       const cell = el("div", { class: `psf-day${seconds >= SESSION_MINIMUM ? " psf-active" : ""}${date.getTime() === today.getTime() ? " psf-today-cell" : ""}${future ? " psf-future" : ""}` },
         String(d), rating ? el("span", { class: "psf-rating" }, `★ ${rating}`) : null);
       if (!future) {
-        // Under the mouse, the day's time and rating; a click opens the day
-        cell.addEventListener("pointerenter", () => showTip(cell, `${longDate(date)} · ${seconds ? hm(seconds) : "nothing tracked"}${rating ? ` · rated ${rating}/10` : ""}`));
+        // Under the mouse, the day's date and time tracked; a click opens the day
+        cell.addEventListener("pointerenter", () => showTip(cell, `${longDate(date)} · ${seconds ? hm(seconds) : "nothing tracked"}`));
         cell.addEventListener("pointerleave", hideTip);
         cell.addEventListener("click", () => { hideTip(); dayOverview(date); });
       }
