@@ -19,17 +19,23 @@ from .title_bar import GRIP_SIZE, TITLE_BAR_HEIGHT, EdgeGrip, TitleBar
 
 
 
-def _keep_taskbar_minimize(window: QWidget) -> None:
-    """A window without Windows' frame still minimises from its taskbar button and Windows' shortcuts, given these
-    styles back; they draw nothing"""
+# A normal window's styles, which Windows' snapping and Win + arrow keys, and minimising from the taskbar, look for:
+# WS_CAPTION, WS_THICKFRAME, WS_MINIMIZEBOX and WS_SYSMENU. The frame they would draw is never drawn, see nativeEvent
+WINDOW_STYLES = 0x00C00000 | 0x00040000 | 0x00020000 | 0x00080000
+WM_NCCALCSIZE = 0x0083
+
+
+def _keep_window_behaviour(window: QWidget) -> None:
+    """Give the frameless window a normal window's styles back, so Windows treats it as one"""
     if os.name != "nt":
         return
     user32 = ctypes.windll.user32
     user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
     user32.SetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_long]
     handle = wintypes.HWND(int(window.winId()))
-    # GWL_STYLE; WS_MINIMIZEBOX and WS_SYSMENU
-    user32.SetWindowLongW(handle, -16, user32.GetWindowLongW(handle, -16) | 0x00020000 | 0x00080000)
+    # GWL_STYLE, then SWP_FRAMECHANGED, neither moving, sizing nor activating it, so the new styles take effect
+    user32.SetWindowLongW(handle, -16, user32.GetWindowLongW(handle, -16) | WINDOW_STYLES)
+    user32.SetWindowPos(handle, None, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0020)
 
 # Space between the header and the module checkboxes under it
 HEADER_GAP = 2
@@ -131,7 +137,15 @@ class MainWindow(QWidget):
         self.clip_margin.hide()
         # The edge the window is resized by: the bottom in portrait, the right in landscape
         self.grip = EdgeGrip(self)
-        _keep_taskbar_minimize(self)
+        _keep_window_behaviour(self)
+
+    def nativeEvent(self, event_type, message):
+        # The whole window is the app's to draw: Windows is told its frame takes no room, so none is drawn
+        if event_type == b"windows_generic_MSG":
+            msg = wintypes.MSG.from_address(int(message))
+            if msg.message == WM_NCCALCSIZE and msg.wParam:
+                return True, 0
+        return super().nativeEvent(event_type, message)
 
     def show_always_on_top(self, on: bool) -> None:
         """Note whether Always on top is on, for the title bar's menu to tick it"""
