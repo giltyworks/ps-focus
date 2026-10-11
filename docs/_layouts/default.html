@@ -55,26 +55,20 @@
       margin: 8px 0;
     }
     .button:hover { background: var(--blue-light); border-color: var(--blue-light); }
-    .shots { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-start; margin: 24px 0 8px; }
-    .shots figure { margin: 0; flex: 0 1 342px; }
-    .shots img { display: block; max-width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; }
-    .shots figcaption, .caption { color: var(--muted); font-size: 14px; margin: 8px 0 0; }
+    .caption { color: var(--muted); font-size: 14px; margin: 8px 0 0; }
     .wide-shot { margin: 20px 0 0; }
     .wide-shot img { display: block; width: 100%; height: auto; border: 1px solid var(--border); border-radius: 8px; }
     /* A picture narrower than the page, shown at its own size and centred */
-    .wide-shot.natural img { width: auto; max-width: 100%; margin: 0 auto; }
     .try { margin: 40px 0 8px; }
     .try-intro { color: var(--muted); margin: 0 0 16px; }
     .try-link { margin-left: 12px; color: var(--muted); font-size: 15px; }
-    .wide-shot video { display: block; max-width: 100%; height: auto; margin: 0 auto; border: 1px solid var(--border); border-radius: 8px; background: #000; }
-    .wide-shot.natural figcaption { text-align: center; }
     .note { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; color: var(--muted); font-size: 14px; }
     .note p { color: var(--muted); margin: 6px 0; }
     footer { border-top: 1px solid var(--border); padding-top: 20px; padding-bottom: 40px; color: var(--muted); font-size: 14px; }
     footer a { color: var(--muted); }
     footer .disclaimer { margin: 8px 0 0; font-size: 12px; color: var(--muted); }
-    /* The homepage is laid out compactly over a wider column: the introduction, the notes and the features
-       on the left, the app screenshots beside them, and the short sections as a row of cards. The privacy and
+    /* The homepage is laid out compactly over a wider column: the introduction and notes on the left, the
+       features beside them, then the demo across the page, and the short sections as a row of cards. The privacy and
        terms pages keep the narrower column, as long lines of text are harder to read */
     .home header, .home main, .home footer { max-width: 960px; }
     .home { line-height: 1.55; }
@@ -94,13 +88,11 @@
     .hero-features li { color: #b4bebc; }
     .hero-features li strong { color: var(--text); }
     .home p { margin: 6px 0; }
-    .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); grid-template-areas: "intro shots" "note shots" "features shots"; column-gap: 28px; align-items: start; }
+    .hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); grid-template-areas: "intro features" "note features"; column-gap: 36px; align-items: start; }
     .hero-intro { grid-area: intro; }
-    .hero .note { grid-area: note; }
+    .hero .note { grid-area: note; margin-top: 8px; }
     .hero-features { grid-area: features; }
-    .hero-shots { grid-area: shots; }
-    .hero .shots { margin: 4px 0 0; flex-wrap: nowrap; }
-    .hero .shots figure { flex: 1 1 0; }
+    .hero-features h2 { margin-top: 14px; }
     /* Who makes PS Focus: a round picture with a thin ring, the name, one line, and the social sites as logos */
     .maker { display: flex; align-items: center; gap: 20px; margin-top: 28px; }
     .avatar { width: 96px; height: 96px; border-radius: 50%; object-fit: cover; border: 3px solid var(--border); flex: none; }
@@ -114,14 +106,9 @@
     .cards section { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; }
     .cards h2 { margin: 0 0 4px; font-size: 16px; }
     .cards p { font-size: 15px; }
-    /* On a narrow screen everything is one column, with the screenshots straight after the download button,
-       and on a phone the screenshots stack so they stay large enough to read */
+    /* On a narrow screen everything is one column */
     @media (max-width: 760px) {
-      .hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "intro" "shots" "note" "features"; }
-    }
-    @media (max-width: 560px) {
-      .hero .shots { flex-wrap: wrap; }
-      .hero .shots figure { flex: 1 1 100%; }
+      .hero { grid-template-columns: minmax(0, 1fr); grid-template-areas: "intro" "note" "features"; }
     }
   </style>
 </head>

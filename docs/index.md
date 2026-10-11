@@ -11,7 +11,7 @@ body_class: home
 <p class="what">Automatically tracks your time in Photoshop, Krita, and Clip Studio Paint.</p>
 <p class="what-sub">Free for Windows. Your hours become charts, a calendar, and a level.</p>
 
-<a class="button" href="https://github.com/giltyworks/ps-focus/releases/latest">Download for Windows</a> <a class="try-link" href="#try">or try it in your browser</a>
+<a class="button" href="https://github.com/giltyworks/ps-focus/releases/latest">Download for Windows</a> <a class="try-link" href="#try">or try it right here</a>
 
 </div>
 
@@ -29,25 +29,12 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 - **Shows your habits.** Charts by day, week, month, and year, a calendar of sessions, streaks, and averages.
 - **Levels 1 to 99.** Your total hours set your level, with a small celebration at each new one.
 - **Make it your own.** Drag panels by their title to rearrange them, or pull them out to float and snap beside the window, as in Photoshop. Tall beside your canvas, or a wide strip in landscape.
-- **Never in your way.** Optionally turns see-through while your mouse is elsewhere, and solid again when you point at it.
-- **Stays out of the way.** Starts with Windows, sits in the tray, and needs no account.
+- **Draw with friends.** Add friends by code to see each other's hours and who's drawing right now.
+- **Stays out of the way.** Starts with Windows, sits in the tray, needs no account, and can turn see-through while your mouse is elsewhere.
 - **Backs itself up.** Copies on your PC, plus an optional backup in your own Google Drive.
 
 </div>
 
-<div class="hero-shots">
-<div class="shots">
-  <figure>
-    <img src="{{ '/assets/screenshot-calendar.png' | relative_url }}" width="322" height="754" alt="PS Focus showing today's time in Photoshop, a calendar of September with most days marked as sessions, and stats such as weekly total and averages">
-    <figcaption>Today, the month's sessions, and your stats</figcaption>
-  </figure>
-  <figure>
-    <img src="{{ '/assets/screenshot-graph.png' | relative_url }}" width="322" height="510" alt="PS Focus showing a line graph of hours drawn each day over the past 30 days">
-    <figcaption>Hours per day, past month</figcaption>
-  </figure>
-</div>
-<p class="caption">Screenshots of the app, with sample data.</p>
-</div>
 </div>
 
 <section class="try" id="try" markdown="0">
@@ -60,21 +47,9 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 <link rel="stylesheet" href="{{ '/assets/demo/demo.css' | relative_url }}">
 <script src="{{ '/assets/demo/demo.js' | relative_url }}" defer></script>
 
-<!-- The demo reel, parked for now: tools/demo_reel.py
-<figure class="wide-shot natural">
-  <video src="{{ '/assets/demo-reel.mp4' | relative_url }}" poster="{{ '/assets/demo-reel-poster.png' | relative_url }}" width="720" height="640" autoplay muted loop playsinline aria-label="PS Focus beside a painting in an art app: the time counts while drawing and stops when stepping away, the graph and calendar show habits, a level-up with fireworks, a panel pulled out beside the canvas fades see-through, a friend request is accepted, and the window becomes a slim strip"></video>
-  <figcaption class="caption">PS Focus in use, with sample data</figcaption>
-</figure>
--->
-
 <figure class="wide-shot">
   <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1587" height="237" alt="PS Focus in landscape: today's time in Photoshop, then the hours graph, the September calendar and the stats side by side in one wide, short window">
-  <figcaption class="caption">Landscape: everything side by side in one short strip</figcaption>
-</figure>
-
-<figure class="wide-shot natural">
-  <img src="{{ '/assets/screenshot-floating.png' | relative_url }}" width="642" height="517" alt="PS Focus with the calendar and stats pulled out into floating panels, snapped one above the other beside the main window, which shows today's time and the hours graph">
-  <figcaption class="caption">Floating panels: pull any panel out by its title and it snaps into place</figcaption>
+  <figcaption class="caption">Landscape, in the app: everything side by side in one short strip</figcaption>
 </figure>
 
 <section class="maker" aria-label="Who makes PS Focus">

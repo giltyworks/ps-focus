@@ -1299,7 +1299,8 @@
       dot.style.top = `${y}px`;
       dot.addEventListener("pointerenter", () => showTip(dot, spot.text, true));
       dot.addEventListener("pointerleave", hideTip);
-      dot.addEventListener("click", () => showTip(dot, spot.text, true));
+      // A click once the tip has been read puts the arrow away for good; on a phone the first tap shows the tip
+      dot.addEventListener("click", () => (tip ? markUsed(spot.id) : showTip(dot, spot.text, true)));
       hotspots.append(dot);
       // Room for its nudge, so two arrows never touch as they move
       const box = rect(dot);

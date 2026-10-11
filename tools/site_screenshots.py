@@ -1,4 +1,4 @@
-"""Capture the real app, title bar included, showing believable sample data, for the public download page
+"""Capture the real app in landscape, title bar included, showing believable sample data, for the public download page
 
 Nothing from the user's own history or account is used: the app runs against a throwaway data folder. A plain window
 in the page's own black stands behind the app while it is captured, so nothing else on the screen can show in the
@@ -129,25 +129,8 @@ settle()
 app.window.move(screen.x() + 400, screen.y() + 40)
 app.window.raise_()
 settle()
-# Last month is shown, as a full month of sessions says more than the first days of a new one
-app.calendar._step(-1)
-shoot("screenshot-calendar", app.window)
-show(calendar=False, stats=False, graph=True)
-app.chart._set_period("Month")
-shoot("screenshot-graph", app.window)
-# Floating panels: the calendar and stats taken out of the window and snapped beside it, one above the other
+# The landscape orientation, the one view the website's demo leaves out: every module beside the program panel
 show(calendar=True, stats=True, graph=True)
-app.docking.float_module("calendar", QPoint(0, 0))
-app.docking.float_module("stats", QPoint(0, 0))
-settle()
-left, top, _right, _bottom = app.docking.main_bounds()
-calendar_panel, stats_panel = app.docking.floating["calendar"], app.docking.floating["stats"]
-calendar_panel.move(left - calendar_panel.width(), top)
-stats_panel.move(left - stats_panel.width(), top + calendar_panel.height())
-for panel in (calendar_panel, stats_panel):
-    panel.raise_()
-shoot("screenshot-floating", app.window, calendar_panel, stats_panel)
-# The landscape orientation, every module back in the window beside the program panel
 app.docking.dock_all()
 app.landscape = True
 app.landscape_width = None
