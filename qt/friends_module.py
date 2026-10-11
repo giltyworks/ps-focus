@@ -406,10 +406,9 @@ class FriendsModule(ModuleBlock):
             self.items.append(("level", left + LEVEL_RING_SIZE / 2, middle, str(stats.get("level", 0))))
             self.items.append(("anchored", right, middle, "e", hours, "muted" if offline else "text", fonts.small))
             name_left = left + level_width
-            # Beside the name: what they are drawing in, or a zzz while they are away
+            # Beside the name, a zzz while they are away; what they are drawing in goes with today's time, below
             label = PROGRAM_SHORT_NAMES.get(active, active) if active else ""
-            dot_color = PRESENCE_COLORS.get(presence)
-            label_room = (ACTIVE_DOT_SIZE + 6 if dot_color else 0) + (text_width(fonts.small, label) + 4 if label else 0)
+            label_room = 0
             if presence == "away":
                 label_room += AWAY_MARK_WIDTH + 4
             label_room += NAME_ARROW_SIZE + 2
@@ -422,21 +421,17 @@ class FriendsModule(ModuleBlock):
                 self.items.append(("zzz", after_name + 5, middle))
                 self.away_areas.append(QRect(after_name + 3, middle - 8, AWAY_MARK_WIDTH + 4, 14))
                 after_name += AWAY_MARK_WIDTH + 4
-            if dot_color:
-                dot_left = after_name + 6
-                self.items.append(("dot", dot_left, middle, dot_color))
-                after_name = dot_left + ACTIVE_DOT_SIZE
-                if label:
-                    self.items.append(("anchored", dot_left + ACTIVE_DOT_SIZE + 4, middle, "w", label, dot_color, fonts.small))
-                    after_name += 4 + text_width(fonts.small, label)
             # Last, the arrow that opens their menu, as a click anywhere on their rows does
             self.arrow_rects.append((QRect(after_name + 2, middle - NAME_ARROW_SIZE // 2, NAME_ARROW_SIZE, NAME_ARROW_SIZE), code))
             y += name_line
             total = f"{stats.get('total', 0):.1f} hrs total"
-            details = f"{stats.get('today', 0):.1f}h today"
+            # Today's time, with the program while they are drawing in it, such as "Photoshop (1.1h)", in its colour
+            today = stats.get("today", 0)
+            details = f"{label} ({today:.1f}h)" if label else f"{today:.1f}h today"
+            details_color = PRESENCE_COLORS.get(presence, "muted") if label else "muted"
             details_room = right - text_width(fonts.small, total) - 8 - name_left
             middle = y + small_line // 2
-            self.items.append(("anchored", name_left, middle, "w", fit_text(details, fonts.small, details_room), "muted", fonts.small))
+            self.items.append(("anchored", name_left, middle, "w", fit_text(details, fonts.small, details_room), details_color, fonts.small))
             self.items.append(("anchored", right, middle, "e", total, "muted", fonts.small))
             y += small_line
             self.person_areas.append((QRect(left - 4, top - 2, right - left + 8, y - top + 4), code, name))

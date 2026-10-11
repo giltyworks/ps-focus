@@ -664,6 +664,7 @@
   codeField.querySelector("button").addEventListener("click", () => finishAdding(true));
   requestsIcon.addEventListener("click", () => { state.requestsOpen = !state.requestsOpen; renderFriends(); });
 
+  const PROGRAM_SHORT = { "Clip Studio Paint": "Clip Studio" };
   function friendRow(friend) {
     const nameClass = { drawing: "psf-drawing", online: "psf-online", away: "psf-online", offline: "psf-offline" }[friend.presence];
     const shown = state.nicknames.get(friend.code) || friend.name;
@@ -682,13 +683,15 @@
       name.replaceChildren(field);
       setTimeout(() => { field.focus(); field.select(); });
     }
-    if (friend.presence === "drawing") name.append(el("span", { class: "psf-program" }, friend.program));
     if (friend.presence === "away") name.append(el("span", { class: "psf-zzz", title: "Away" }, el("span", {}, "z"), el("span", {}, "z"), el("span", {}, "z")));
     name.append(el("button", { type: "button", class: "psf-icon-button psf-chevron", title: `${friend.name}'s menu`, onclick: (event) => friendMenu(event.currentTarget, friend) }, svg(ICONS.chevron)));
     const row = el("div", { class: `psf-friend${friend.fresh ? " psf-new" : ""}`, oncontextmenu: (event) => { event.preventDefault(); friendMenu(name, friend); } },
       el("span", { class: "psf-lv" }, String(friend.level)), name,
       el("span", { class: "psf-right", style: friend.presence === "offline" ? "color:var(--psf-muted)" : "" }, `${friend.two.toFixed(1)} hrs past 2 weeks`),
-      el("span", {}), el("span", { class: "psf-sub" }, `${friend.today.toFixed(1)}h today`), el("span", { class: "psf-sub-right" }, `${friend.total.toFixed(1)} hrs total`));
+      el("span", {}), friend.presence === "drawing"
+        // Today's time with the program they are drawing in, as the app shows it
+        ? el("span", { class: "psf-sub psf-program" }, `${PROGRAM_SHORT[friend.program] || friend.program} (${friend.today.toFixed(1)}h)`)
+        : el("span", { class: "psf-sub" }, `${friend.today.toFixed(1)}h today`), el("span", { class: "psf-sub-right" }, `${friend.total.toFixed(1)} hrs total`));
     friend.fresh = false;
     return row;
   }

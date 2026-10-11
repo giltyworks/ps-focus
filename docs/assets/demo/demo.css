@@ -204,8 +204,7 @@
 .psf-friend .psf-name.psf-drawing { color: var(--psf-green); }
 .psf-friend .psf-name.psf-online { color: var(--psf-online); }
 .psf-friend .psf-name.psf-offline { color: var(--psf-muted); }
-.psf-friend .psf-program { font-size: 12px; color: var(--psf-green); display: inline-flex; align-items: center; gap: 4px; }
-.psf-friend .psf-program::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--psf-green); }
+.psf-friend .psf-sub.psf-program { color: var(--psf-green); }
 .psf-friend .psf-zzz { font-size: 9px; color: var(--psf-muted); letter-spacing: 1px; }
 .psf-friend .psf-zzz span:nth-child(2) { position: relative; top: -2px; }
 .psf-friend .psf-zzz span:nth-child(3) { position: relative; top: -4px; }
