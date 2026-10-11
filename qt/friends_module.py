@@ -45,6 +45,11 @@ PROGRAM_SHORT_NAMES = {"Clip Studio Paint": "Clip Studio"}
 # The list of requests and friends scrolls beyond this many friends' rows in portrait, and beyond the height the
 # modules share in landscape; a turn of the mouse wheel moves it this far
 PORTRAIT_LIST_ROWS = 4
+
+
+def friend_lines(fonts: Fonts) -> tuple[int, int]:
+    """The heights of a friend's name line and the line of details under it, snug together"""
+    return line_height(fonts.account) - 2, line_height(fonts.small) + LINE_PADDING
 SCROLL_STEP = 36
 SCROLL_BAR_WIDTH = 3
 # At the right of the name strip: Copy code, then the friend requests icon while any wait, and the add friend icon, each
@@ -387,7 +392,8 @@ class FriendsModule(ModuleBlock):
             y += GROUP_GAP - ROW_GAP
         # Each friend's level stands at the left of their name in a red ring, as the user's own level badge
         level_width = LEVEL_RING_SIZE + 7
-        name_line = line_height(fonts.account) + LINE_PADDING
+        # A friend's two lines sit snug together: the name's line trimmed, the details' line with a little under it
+        name_line, detail_line = friend_lines(fonts)
         self.name_rects = {}
         # Favourites first under a heading of their own, then the others online, then those offline or invisible; the
         # others online have a heading only when there are favourites above them
@@ -443,10 +449,10 @@ class FriendsModule(ModuleBlock):
             else:
                 details, details_color = f"{amount} today", "muted"
             details_room = right - text_width(fonts.small, total) - 8 - name_left
-            middle = y + small_line // 2
+            middle = y + detail_line // 2
             self.items.append(("anchored", name_left, middle, "w", fit_text(details, fonts.small, details_room), details_color, fonts.small))
             self.items.append(("anchored", right, middle, "e", total, "muted", fonts.small))
-            y += small_line
+            y += detail_line
             self.person_areas.append((QRect(left - 4, top - 2, right - left + 8, y - top + 4), code, name))
             y += ROW_GAP
         if not view.people:
@@ -461,7 +467,7 @@ class FriendsModule(ModuleBlock):
             self.items.append(("anchored", left, y + cancel.height // 2, "w", text, "muted", fonts.small))
             y += cancel.height + ROW_GAP
         full = y - ROW_GAP - list_top
-        person_height = line_height(fonts.account) + LINE_PADDING + small_line
+        person_height = sum(friend_lines(fonts))
         visible = min(full, self._list_room(list_top, small_line, person_height))
         self.max_scroll = max(0, full - visible)
         self.scroll = max(0, min(self.scroll, self.max_scroll))
