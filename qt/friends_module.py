@@ -36,8 +36,8 @@ AWAY_MARK_WIDTH = 15
 # The arrow at the end of a friend's name, which opens their menu: the square it takes, and its half-width
 NAME_ARROW_SIZE = 16
 NAME_ARROW_ARM = 3
-# A friend's name: green drawing, blue online or away, grey offline
-NAME_COLORS = {"drawing": "active_green", "online": "friend_online", "away": "friend_online", "offline": "muted"}
+# A friend's name: green drawing, blue online, dimmed grey away or offline
+NAME_COLORS = {"drawing": "active_green", "online": "friend_online", "away": "muted", "offline": "muted"}
 # Short names for the programs, which share a line with the person's name
 # A section's heading counts its friends from this many up
 SECTION_COUNT_FROM = 4
@@ -438,7 +438,7 @@ class FriendsModule(ModuleBlock):
                 details, details_color = f"{label} ({amount})", PRESENCE_COLORS.get(presence, "muted")
             elif presence == "online":
                 details, details_color = (f"{amount} today" if today > 0 else "Online"), "friend_online"
-            elif presence == "away" and today <= 0:
+            elif presence == "away":
                 details, details_color = "Away", "muted"
             else:
                 details, details_color = f"{amount} today", "muted"

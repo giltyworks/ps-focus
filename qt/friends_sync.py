@@ -43,11 +43,11 @@ STATUS_SENT = {"online": "online", "away": "away", "invisible": "offline", "offl
 # without time today
 SAMPLE_FRIENDS = (
     ("Mia", {"two_weeks": 16.4, "today": 1.4, "total": 121.6, "level": 19}, "drawing", "Krita", "SAMPLE01"),
-    ("Sam", {"two_weeks": 12.7, "today": 0.4, "total": 92.4, "level": 16}, "drawing", "Photoshop", "SAMPLE02"),
+    ("Samuel", {"two_weeks": 12.7, "today": 0.4, "total": 92.4, "level": 16}, "drawing", "Photoshop", "SAMPLE02"),
     ("Leo", {"two_weeks": 10.2, "today": 0.6, "total": 71.3, "level": 14}, "online", None, "SAMPLE03"),
-    ("Kai", {"two_weeks": 8.9, "today": 0.0, "total": 60.2, "level": 13}, "online", None, "SAMPLE04"),
-    ("Ava", {"two_weeks": 6.8, "today": 0.0, "total": 47.9, "level": 11}, "away", None, "SAMPLE05"),
-    ("Noah", {"two_weeks": 3.1, "today": 1.2, "total": 28.4, "level": 8}, "offline", None, "SAMPLE06"),
+    ("Isabella", {"two_weeks": 8.9, "today": 0.0, "total": 60.2, "level": 13}, "online", None, "SAMPLE04"),
+    ("Priya", {"two_weeks": 6.8, "today": 0.0, "total": 47.9, "level": 11}, "away", None, "SAMPLE05"),
+    ("Jonathan", {"two_weeks": 3.1, "today": 1.2, "total": 28.4, "level": 8}, "offline", None, "SAMPLE06"),
 )
 
 

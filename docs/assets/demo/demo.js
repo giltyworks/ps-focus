@@ -104,8 +104,8 @@
     friends: [
       { code: "MIAA", name: "Mia", level: 19, presence: "drawing", program: "Krita", two: 16.4, total: 121.6, today: 1.4 },
       { code: "LEOO", name: "Leo", level: 14, presence: "online", two: 10.2, total: 71.3, today: 0.6 },
-      { code: "AVAA", name: "Ava", level: 11, presence: "away", two: 6.8, total: 47.9, today: 0.0 },
-      { code: "NOAH", name: "Noah", level: 8, presence: "offline", two: 3.1, total: 28.4, today: 0.0 },
+      { code: "ISAB", name: "Isabella", level: 11, presence: "away", two: 6.8, total: 47.9, today: 0.0 },
+      { code: "JONA", name: "Jonathan", level: 8, presence: "offline", two: 3.1, total: 28.4, today: 0.0 },
     ],
     request: null,
     requestShown: false,
@@ -671,7 +671,7 @@
   // Today's time on a friend's row: hours to a decimal, or under an hour in minutes, as the app
   const todayAmount = (hours) => (hours >= 1 ? `${hours.toFixed(1)} hrs` : `${Math.round(hours * 60)} min`);
   function friendRow(friend) {
-    const nameClass = { drawing: "psf-drawing", online: "psf-online", away: "psf-online", offline: "psf-offline" }[friend.presence];
+    const nameClass = { drawing: "psf-drawing", online: "psf-online", away: "psf-offline", offline: "psf-offline" }[friend.presence];
     const shown = state.nicknames.get(friend.code) || friend.name;
     const name = el("span", { class: `psf-name ${nameClass}` }, shown);
     if (state.nicknaming === friend.code) {
@@ -699,7 +699,7 @@
         // Online: today's time in blue, or just Online with none yet, as the app
         : friend.presence === "online"
           ? el("span", { class: "psf-sub psf-online-today" }, friend.today > 0 ? `${todayAmount(friend.today)} today` : "Online")
-          : el("span", { class: "psf-sub" }, friend.presence === "away" && friend.today <= 0 ? "Away" : `${todayAmount(friend.today)} today`), el("span", { class: "psf-sub-right" }, `${friend.total.toFixed(1)} hrs total`));
+          : el("span", { class: "psf-sub" }, friend.presence === "away" ? "Away" : `${todayAmount(friend.today)} today`), el("span", { class: "psf-sub-right" }, `${friend.total.toFixed(1)} hrs total`));
     friend.fresh = false;
     return row;
   }
@@ -750,7 +750,7 @@
     // A request shows on the requests icon in the friends strip, with its count, as in the app; its list holds it
     if (state.requestShown) return;
     state.requestShown = true;
-    state.request = { code: "SAMM", name: "Sam", level: 16, presence: "drawing", program: "Photoshop", two: 12.7, total: 92.4, today: 1.1 };
+    state.request = { code: "SAMI", name: "Samira", level: 16, presence: "drawing", program: "Photoshop", two: 12.7, total: 92.4, today: 1.1 };
     // In the demo the list opens by itself, so the request is seen without hunting for it
     state.requestsOpen = true;
     renderFriends();
