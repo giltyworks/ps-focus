@@ -81,7 +81,7 @@
     period: "Week",
     calendarView: "Month",
     calendarMonth: new Date(today.getFullYear(), today.getMonth(), 1),
-    shown: { graph: true, calendar: true, friends: false },
+    shown: { graph: true, calendar: true, friends: true },
     programs: { Photoshop: true, "Clip Studio Paint": false, Krita: false },
     paused: false,
     settingsOpen: false,
@@ -665,6 +665,16 @@
     if (state.floating[name]) state.floating[name].panel.hidden = !wanted(name);
     arrange();
     if (name === "friends" && state.shown.friends && !state.requestShown) setTimeout(requestArrives, 1600);
+  }
+
+  // Friends shows from the start, so a few seconds after the demo comes into view a request arrives on it
+  if ("IntersectionObserver" in window) {
+    const watch = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) { watch.disconnect(); setTimeout(requestArrives, 4000); }
+    }, { threshold: 0.3 });
+    watch.observe(stage);
+  } else {
+    setTimeout(requestArrives, 4000);
   }
 
   function arrange(placeholderAt = null, placeholderHeight = 0, placeholderWidth = 300) {
