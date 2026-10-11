@@ -1254,7 +1254,7 @@
     { id: "fade", target: () => canvas, at: (r) => [r.left + 4, r.top + 80, "right"],
       text: "Point at the painting: PS Focus fades so your art shows through." },
     { id: "status", target: () => statusButton, at: (r) => [r.left + r.width / 2, r.bottom + 2, "up"], text: "Set Away, Invisible or Offline." },
-    { id: "settings", target: () => settingsButton, at: (r) => [r.left - 2, r.top + r.height / 2, "right"], text: "Programs, transparency and backups." },
+    { id: "settings", target: () => settingsButton, at: (r) => [r.left - 2, r.top + r.height / 2, "right"], text: "Settings" },
   ];
   const TIPS_AT_ONCE = 3;
   const used = new Set();
