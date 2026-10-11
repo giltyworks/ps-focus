@@ -105,6 +105,8 @@ class MainWindow(QWidget):
         # bar and edges, and its background turns to glass as a floating panel's does
         super().__init__(None, Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        # Tooltips show while another program is in front, as PS Focus sits beside the art app the user works in
+        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysShowToolTips)
         self.glass_alpha = 255
         # Whether Always on top is on, which the title bar's menu shows
         self.always_on_top = False

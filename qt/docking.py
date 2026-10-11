@@ -171,6 +171,8 @@ class FloatingPanel(QWidget):
         self.on_hover = on_hover
         # A background that can be see-through, the module painting it as solid as it is to be
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        # Tooltips show while another program is in front, as PS Focus sits beside the art app the user works in
+        self.setAttribute(Qt.WidgetAttribute.WA_AlwaysShowToolTips)
         # Coming up under the pointer mid-drag, it leaves the keyboard where it was
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
         self.setWindowTitle(f"PS Focus - {block.title}")
