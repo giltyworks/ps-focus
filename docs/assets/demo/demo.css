@@ -52,7 +52,7 @@
 .psf-canvas {
   /* A fixed size, tall enough for PS Focus at its biggest to fit over it: a tall slice of the painting, centred on its
      figures, which stays put whatever the window shows */
-  position: absolute; top: 24px; right: 24px; left: 344px; height: 1345px;
+  position: absolute; top: 24px; right: 24px; left: 344px; height: 1100px;
   background: #111 74% 50% / cover no-repeat; box-shadow: 0 6px 30px rgba(0, 0, 0, .45);
 }
 

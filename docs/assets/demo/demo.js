@@ -81,7 +81,7 @@
     period: "Week",
     calendarView: "Month",
     calendarMonth: new Date(today.getFullYear(), today.getMonth(), 1),
-    shown: { graph: true, calendar: true, stats: true, friends: true },
+    shown: { graph: true, calendar: true, stats: false, friends: true },
     programs: { Photoshop: true, "Clip Studio Paint": false, Krita: false },
     // A made-up Google account; in the app the real one is chosen on Google's own page in the browser
     account: { name: "gilty", email: "demo@example.com" },
@@ -923,7 +923,7 @@
     const panels = Object.values(state.floating).filter((f) => !f.panel.hidden);
     const bottom = Math.max(win.offsetTop + win.offsetHeight, ...panels.map((f) => f.panel.offsetTop + f.panel.offsetHeight));
     // The scene holds the painting whole on a desktop, and grows only if PS Focus is dragged further down
-    stage.style.minHeight = `${Math.max(touch.matches ? 640 : 1393, bottom + 24)}px`;
+    stage.style.minHeight = `${Math.max(touch.matches ? 640 : 1148, bottom + 24)}px`;
     // On the narrowest phones the window, 300 pixels wide like the app's, is shrunk to fit
     const room = stage.clientWidth - 16;
     win.style.transform = touch.matches ? `translateX(-50%)${room < 300 ? ` scale(${room / 300})` : ""}` : "";
