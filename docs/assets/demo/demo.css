@@ -357,3 +357,6 @@
 .psf-stat-note .psf-star-icon { vertical-align: -1px; }
 /* A block being put in a new order in the window, outlined in blue as in the app */
 .psf-block.psf-reordering { border-color: var(--psf-blue); }
+/* While anything is dragged: the grabbing hand everywhere, and the tip arrows out of the way */
+.psf-stage.psf-moving, .psf-stage.psf-moving * { cursor: grabbing !important; }
+.psf-stage.psf-moving .psf-hotspot { visibility: hidden; }

@@ -1006,11 +1006,18 @@
   function dockSlot(pointerX, pointerY) {
     // Where among the window's blocks a panel dropped here goes: in landscape by where across, in portrait by how far
     // down; never before the header standing on its own
-    const docked = [...blocks.children].filter((child) => !child.classList.contains("psf-placeholder"));
+    const children = [...blocks.children];
+    const holder = children.find((child) => child.classList.contains("psf-placeholder"));
+    const docked = children.filter((child) => child !== holder);
     const least = headerAlone() ? 1 : 0;
+    // Measured where the blocks stand without the space shown for the panel, so showing that space, which pushes the
+    // blocks after it along, does not move the slot and the space with it back and forth
+    const room = holder ? (state.landscape ? holder.offsetWidth : holder.offsetHeight + 4) : 0;
+    const after = (child) => holder && children.indexOf(child) > children.indexOf(holder);
     let slot = docked.length;
     docked.forEach((child, index) => {
-      const r = rect(child);
+      const shown = rect(child);
+      const r = after(child) ? (state.landscape ? { ...shown, left: shown.left - room } : { ...shown, top: shown.top - room }) : shown;
       const before = state.landscape ? pointerX < r.left + r.width / 2 : pointerY < r.top + r.height / 2;
       if (slot === docked.length && before) slot = Math.max(least, index);
     });
@@ -1050,14 +1057,26 @@
 
   function follow(move, up) {
     // Moves and the release are heard on the whole page rather than on what was pressed, which may be redrawn or moved
-    // mid-drag (the graph redraws every second; a title moves into a panel of its own)
+    // mid-drag (the graph redraws every second; a title moves into a panel of its own). The mouse's moves are taken
+    // at most once a frame, the latest one, so the page lays itself out once per frame however fast the mouse reports
+    let pending = null, frame = 0;
+    const run = () => { frame = 0; const event = pending; pending = null; if (event) move(event); };
+    const onMove = (event) => {
+      stage.classList.add("psf-moving");
+      if (!event.isTrusted) return move(event);
+      pending = event;
+      if (!frame) frame = requestAnimationFrame(run);
+    };
     const end = () => {
-      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
+      if (frame) { cancelAnimationFrame(frame); run(); }
+      stage.classList.remove("psf-moving");
       up();
+      placeHotspots();
     };
-    window.addEventListener("pointermove", move);
+    window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", end);
     window.addEventListener("pointercancel", end);
   }
@@ -1177,23 +1196,36 @@
     updateGlass();
   }
 
+  function groupBounds(group) {
+    // The edges of a window and the panels moving with it, from the scene's inner edge
+    const nodes = [...group];
+    return {
+      left: Math.min(...nodes.map((n) => n.offsetLeft)), top: Math.min(...nodes.map((n) => n.offsetTop)),
+      right: Math.max(...nodes.map((n) => n.offsetLeft + n.offsetWidth)),
+    };
+  }
+
   function moveFloating(panel, event) {
     // A floating panel taken by anything but its title moves with everything snapped to it, the window included
     const group = groupOf(panel);
     if (group.size === 1) return dragPanel(panel.querySelector(".psf-block").dataset.name, event);
     event.preventDefault();
     const start = { x: event.clientX, y: event.clientY, places: [...group].map((node) => [node, node.offsetLeft, node.offsetTop]) };
-    const room = lowest(group);
+    const room = lowest(group), bounds = groupBounds(group);
     const move = (moveEvent) => {
-      const dx = moveEvent.clientX - start.x, dy = Math.min(moveEvent.clientY - start.y, room);
-      start.places.forEach(([node, left, top]) => { node.style.left = `${left + dx}px`; node.style.top = `${Math.max(0, top + dy)}px`; });
+      // The group moves as one, kept whole inside the scene
+      const dx = Math.max(Math.min(0, -bounds.left), Math.min(moveEvent.clientX - start.x, Math.max(0, stage.clientWidth - bounds.right)));
+      const dy = Math.max(Math.min(0, -bounds.top), Math.min(moveEvent.clientY - start.y, room));
+      start.places.forEach(([node, left, top]) => { node.style.left = `${left + dx}px`; node.style.top = `${top + dy}px`; });
       hideTip();
     };
     follow(move, () => settle(panel, group));
   }
 
-  // How far outside the window a block's title may be dragged and still be put in order rather than float, as the app
+  // How far outside the window a block's title may be dragged and still be put in order rather than float, and how far
+  // the pointer moves before a press becomes a drag, as the app
   const REORDER_MARGIN = 24;
+  const DRAG_DISTANCE = 5;
 
   function reorderAt(name, px, py) {
     // The block goes after every other block in the window whose middle the pointer has passed
@@ -1228,7 +1260,7 @@
       const s = stage.getBoundingClientRect();
       const px = moveEvent.clientX - s.left, py = moveEvent.clientY - s.top;
       if (!dragging) {
-        if (Math.hypot(moveEvent.clientX - start.x, moveEvent.clientY - start.y) < 6) return;
+        if (Math.hypot(moveEvent.clientX - start.x, moveEvent.clientY - start.y) < DRAG_DISTANCE) return;
         dragging = true;
         markUsed("drag");
         if (panel) panel.classList.add("psf-dragging");
@@ -1250,12 +1282,14 @@
       let x = px - grab.x - stage.clientLeft, y = Math.max(0, py - grab.y - stage.clientTop);
       // Where the pointer puts it decides docking, though it is drawn no lower than the scene's bottom
       const newSlot = dockSlotFor(panel, px, py, x + stage.clientLeft, y + stage.clientTop);
+      // Kept inside the scene, so it can never be lost past an edge
+      x = Math.max(0, Math.min(x, stage.clientWidth - panel.offsetWidth));
       if (!touch.matches) y = Math.min(y, Math.max(0, stageHeight() - 24 - panel.offsetHeight));
       if (newSlot == null) [x, y] = liveSnap(panel, x, y);
       panel.style.left = `${x}px`;
       panel.style.top = `${y}px`;
       panel.classList.toggle("psf-docking", newSlot != null);
-      if (newSlot !== slot) { slot = newSlot; arrange(slot, panel.offsetHeight - 2, panel.offsetWidth); }
+      if (newSlot !== slot) { slot = newSlot; arrange(slot, panel.offsetHeight, panel.offsetWidth); }
       state.pointerInside.main = true;
       updateGlass();
       hideTip();
@@ -1320,11 +1354,11 @@
     // Everything snapped to the window, directly or through another panel, moves with it
     const group = groupOf(win);
     const attached = [...group].filter((node) => node !== win).map((node) => ({ panel: node, left: node.offsetLeft, top: node.offsetTop }));
-    const room = lowest(group);
+    const room = lowest(group), bounds = groupBounds(group);
     event.preventDefault();
     const move = (moveEvent) => {
-      const dx = Math.max(-start.left, Math.min(moveEvent.clientX - start.x, stage.clientWidth - win.offsetWidth - start.left));
-      const dy = Math.min(Math.max(-start.top, moveEvent.clientY - start.y), room);
+      const dx = Math.max(Math.min(0, -bounds.left), Math.min(moveEvent.clientX - start.x, Math.max(0, stage.clientWidth - bounds.right)));
+      const dy = Math.min(Math.max(Math.min(0, -bounds.top), moveEvent.clientY - start.y), room);
       win.style.left = `${start.left + dx}px`;
       win.style.top = `${start.top + dy}px`;
       attached.forEach((a) => { a.panel.style.left = `${a.left + dx}px`; a.panel.style.top = `${a.top + dy}px`; });
