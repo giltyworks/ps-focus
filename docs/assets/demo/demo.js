@@ -666,7 +666,7 @@
 
   const PROGRAM_SHORT = { "Clip Studio Paint": "Clip Studio" };
   // Today's time on a friend's row: hours to a decimal, or under an hour in minutes, as the app
-  const todayAmount = (hours) => (hours >= 1 ? `${hours.toFixed(1)}h` : `${Math.round(hours * 60)} min`);
+  const todayAmount = (hours) => (hours >= 1 ? `${hours.toFixed(1)} hrs` : `${Math.round(hours * 60)} min`);
   function friendRow(friend) {
     const nameClass = { drawing: "psf-drawing", online: "psf-online", away: "psf-online", offline: "psf-offline" }[friend.presence];
     const shown = state.nicknames.get(friend.code) || friend.name;

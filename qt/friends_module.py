@@ -429,10 +429,10 @@ class FriendsModule(ModuleBlock):
             self.arrow_rects.append((QRect(after_name + 2, middle - NAME_ARROW_SIZE // 2, NAME_ARROW_SIZE, NAME_ARROW_SIZE), code))
             y += name_line
             total = f"{stats.get('total', 0):.1f} hrs total"
-            # Today's time, with the program while they are drawing in it, such as "Photoshop (1.1h)", in its colour
+            # Today's time, with the program while they are drawing in it, such as "Photoshop (1.1 hrs)", in its colour
             # Under an hour, in minutes, such as "23 min"
             today = float(stats.get("today", 0) or 0)
-            amount = f"{today:.1f}h" if today >= 1 else f"{round(today * 60)} min"
+            amount = f"{today:.1f} hrs" if today >= 1 else f"{round(today * 60)} min"
             # Drawing: the program and today's time in green. Online: today's time in blue, or just Online with none yet
             if label:
                 details, details_color = f"{label} ({amount})", PRESENCE_COLORS.get(presence, "muted")
