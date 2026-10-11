@@ -1026,19 +1026,20 @@
   // ----- Tips: a pulsing dot on each main feature, explained under the pointer, gone once the feature is used. A few
   // at a time, in this order, so the demo grows quieter as it is learnt, as the app does -----
 
+  // Each tip is an arrow pointing at its feature: where the arrow's tip goes, and which way it points
   const HOTSPOTS = [
-    { id: "timer", target: () => today_.metric, at: (r) => [r.left + 196, r.top + 6],
+    { id: "timer", target: () => today_.metric, at: (r) => [r.left + 206, r.top + r.height / 2, "left"],
       text: "Counts by itself while your art app is in front, and stops when you step away. Try the switch above." },
-    { id: "icons", target: () => icons, at: (r) => [r.right - 86, r.top - 4], text: "Show or hide the graph, calendar and friends." },
-    { id: "drag", target: () => [...blocks.querySelectorAll(".psf-block:not(.psf-today) .psf-strip")][0], at: (r) => [r.left + 140, r.top + 8],
+    { id: "icons", target: () => icons, at: (r) => [r.right - 76, r.top + r.height / 2, "right"], text: "Show or hide the graph, calendar and friends." },
+    { id: "drag", target: () => [...blocks.querySelectorAll(".psf-block:not(.psf-today) .psf-strip")][0], at: (r) => [r.left + 112, r.top + r.height / 2, "left"],
       text: "Drag a panel out by its title to keep it beside your canvas. Drop it back in, or press « on it." },
-    { id: "fade", target: () => canvas, at: (r) => [r.left + 28, r.top + 28],
+    { id: "fade", target: () => canvas, at: (r) => [r.left + 4, r.top + 80, "right"],
       text: "Move your mouse onto the painting: PS Focus fades so your art shows through, and comes back when you point at it." },
-    { id: "requests", target: () => (requestsIcon.hidden ? null : requestsIcon), at: (r) => [r.left - 4, r.top - 4],
+    { id: "requests", target: () => (requestsIcon.hidden ? null : requestsIcon), at: (r) => [r.left - 2, r.top + r.height / 2, "right"],
       text: "Someone wants to be friends: open your requests to accept or decline." },
-    { id: "status", target: () => statusButton, at: (r) => [r.right - 2, r.top - 6], text: "Show friends you're Away, or go Invisible or Offline." },
-    { id: "settings", target: () => settingsButton, at: (r) => [r.right - 4, r.top - 6], text: "Settings: your programs, transparency, and backups." },
-    { id: "rename", target: () => accountName, at: (r) => [r.left - 2, r.top - 4], text: "Double-click your name to change what friends see." },
+    { id: "status", target: () => statusButton, at: (r) => [r.left + r.width / 2, r.bottom + 2, "up"], text: "Show friends you're Away, or go Invisible or Offline." },
+    { id: "settings", target: () => settingsButton, at: (r) => [r.left - 2, r.top + r.height / 2, "right"], text: "Settings: your programs, transparency, and backups." },
+    { id: "rename", target: () => accountName, at: (r) => [r.left + r.width / 2, r.bottom + 2, "up"], text: "Double-click your name to change what friends see." },
   ];
   const TIPS_AT_ONCE = 3;
   const used = new Set();
@@ -1060,8 +1061,10 @@
       return target && target.offsetParent !== null && !target.closest("[hidden]");
     }).slice(0, TIPS_AT_ONCE);
     hotspots.replaceChildren(...shown.map((spot) => {
-      const [x, y] = spot.at(rect(spot.target()));
-      const dot = el("button", { type: "button", class: "psf-hotspot", "aria-label": spot.text });
+      const [x, y, direction] = spot.at(rect(spot.target()));
+      // An arrow in the app's blue, its tip at the point, nudging towards the feature
+      const dot = el("button", { type: "button", class: `psf-hotspot psf-point-${direction}`, "aria-label": spot.text },
+        svg('<path d="M1 7H10M6 2.5L10.5 7L6 11.5" stroke-width="2.4"/>', 18));
       dot.style.left = `${x}px`;
       dot.style.top = `${y}px`;
       dot.addEventListener("pointerenter", () => showTip(dot, spot.text, true));
