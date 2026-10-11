@@ -71,8 +71,8 @@
 .psf-floating.psf-dragging { z-index: 10; opacity: .97; }
 /* While it would dock if let go, as the app */
 .psf-floating.psf-docking { opacity: .7; }
-/* A panel being put in a new place has a blue border, as in the app */
-.psf-floating.psf-docking > .psf-block { border-color: var(--psf-blue); }
+/* A panel being moved by its title, or docked, has a blue border, as in the app */
+.psf-floating.psf-dragging > .psf-block, .psf-floating.psf-docking > .psf-block { border-color: var(--psf-blue); }
 
 .psf-titlebar { height: 28px; display: flex; align-items: center; padding-left: 8px; font-size: 12px; background: rgba(var(--psf-background), var(--a)); }
 .psf-titlebar img { width: 16px; height: 16px; margin-right: 8px; }
