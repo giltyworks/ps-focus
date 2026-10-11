@@ -387,19 +387,31 @@
   }
 
   let tip = null;
+  const overlaps = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
   const showTip = (target, text, wrap = false) => {
     hideTip();
     tip = el("div", { class: `psf-tip${wrap ? " psf-tip-wrap" : ""}` }, text);
     stage.append(tip);
-    const t = target.getBoundingClientRect(), s = stage.getBoundingClientRect();
-    tip.style.left = `${Math.max(4, Math.min(t.left - s.left + t.width / 2 - tip.offsetWidth / 2, stage.clientWidth - tip.offsetWidth - 4))}px`;
-    // Above what it explains, or below it when there is no room above, and always inside the scene
-    const above = t.top - s.top - tip.offsetHeight - 6;
-    const below = t.bottom - s.top + 6;
-    const top = above >= 4 ? above : Math.min(below, stage.clientHeight - tip.offsetHeight - 4);
-    tip.style.top = `${Math.max(4, top)}px`;
+    const t = rect(target), w = tip.offsetWidth, h = tip.offsetHeight, gap = 6;
+    const inside = (x, y) => ({ left: Math.max(4, Math.min(x, stage.clientWidth - w - 4)), top: Math.max(4, Math.min(y, stage.clientHeight - h - 4)) });
+    // Above what it explains, below, to its right or to its left: the first place inside the scene clear of the arrows
+    const places = [
+      inside(t.left + t.width / 2 - w / 2, t.top - h - gap), inside(t.left + t.width / 2 - w / 2, t.bottom + gap),
+      inside(t.right + gap, t.top + t.height / 2 - h / 2), inside(t.left - w - gap, t.top + t.height / 2 - h / 2),
+    ].map((place) => ({ ...place, right: place.left + w, bottom: place.top + h }));
+    const arrows = [...hotspots.children].filter((arrow) => arrow !== target);
+    const clear = (place) => !overlaps(place, t) && !arrows.some((arrow) => overlaps(place, rect(arrow)));
+    const place = places.find(clear) || places.find((candidate) => !overlaps(candidate, t)) || places[0];
+    tip.style.left = `${place.left}px`;
+    tip.style.top = `${place.top}px`;
+    // With nowhere clear, the arrows under it step aside while it shows
+    arrows.forEach((arrow) => arrow.classList.toggle("psf-aside", overlaps(place, rect(arrow))));
   };
-  const hideTip = () => { tip?.remove(); tip = null; };
+  const hideTip = () => {
+    tip?.remove();
+    tip = null;
+    document.querySelectorAll(".psf-aside").forEach((arrow) => arrow.classList.remove("psf-aside"));
+  };
 
   function renderCalendar() {
     const [weeks, rest] = streaks();
@@ -1065,12 +1077,16 @@
 
   function placeHotspots() {
     if (!hotspots.isConnected) return;
-    const shown = HOTSPOTS.filter((spot) => {
+    const waiting = HOTSPOTS.filter((spot) => {
       if (used.has(spot.id)) return false;
       const target = spot.target();
       return target && target.offsetParent !== null && !target.closest("[hidden]");
-    }).slice(0, TIPS_AT_ONCE);
-    hotspots.replaceChildren(...shown.map((spot) => {
+    });
+    hotspots.replaceChildren();
+    // A few at a time, in order; one that would land on an arrow already placed gives way to the next
+    const placed = [];
+    for (const spot of waiting) {
+      if (placed.length >= TIPS_AT_ONCE) break;
       const [x, y, direction] = spot.at(rect(spot.target()));
       // An arrow in the app's blue, its tip at the point, nudging towards the feature
       const dot = el("button", { type: "button", class: `psf-hotspot psf-point-${direction}`, "aria-label": spot.text },
@@ -1080,8 +1096,13 @@
       dot.addEventListener("pointerenter", () => showTip(dot, spot.text, true));
       dot.addEventListener("pointerleave", hideTip);
       dot.addEventListener("click", () => showTip(dot, spot.text, true));
-      return dot;
-    }));
+      hotspots.append(dot);
+      // Room for its nudge, so two arrows never touch as they move
+      const box = rect(dot);
+      const reach = { left: box.left - 6, top: box.top - 6, right: box.right + 6, bottom: box.bottom + 6 };
+      if (placed.some((other) => overlaps(reach, other))) { dot.remove(); continue; }
+      placed.push(reach);
+    }
   }
 
   // ----- The clock -----
