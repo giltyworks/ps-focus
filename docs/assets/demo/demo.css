@@ -4,7 +4,9 @@
 @property --a { syntax: "<number>"; inherits: true; initial-value: 1; }
 @property --g { syntax: "<number>"; inherits: true; initial-value: 0; }
 
-/* Sizes count borders and padding in, as on the website, wherever the demo is shown */
+/* Sizes count borders and padding in, as on the website, wherever the demo is shown. Text is the app's point sizes
+   at Windows' usual 96 dots per inch: 7, 8, 9, 10, 11, 12, 16, 20 and 30 point are 9.3, 10.7, 12, 13.3, 14.7, 16,
+   21.3, 26.7 and 40 pixels */
 .psf-demo, .psf-demo *, .psf-demo *::before, .psf-demo *::after { box-sizing: border-box; }
 .psf-demo {
   --psf-background: 8, 8, 8;
@@ -64,7 +66,9 @@
   text-shadow: 0 0 2px rgba(0, 0, 0, var(--g)), 0 0 6px rgba(0, 0, 0, calc(var(--g) * .8));
   transition: --a .3s, --g .3s;
 }
-.psf-window { left: 24px; top: 24px; background: rgba(var(--psf-background), var(--a)); outline: 1px solid rgba(var(--psf-border), max(var(--a), .43)); }
+/* See-through, every spot is painted once, as the app's window: the window has no background of its own, its rows,
+   blocks and the gaps between them each paint theirs, so nothing lies on top of another and turns darker */
+.psf-window { left: 24px; top: 24px; background: none; outline: 1px solid rgba(var(--psf-border), max(var(--a), .43)); }
 .psf-floating { z-index: 5; }
 /* Floating, a panel has no space above it, so snapped panels meet edge to edge */
 .psf-floating > .psf-block { margin-top: 0; }
@@ -81,10 +85,10 @@
 .psf-titlebar button:hover { background: rgba(255, 255, 255, .08); }
 .psf-titlebar button.psf-close:hover { background: #c42b1c; }
 
-.psf-header { height: 28px; display: flex; align-items: center; padding: 0 2px 0 8px; font-size: 13px; position: relative; }
+.psf-header { background: rgba(var(--psf-background), var(--a)); height: 28px; display: flex; align-items: center; padding: 0 2px 0 8px; font-size: 13.333px; position: relative; }
 .psf-level { display: flex; align-items: center; gap: 4px; }
 .psf-badge { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--psf-red); display: grid; place-items: center; font-size: 12px; margin-left: 2px; }
-.psf-account { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 15px; color: var(--psf-green); }
+.psf-account { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14.667px; color: var(--psf-green); }
 .psf-account.psf-hidden-name { color: var(--psf-muted); }
 .psf-account-name { cursor: pointer; }
 .psf-name-field { width: 160px; background: #151515; border: 0; border-radius: 4px; color: var(--psf-text); font: 15px inherit; font-family: inherit; text-align: center; padding: 1px 4px; outline: none; }
@@ -95,16 +99,20 @@
 .psf-icon-button:hover, .psf-icon-button.psf-open { background: rgba(var(--psf-border), max(var(--a), .6)); }
 .psf-icon-button svg { display: block; }
 .psf-chevron { width: 16px; height: 18px; }
-.psf-settings { width: 22px; height: 18px; letter-spacing: 1px; font-size: 13px; line-height: 1; }
+.psf-settings { width: 22px; height: 18px; letter-spacing: 1px; font-size: 13.333px; line-height: 1; }
 
-.psf-icons { height: 22px; display: flex; justify-content: flex-end; gap: 2px; padding-right: 4px; margin-top: 2px; }
+.psf-icons { height: 24px; display: flex; justify-content: flex-end; gap: 2px; padding: 2px 4px 0 0; background: rgba(var(--psf-background), var(--a)); }
 .psf-icons .psf-icon-button { width: 22px; height: 22px; color: #4f5857; }
 .psf-icons .psf-icon-button.psf-on { color: var(--psf-text); }
 
 /* Blocks: the program panel and the modules */
 .psf-blocks { padding-bottom: 4px; }
-.psf-block { margin-top: 4px; background: rgba(var(--psf-panel), var(--a)); border: 1px solid rgba(var(--psf-border), max(var(--a), .43)); position: relative; }
-.psf-strip { height: 27px; display: flex; align-items: center; padding: 0 8px; font-weight: 600; font-size: 13px; background: rgba(var(--psf-background), var(--a)); border-bottom: 1px solid rgba(var(--psf-border), max(var(--a), .43)); cursor: grab; touch-action: none; }
+/* The gap above each block, and below the last, in the window's background */
+.psf-blocks > * { box-shadow: 0 -4px 0 rgba(var(--psf-background), var(--a)); }
+.psf-blocks > :last-child { box-shadow: 0 -4px 0 rgba(var(--psf-background), var(--a)), 0 4px 0 rgba(var(--psf-background), var(--a)); }
+/* A block's name strip and body are one background, the strip's darker band painted in it, not over it */
+.psf-block { --strip: 27px; margin-top: 4px; background: linear-gradient(rgba(var(--psf-background), var(--a)) var(--strip), rgba(var(--psf-panel), var(--a)) var(--strip)); border: 1px solid rgba(var(--psf-border), max(var(--a), .43)); position: relative; }
+.psf-strip { height: 27px; display: flex; align-items: center; padding: 0 8px; font-weight: 600; font-size: 13.333px; border-bottom: 1px solid rgba(var(--psf-border), max(var(--a), .43)); cursor: grab; touch-action: none; }
 .psf-strip:hover { background: rgba(16, 16, 16, max(var(--a), .3)); }
 .psf-strip .psf-spacer { flex: 1; }
 .psf-strip .psf-strip-text { font-weight: 400; color: var(--psf-muted); font-size: 12px; }
@@ -113,13 +121,17 @@
 /* The space a panel will dock into, as the app's: a blue outline, lightly filled in */
 .psf-placeholder { margin-top: 4px; border: 2px solid var(--psf-blue); background: rgba(61, 92, 230, .24); }
 
+.psf-today { --strip: 32px; }
 .psf-today .psf-strip { font-weight: 400; font-size: 16px; color: var(--psf-muted); height: 32px; }
 .psf-today .psf-strip .psf-two-week { margin-left: auto; font-size: 16px; }
-.psf-today-body { padding: 5px 8px 8px; }
-.psf-metric { font-size: 40px; font-weight: 600; line-height: 1.15; }
-.psf-row { display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px; color: var(--psf-muted); }
+/* Laid out as the app's panel, line for line: the big figure's line starts just under the strip, the two rows of
+   detail below it, in the app's sizes (its 30, 10 and 9 point fonts are 40, 13.3 and 12 pixels) */
+.psf-today-body { padding: 0 8px 9px; }
+.psf-metric { font-size: 40px; font-weight: 600; line-height: 54px; margin-top: -3px; }
+.psf-row { display: flex; justify-content: space-between; align-items: baseline; font-size: 13.333px; line-height: 17px; margin-top: 4px; color: var(--psf-muted); }
+.psf-row + .psf-row { margin-top: 6px; }
 .psf-row .psf-small { font-size: 12px; }
-.psf-status { font-weight: 600; font-size: 13px; color: var(--psf-muted); }
+.psf-status { font-weight: 600; font-size: 13.333px; color: var(--psf-muted); }
 .psf-status.psf-active { color: var(--psf-green); }
 
 /* The graph */
@@ -130,36 +142,36 @@
 .psf-period:hover { background: rgba(var(--psf-border), max(var(--a), .6)); }
 .psf-period.psf-selected { background: rgba(var(--psf-border), max(var(--a), .6)); color: var(--psf-text); }
 .psf-readout { padding: 2px 8px 0; }
-.psf-readout b { display: block; font-size: 21px; font-weight: 600; }
-.psf-readout span { font-size: 11px; color: var(--psf-muted); }
+.psf-readout b { display: block; font-size: 21.333px; font-weight: 600; }
+.psf-readout span { font-size: 10.667px; color: var(--psf-muted); }
 .psf-chart { display: block; width: 298px; height: 165px; }
-.psf-chart text { fill: var(--psf-muted); font-size: 11px; font-family: inherit; }
+.psf-chart text { fill: var(--psf-muted); font-size: 10.667px; font-family: inherit; }
 
 /* The calendar */
-.psf-cal-head { display: flex; align-items: center; padding: 5px 6px 0 8px; gap: 4px; }
+.psf-cal-head { background: rgba(var(--psf-panel), var(--a)); display: flex; align-items: center; padding: 5px 6px 0 8px; gap: 4px; }
 .psf-cal-title { flex: 1; text-align: center; font-size: 16px; }
 .psf-cal-button { border: 0; background: none; color: var(--psf-text); font: 13px/1 inherit; font-family: inherit; width: 36px; height: 27px; padding: 0; border-radius: 4px; cursor: pointer; }
 .psf-cal-toggle { width: 58px; }
 .psf-cal-head .psf-cal-button:last-child { margin-left: 1px; }
 .psf-cal-button:hover { background: rgba(var(--psf-border), max(var(--a), .6)); }
-.psf-cal-legend { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--psf-muted); padding: 5px 8px; }
-.psf-cal-legend .psf-square { width: 14px; height: 14px; border-radius: 4px; background: var(--psf-blue); }
+.psf-cal-legend { background: rgba(var(--psf-panel), var(--a)); display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--psf-muted); padding: 5px 8px; }
+.psf-cal-legend .psf-square { width: 13px; height: 13px; border-radius: 3px; background: var(--psf-blue); }
 .psf-cal-legend .psf-spacer { flex: 1; }
 .psf-weekdays, .psf-days { display: grid; grid-template-columns: repeat(7, 40px); gap: 3px; padding: 0; }
 .psf-weekdays { font-size: 12px; color: var(--psf-muted); text-align: center; padding-bottom: 4px; background: rgba(var(--psf-background), var(--a)); }
-.psf-day { height: 38px; border-radius: 4px; background: rgba(21, 21, 21, max(var(--a), .35)); position: relative; font-size: 12px; text-align: center; padding-top: 3px; cursor: pointer; }
+.psf-day { height: 38px; border-radius: 6px; background: rgba(21, 21, 21, var(--a)); position: relative; z-index: 1; font-size: 12px; text-align: center; padding-top: 4px; cursor: pointer; }
 .psf-day:hover { background: rgba(34, 34, 34, max(var(--a), .5)); }
-.psf-day.psf-blank { background: rgba(16, 16, 16, max(var(--a), .3)); cursor: default; }
+.psf-day.psf-blank { background: rgba(16, 16, 16, var(--a)); cursor: default; }
 .psf-day.psf-empty { background: none; cursor: default; }
 .psf-day.psf-future { cursor: default; }
 .psf-day.psf-active { background: var(--psf-blue); }
 .psf-day.psf-active:hover { background: #5470ec; }
 .psf-day.psf-today-cell:not(.psf-active) { color: var(--psf-blue); font-weight: 600; }
-.psf-day .psf-rating { position: absolute; left: 0; right: 0; bottom: 2px; font-size: 10px; color: var(--psf-gold); }
+.psf-day .psf-rating { position: absolute; left: 0; right: 0; bottom: 2px; font-size: 10.667px; color: var(--psf-gold); }
 .psf-days { padding-bottom: 3px; }
-.psf-year { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 0; padding: 0 0 6px; }
+.psf-year { background: rgba(var(--psf-panel), var(--a)); display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px 0; padding: 0 0 6px; }
 .psf-mini { text-align: center; }
-.psf-mini b { display: block; font-size: 13px; font-weight: 600; margin: 2px 0 4px; }
+.psf-mini b { display: block; font-size: 13.333px; font-weight: 600; margin: 2px 0 4px; }
 .psf-mini-grid { display: inline-grid; grid-template-columns: repeat(7, 11px); gap: 2px; }
 .psf-mini-grid i { width: 11px; height: 8px; border-radius: 2px; background: rgba(21, 21, 21, max(var(--a), .35)); }
 .psf-mini-grid i.psf-active { background: var(--psf-blue); }
@@ -179,13 +191,13 @@
 .psf-count { position: absolute; top: -3px; right: -4px; min-width: 11px; height: 11px; border-radius: 6px; background: var(--psf-badge); color: #fff; font-size: 8px; line-height: 11px; text-align: center; font-weight: 600; text-shadow: none; }
 .psf-code-field { display: flex; align-items: center; margin-left: 10px; flex: 1; background: #151515; border-radius: 4px; height: 20px; }
 .psf-code-field input { flex: 1; min-width: 0; background: none; border: 0; color: var(--psf-text); font: 12px inherit; font-family: inherit; padding: 0 6px; outline: none; }
-.psf-code-field button { width: 20px; height: 20px; border: 0; background: none; color: var(--psf-green); cursor: pointer; border-radius: 4px; font-size: 13px; }
+.psf-code-field button { width: 20px; height: 20px; border: 0; background: none; color: var(--psf-green); cursor: pointer; border-radius: 4px; font-size: 13.333px; }
 .psf-code-field button:hover { background: #222; }
 .psf-friend-list { padding: 4px 8px 6px; max-height: 210px; overflow: auto; scrollbar-width: thin; scrollbar-color: #333 transparent; }
 .psf-section { font-size: 12px; color: var(--psf-muted); margin: 6px 0 2px; }
 .psf-friend { display: grid; grid-template-columns: 27px 1fr auto; padding: 3px 0; }
 .psf-friend .psf-lv { width: 17px; height: 17px; border: 1.5px solid var(--psf-red); border-radius: 50%; font-size: 10px; display: grid; place-items: center; margin-top: 1px; }
-.psf-friend .psf-name { font-size: 15px; display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; }
+.psf-friend .psf-name { font-size: 14.667px; display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; }
 .psf-friend .psf-name.psf-drawing { color: var(--psf-green); }
 .psf-friend .psf-name.psf-online { color: var(--psf-online); }
 .psf-friend .psf-name.psf-offline { color: var(--psf-muted); }
@@ -214,21 +226,21 @@
 .psf-menu button:hover { background: #151515; }
 .psf-menu button.psf-current { color: #8ba0f2; }
 .psf-menu button.psf-danger { color: var(--psf-red); }
-.psf-menu label { display: block; padding: 8px 11px; font-size: 13px; }
+.psf-menu label { display: block; padding: 8px 11px; font-size: 13.333px; }
 .psf-menu label input { width: 100%; margin-top: 6px; accent-color: var(--psf-blue); }
 
 .psf-toast {
   position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 40; background: #151515; border: 1px solid #2c2c2c;
-  border-radius: 6px; padding: 8px 12px; font-size: 13px; color: var(--psf-text); text-shadow: none; white-space: nowrap; pointer-events: none;
+  border-radius: 6px; padding: 8px 12px; font-size: 13.333px; color: var(--psf-text); text-shadow: none; white-space: nowrap; pointer-events: none;
 }
 
 /* Settings, in the window as in the app */
 .psf-credit { flex: 1; display: flex; align-items: center; }
 .psf-version { font-size: 12px; color: var(--psf-muted); }
-.psf-by { flex: 1; text-align: center; color: var(--psf-green); font-size: 15px; margin-right: 54px; }
-.psf-settings-page { padding: 0 8px 8px; }
-.psf-settings-page h3 { font-size: 26px; font-weight: 600; margin: 6px 0 6px; color: var(--psf-text); }
-.psf-settings-text { font-size: 13px; color: var(--psf-muted); margin: 0 0 10px; line-height: 1.35; }
+.psf-by { flex: 1; text-align: center; color: var(--psf-green); font-size: 14.667px; margin-right: 54px; }
+.psf-settings-page { padding: 0 8px 8px; background: rgba(var(--psf-background), var(--a)); }
+.psf-settings-page h3 { font-size: 26.667px; font-weight: 600; margin: 6px 0 6px; color: var(--psf-text); }
+.psf-settings-text { font-size: 13.333px; color: var(--psf-muted); margin: 0 0 10px; line-height: 1.35; }
 .psf-check-row { display: flex; justify-content: flex-end; gap: 14px; margin: 6px 0; font-size: 12px; color: var(--psf-muted); }
 .psf-check-label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .psf-check { width: 14px; height: 14px; border-radius: 4px; border: 2px solid #222; background: #0c0c0c; padding: 0; cursor: pointer; }
@@ -236,7 +248,7 @@
 .psf-check.psf-checked { background: var(--psf-blue); border-color: var(--psf-blue); }
 .psf-boxed { display: flex; align-items: center; gap: 8px; margin: 4px -8px; padding: 6px 8px; background: rgba(var(--psf-panel), var(--a)); border: 1px solid rgba(var(--psf-border), max(var(--a), .43)); }
 .psf-boxed-text { flex: 1; min-width: 0; }
-.psf-boxed-text b { display: block; font-size: 13px; font-weight: 600; }
+.psf-boxed-text b { display: block; font-size: 13.333px; font-weight: 600; }
 .psf-boxed-text span { font-size: 12px; color: var(--psf-muted); }
 .psf-boxed input[type=range] { width: 92px; accent-color: var(--psf-blue); }
 .psf-orientation { display: flex; align-items: center; gap: 8px; }
@@ -248,8 +260,8 @@
 .psf-shape.psf-disabled { opacity: .4; cursor: default; }
 .psf-shape.psf-disabled:hover { background: none; }
 .psf-backups { margin: 8px -8px 4px; padding: 6px 8px; background: rgba(var(--psf-panel), var(--a)); border: 1px solid rgba(var(--psf-border), max(var(--a), .43)); }
-.psf-backups b { display: block; font-size: 13px; font-weight: 600; margin-bottom: 4px; }
-.psf-backups span { display: block; font-size: 13px; color: var(--psf-muted); margin-bottom: 6px; }
+.psf-backups b { display: block; font-size: 13.333px; font-weight: 600; margin-bottom: 4px; }
+.psf-backups span { display: block; font-size: 13.333px; color: var(--psf-muted); margin-bottom: 6px; }
 .psf-backup-line { font-size: 12px; margin-bottom: 4px; }
 .psf-green { color: var(--psf-green); }
 .psf-backup-buttons { display: flex; justify-content: space-between; }
@@ -313,7 +325,7 @@
 .psf-day-overview { position: absolute; z-index: 32; width: 300px; background: #080808; outline: 1px solid #2b2b2b; text-shadow: none; box-shadow: 0 8px 30px rgba(0, 0, 0, .5); padding-bottom: 12px; }
 .psf-overview-rows { display: flex; justify-content: space-between; margin: 14px 16px 0; padding: 10px; background: #0c0c0c; border: 1px solid #222; font-size: 12px; }
 .psf-overview-empty { margin: 14px 19px 0; font-size: 12px; color: var(--psf-muted); }
-.psf-overview-ask { display: block; margin: 14px 19px 6px; font-size: 13px; font-weight: 600; }
+.psf-overview-ask { display: block; margin: 14px 19px 6px; font-size: 13.333px; font-weight: 600; }
 .psf-stars { display: flex; gap: 2px; padding: 0 15px; }
 .psf-star { border: 0; background: none; color: #5c5c5c; font-size: 20px; line-height: 1; padding: 2px 1px; cursor: pointer; font-family: "Segoe UI Symbol", "Segoe UI", sans-serif; }
 .psf-star.psf-lit { color: var(--psf-gold); }
@@ -334,7 +346,7 @@
 }
 
 /* Stats: labels on the left, values in a column, a narrow note after */
-.psf-stats { padding: 8px 10px 9px; font-size: 13px; display: grid; gap: 4px; }
+.psf-stats { padding: 8px 10px 9px; font-size: 13.333px; display: grid; gap: 4px; }
 .psf-stat { display: grid; grid-template-columns: 1fr auto 46px; align-items: center; gap: 8px; }
 .psf-stat-gap { margin-bottom: 6px; }
 .psf-stat-summary { margin-top: 6px; grid-template-columns: auto 1fr; }
@@ -363,3 +375,8 @@
 /* While anything is dragged: the grabbing hand everywhere, and the tip arrows out of the way */
 .psf-stage.psf-moving, .psf-stage.psf-moving * { cursor: grabbing !important; }
 .psf-stage.psf-moving .psf-hotspot { visibility: hidden; }
+/* The calendar paints each part once: its strip, its heading rows, the weekday band, then the panel between the days */
+.psf-calendar { background: none; }
+.psf-calendar > .psf-strip { background: rgba(var(--psf-background), var(--a)); }
+.psf-days { position: relative; }
+.psf-days::before { content: ""; position: absolute; left: 0; top: 0; width: 298px; bottom: 0; background: rgba(var(--psf-panel), var(--a)); -webkit-mask: var(--days-mask) top left / 298px auto no-repeat; mask: var(--days-mask) top left / 298px auto no-repeat; }

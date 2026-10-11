@@ -78,7 +78,7 @@
   const state = {
     drawing: true,
     transparency: 50,
-    period: "Week",
+    period: "3 Months",
     calendarView: "Month",
     calendarMonth: new Date(today.getFullYear(), today.getMonth(), 1),
     shown: { graph: true, calendar: true, stats: false, friends: true },
@@ -364,7 +364,8 @@
     const total = data.values.reduce((a, b) => a + b, 0);
     if (hover == null) { readoutValue.textContent = hm(total * 3600); readoutCaption.textContent = data.caption; }
     else { readoutValue.textContent = hm(data.values[hover] * 3600); readoutCaption.textContent = data.labels[hover]; }
-    const left = 24, right = 280, top = 10, bottom = 136;
+    // The plot's edges, as the app's: 34 in from the left, 18 short of the right
+    const left = 35, right = 281, top = 10, bottom = 136;
     const peak = Math.max(1, ...data.values);
     const step = peak <= 4 ? 1 : peak <= 8 ? 2 : peak <= 20 ? 5 : peak <= 40 ? 10 : 20;
     const ceiling = Math.ceil(peak / step) * step;
@@ -376,7 +377,8 @@
     for (let v = 0; v <= ceiling; v += step) {
       markup += `<line x1="${left}" x2="${right}" y1="${y(v)}" y2="${y(v)}" stroke="rgba(34,34,34,1)"/><text x="${left - 6}" y="${y(v) + 4}" text-anchor="end">${v}h</text>`;
     }
-    data.ticks.forEach(([i, label]) => { markup += `<text x="${x(i)}" y="${bottom + 18}" text-anchor="middle">${label}</text>`; });
+    // A label at either end keeps inside the panel
+    data.ticks.forEach(([i, label]) => { const anchor = x(i) > 298 - 20 ? "end" : "middle"; markup += `<text x="${anchor === "end" ? 296 : x(i)}" y="${bottom + 18}" text-anchor="${anchor}">${label}</text>`; });
     if (points.length) {
       const line = points.map(([px, py], i) => `${i ? "L" : "M"}${px.toFixed(1)},${py.toFixed(1)}`).join("");
       markup += `<defs><linearGradient id="psf-fill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3d5ce6" stop-opacity=".45"/><stop offset="1" stop-color="#3d5ce6" stop-opacity="0"/></linearGradient></defs>`;
@@ -542,7 +544,14 @@
       }
       cells.push(cell);
     }
-    calBody.replaceChildren(el("div", { class: "psf-weekdays" }, WEEKDAYS.map((w) => el("span", {}, w))), el("div", { class: "psf-days" }, cells));
+    const days = el("div", { class: "psf-days" }, cells);
+    // The panel's colour between the days, cut around each day's rounded square, so a see-through calendar shows every
+    // spot once, as the app draws it, rather than a day on top of the panel
+    const rows = Math.ceil(cells.length / 7);
+    const holes = cells.map((_, i) => `<rect x="${(i % 7) * 43}" y="${Math.floor(i / 7) * 41}" width="40" height="38" rx="6"/>`).join("");
+    const mask = `<svg xmlns="http://www.w3.org/2000/svg" width="298" height="${rows * 41}"><rect width="298" height="${rows * 41}" fill="#fff"/><g fill="#000">${holes}</g></svg>`;
+    days.style.setProperty("--days-mask", `url("data:image/svg+xml,${encodeURIComponent(mask)}")`);
+    calBody.replaceChildren(el("div", { class: "psf-weekdays" }, WEEKDAYS.map((w) => el("span", {}, w))), days);
   }
 
   // ----- Stats: label and value rows, as the app's -----
