@@ -70,6 +70,8 @@
     const h = Math.floor(seconds / 3600), m = Math.floor(seconds % 3600 / 60), s = Math.floor(seconds % 60);
     return h ? `${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s` : m ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
   };
+  // As the app's stats and day tips: hours and minutes, or under an hour "37 min"
+  const hmMin = (seconds) => (Math.round(seconds / 60) < 60 ? `${Math.round(Math.max(0, seconds) / 60)} min` : hm(seconds));
   const hm = (seconds) => { const h = Math.floor(seconds / 3600), m = Math.floor(seconds % 3600 / 60); return h ? `${h}h ${String(m).padStart(2, "0")}m` : `${m}m`; };
   const longDate = (date) => `${WEEKDAYS[(date.getDay() + 6) % 7]} ${date.getDate()} ${MONTHS[date.getMonth()]}`;
 
@@ -539,7 +541,7 @@
         String(d), rating ? el("span", { class: "psf-rating" }, ratingStar(), ` ${rating}`) : null);
       if (!future) {
         // Under the mouse, the day's date and time tracked; a click opens the day
-        cell.addEventListener("pointerenter", () => showTip(cell, `${longDate(date)}${seconds ? ` · ${hm(seconds)}` : ""}`));
+        cell.addEventListener("pointerenter", () => showTip(cell, `${longDate(date)}${seconds ? ` · ${hmMin(seconds)}` : ""}`));
         cell.addEventListener("pointerleave", hideTip);
         cell.addEventListener("click", () => { hideTip(); dayOverview(date); });
       }
@@ -571,7 +573,8 @@
   };
   const firstDay = daysAgo(STARTED_DAYS_AGO);
   const average = (days, end) => rangeTotal(new Date(end.getTime() - (days - 1) * DAY), end) / days;
-  const change = (seconds) => (Math.round(Math.abs(seconds) / 60) === 0 ? "same" : `${seconds > 0 ? "+" : "-"}${hm(Math.abs(seconds))}`);
+  // How a daily average moved, in minutes, such as "+10", as the app
+  const change = (seconds) => { const m = Math.round(seconds / 60); return m === 0 ? "same" : `${m > 0 ? "+" : "-"}${Math.abs(m)}`; };
   const startOf = (date) => { const hour = (history.get(key(date)) || []).findIndex((v) => v > 0); return hour < 0 ? null : hour * 60; };
   const clockOf = (minutes) => clockTime(Math.floor(minutes / 60), minutes % 60);
 
@@ -591,22 +594,22 @@
       el("div", { class: `psf-stat${gap ? " psf-stat-gap" : ""}` }, el("span", { class: "psf-stat-label" }, label),
         el("span", { class: `psf-stat-value ${valueClass}` }, medalName ? awardIcon(medalName) : null, value),
         el("span", { class: `psf-stat-note ${noteClass}` }, note));
-    const rows = [row("This week", hm(week), { valueClass: "psf-bold", medalName: medal })];
+    const rows = [row("This week", hmMin(week), { valueClass: "psf-bold", medalName: medal })];
     rows[0].classList.add("psf-stat-big");
     if (medal) rows.push(row("", `top ${rank}% of your weeks`, { valueClass: "psf-muted" }));
     rows[rows.length - 1].classList.add("psf-stat-gap");
     for (const days of [7, 30]) {
       const now = average(days, today), before = average(days, new Date(today.getTime() - days * DAY));
-      rows.push(row(`${days}-day average`, `${hm(now)}/day`, { note: change(now - before), noteClass: Math.round((now - before) / 60) > 0 ? "psf-up" : "" }));
+      rows.push(row(`${days}-day average`, `${hmMin(now)}/day`, { note: change(now - before), noteClass: Math.round((now - before) / 60) > 0 ? "psf-up" : "" }));
     }
     // Each weekday averaged over every time it has come round since the first day
     const totals = new Array(7).fill(0), counts = new Array(7).fill(0);
     for (let t = firstDay.getTime(); t <= today.getTime(); t += DAY) { const d = new Date(t), i = (d.getDay() + 6) % 7; totals[i] += dayTotal(d); counts[i]++; }
     const best = totals.map((v, i) => v / counts[i]).reduce((b, v, i, all) => (v > all[b] ? i : b), 0);
-    rows.push(row("Best day", `${WEEKDAYS[best]} · ${hm(totals[best] / counts[best])}/day`));
+    rows.push(row("Best day", `${WEEKDAYS[best]} · ${hmMin(totals[best] / counts[best])}/day`));
     let longest = null;
     history.forEach((_, k) => { const [y, m, d] = k.split("-").map(Number), date = new Date(y, m, d), total = dayTotal(date); if (total >= SESSION_MINIMUM && (!longest || total > longest[1] || (total === longest[1] && date < longest[0]))) longest = [date, total]; });
-    rows.push(row("Longest session", longest ? `${longest[0].getDate()} ${MONTHS[longest[0].getMonth()]} ${longest[0].getFullYear()} · ${hm(longest[1])}` : "--"));
+    rows.push(row("Longest session", longest ? `${longest[0].getDate()} ${MONTHS[longest[0].getMonth()]} ${longest[0].getFullYear()} · ${hmMin(longest[1])}` : "--"));
     // The start of the highest-rated days, averaged
     const top = Math.max(0, ...ratings.values());
     const starts = [...ratings].filter(([, r]) => r === top).map(([k]) => { const [y, m, d] = k.split("-").map(Number); return startOf(new Date(y, m, d)); }).filter((v) => v != null);

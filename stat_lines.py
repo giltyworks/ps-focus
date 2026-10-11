@@ -18,16 +18,17 @@ MEDAL_TIERS = ((10, "gold"), (25, "silver"), (50, "bronze"))
 
 
 def format_change(seconds: float) -> str:
-    """Describe how much a daily average moved against the period before, such as '+24m' or '-1h 05m'"""
-    if round(abs(seconds) / 60) == 0:
+    """Describe how much a daily average moved against the period before, in minutes, such as '+24' or '-65'"""
+    minutes = round(seconds / 60)
+    if minutes == 0:
         return "same"
-    return f"{'+' if seconds > 0 else '-'}{format_hours_minutes(abs(seconds))}"
+    return f"{'+' if minutes > 0 else '-'}{abs(minutes)}"
 
 
 def format_hours_minutes(seconds: float) -> str:
-    """Format a duration without seconds, such as '14h 32m'"""
+    """Format a duration without seconds, such as '14h 32m', or under an hour '37 min'"""
     minutes = round(max(0, seconds) / 60)
-    return f"{minutes // 60}h {minutes % 60:02d}m" if minutes >= 60 else f"{minutes}m"
+    return f"{minutes // 60}h {minutes % 60:02d}m" if minutes >= 60 else f"{minutes} min"
 
 
 def format_clock(started_at: str) -> str:
@@ -89,7 +90,7 @@ def figure_lines(store: ActivityStore, today: date) -> list[StatLine]:
         lines.append(StatLine("Best day", "--"))
     else:
         weekday, weekday_seconds = best_weekday
-        lines.append(StatLine("Best day", f"{DAY_ABBREVIATIONS[weekday]} ·{format_hours_minutes(weekday_seconds)}/day"))
+        lines.append(StatLine("Best day", f"{DAY_ABBREVIATIONS[weekday]} · {format_hours_minutes(weekday_seconds)}/day"))
     longest = store.longest_session()
     if longest is None:
         lines.append(StatLine("Longest session", "--"))
@@ -133,4 +134,4 @@ def no_sessions_text(store: ActivityStore, view: str, start: date, end: date) ->
     if not period_seconds:
         return "No sessions for this period"
     # Time was tracked, but no single day reached the session minimum
-    return f"{format_hours_minutes(period_seconds)} tracked in {_period_name(view, start)} · no day reached 15m"
+    return f"{format_hours_minutes(period_seconds)} tracked in {_period_name(view, start)} · no day reached 15 min"
