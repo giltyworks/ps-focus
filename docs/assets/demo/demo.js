@@ -787,24 +787,97 @@
     updateGlass();
   }
 
+  const SNAP_DISTANCE = 22;
+  const shownPanels = () => Object.values(state.floating).filter((f) => !f.panel.hidden).map((f) => f.panel);
+
+  function touching(a, b) {
+    // Two windows touch when an edge of one lies on an edge of the other, along a shared stretch
+    const t = 2;
+    const across = a.top < b.bottom - t && b.top < a.bottom - t;
+    const along = a.left < b.right - t && b.left < a.right - t;
+    return (across && (Math.abs(a.right - b.left) <= t || Math.abs(b.right - a.left) <= t))
+      || (along && (Math.abs(a.bottom - b.top) <= t || Math.abs(b.bottom - a.top) <= t));
+  }
+
+  function groupOf(start) {
+    // Everything snapped to this window or panel, directly or through another
+    const nodes = [win, ...shownPanels()];
+    const group = new Set([start]);
+    const queue = [start];
+    while (queue.length) {
+      const r = rect(queue.pop());
+      for (const node of nodes) if (!group.has(node) && touching(r, rect(node))) { group.add(node); queue.push(node); }
+    }
+    return group;
+  }
+
+  function refreshAttached() {
+    const main = groupOf(win);
+    Object.values(state.floating).forEach((f) => (f.attached = main.has(f.panel)));
+  }
+
+  function snapOffset(node, exclude) {
+    // How far to move a panel, or a group led by it, for it to snap to the nearest window or panel not in the group:
+    // side by side, its top lined up, or one above the other, its left lined up
+    const p = rect(node);
+    let dx = null, dy = null, bestX = SNAP_DISTANCE, bestY = SNAP_DISTANCE;
+    for (const target of [win, ...shownPanels()]) {
+      if (exclude.has(target)) continue;
+      const t = rect(target);
+      const across = p.top < t.bottom + SNAP_DISTANCE && t.top < p.bottom + SNAP_DISTANCE;
+      const along = p.left < t.right + SNAP_DISTANCE && t.left < p.right + SNAP_DISTANCE;
+      if (across) {
+        for (const x of [t.right - p.left, t.left - p.right]) {
+          if (Math.abs(x) < bestX) {
+            bestX = Math.abs(x); dx = x;
+            const lineUp = [t.top - p.top, t.bottom - p.bottom].find((y) => Math.abs(y) < SNAP_DISTANCE);
+            dy = lineUp ?? (Math.abs(bestY) < SNAP_DISTANCE && dy != null ? dy : 0);
+          }
+        }
+      }
+      if (along) {
+        for (const y of [t.bottom - p.top, t.top - p.bottom]) {
+          if (Math.abs(y) < bestY) {
+            bestY = Math.abs(y); dy = y;
+            const lineUp = [t.left - p.left, t.right - p.right].find((x) => Math.abs(x) < SNAP_DISTANCE);
+            if (dx == null || bestX >= SNAP_DISTANCE) dx = lineUp ?? 0;
+          }
+        }
+      }
+    }
+    return [dx ?? 0, dy ?? 0];
+  }
+
+  function shift(node, dx, dy) {
+    node.style.left = `${node.offsetLeft + dx}px`;
+    node.style.top = `${Math.max(0, node.offsetTop + dy)}px`;
+  }
+
+  function settle(leader, group) {
+    // After a drag: the leader snaps to whatever is near, taking its group with it, and the groups are worked out again
+    const [dx, dy] = snapOffset(leader, group);
+    if (dx || dy) group.forEach((node) => shift(node, dx, dy));
+    refreshAttached();
+    fitStage();
+    updateGlass();
+  }
+
   function moveFloating(panel, event) {
-    // A floating panel taken by anything but its title moves where it is dragged, then snaps to the window if near
-    const start = { x: event.clientX, y: event.clientY, left: panel.offsetLeft, top: panel.offsetTop };
+    // A floating panel taken by anything but its title moves with everything snapped to it, the window included
+    const group = groupOf(panel);
+    const start = { x: event.clientX, y: event.clientY, places: [...group].map((node) => [node, node.offsetLeft, node.offsetTop]) };
     const target = event.target;
     try { target.setPointerCapture(event.pointerId); } catch (error) { /* moves still reach it */ }
     const move = (moveEvent) => {
-      panel.style.left = `${start.left + moveEvent.clientX - start.x}px`;
-      panel.style.top = `${Math.max(0, start.top + moveEvent.clientY - start.y)}px`;
+      const dx = moveEvent.clientX - start.x, dy = moveEvent.clientY - start.y;
+      start.places.forEach(([node, left, top]) => { node.style.left = `${left + dx}px`; node.style.top = `${Math.max(0, top + dy)}px`; });
       hideTip();
     };
     const up = () => {
       target.removeEventListener("pointermove", move);
       target.removeEventListener("pointerup", up);
       target.removeEventListener("pointercancel", up);
-      const name = Object.keys(state.floating).find((key) => state.floating[key].panel === panel);
-      if (name) state.floating[name].attached = snap(panel);
-      fitStage();
-      updateGlass();
+      settle(panel, group);
     };
     target.addEventListener("pointermove", move);
     target.addEventListener("pointerup", up);
@@ -812,18 +885,8 @@
   }
 
   function snap(panel) {
-    // Within a short distance of the window's side and level with it, a panel snaps to that side and to its top
-    const p = rect(panel), w = rect(win), near = 22;
-    let left = p.left, top = p.top, attached = false;
-    const overlaps = p.bottom > w.top && p.top < w.bottom;
-    if (overlaps && Math.abs(p.left - w.right) < near) { left = w.right; attached = true; }
-    else if (overlaps && Math.abs(p.right - w.left) < near) { left = w.left - p.width; attached = true; }
-    if (attached && Math.abs(p.top - w.top) < near) top = w.top;
-    left = Math.max(0, Math.min(left, stage.clientWidth - p.width));
-    top = Math.max(0, top);
-    panel.style.left = `${left}px`;
-    panel.style.top = `${top}px`;
-    return attached;
+    settle(panel, new Set([panel]));
+    return groupOf(win).has(panel);
   }
 
   grip.addEventListener("pointerdown", (event) => {
@@ -861,7 +924,9 @@
   win.addEventListener("pointerdown", (event) => {
     if (touch.matches || event.button !== 0 || event.target.closest(CLICKED)) return;
     const start = { x: event.clientX, y: event.clientY, left: win.offsetLeft, top: win.offsetTop };
-    const attached = Object.values(state.floating).filter((f) => f.attached).map((f) => ({ panel: f.panel, left: f.panel.offsetLeft, top: f.panel.offsetTop }));
+    // Everything snapped to the window, directly or through another panel, moves with it
+    const group = groupOf(win);
+    const attached = [...group].filter((node) => node !== win).map((node) => ({ panel: node, left: node.offsetLeft, top: node.offsetTop }));
     const grip = event.target;
     try { grip.setPointerCapture(event.pointerId); } catch (error) { /* moves still reach it */ }
     const move = (moveEvent) => {
@@ -873,7 +938,11 @@
       fitStage();
       hideTip();
     };
-    const up = () => { grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up); };
+    const up = () => {
+      grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up);
+      // The window snaps to a panel it was brought up to, as a panel snaps to it
+      if (!touch.matches) settle(win, group);
+    };
     grip.addEventListener("pointermove", move);
     grip.addEventListener("pointerup", up);
     grip.addEventListener("pointercancel", up);
@@ -927,7 +996,7 @@
       if (!dragging) return;
       panel.classList.remove("psf-dragging");
       if (slot != null) dockBack(name, slot);
-      else { state.floating[name].attached = snap(panel); arrange(); }
+      else { snap(panel); arrange(); }
       updateGlass();
     };
     stripNode.addEventListener("pointermove", move);
@@ -942,12 +1011,20 @@
     const alpha = 1 - state.transparency / 100 * (1 - GLASS_MIN);
     const glow = (1 - alpha) * 0.67;
     const inside = (node) => pointer && (() => { const r = rect(node); return pointer.x >= r.left && pointer.x <= r.right && pointer.y >= r.top && pointer.y <= r.bottom; })();
-    const attached = Object.values(state.floating).filter((f) => f.attached && !f.panel.hidden);
-    const mainSolid = touch.matches ? !stageAway : inside(win) || attached.some((f) => inside(f.panel)) || !!menu;
-    if (!mainSolid && (touch.matches ? stageAway : pointer && inside(canvas))) markUsed("fade");
     const set = (node, solid) => { node.style.setProperty("--a", solid ? 1 : alpha); node.style.setProperty("--g", solid ? 0 : glow); };
-    set(win, mainSolid);
-    Object.values(state.floating).forEach((f) => set(f.panel, f.attached ? mainSolid : (touch.matches ? !stageAway : inside(f.panel))));
+    // Windows snapped together count as one: the pointer over any of them makes them all solid
+    const done = new Set();
+    let mainSolid = true;
+    for (const start of [win, ...shownPanels()]) {
+      if (done.has(start)) continue;
+      const group = groupOf(start);
+      group.forEach((node) => done.add(node));
+      const withMain = group.has(win);
+      const solid = touch.matches ? !stageAway : [...group].some(inside) || (withMain && !!menu);
+      if (withMain) mainSolid = solid;
+      group.forEach((node) => set(node, solid));
+    }
+    if (!mainSolid && (touch.matches ? stageAway : pointer && inside(canvas))) markUsed("fade");
   }
   let stageAway = false;
   stage.addEventListener("pointermove", (event) => {
