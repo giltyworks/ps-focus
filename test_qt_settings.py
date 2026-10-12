@@ -373,7 +373,16 @@ class QtSettingsTests(unittest.TestCase):
         for kind, buttons in ((QEvent.Type.MouseButtonPress, Qt.MouseButton.LeftButton), (QEvent.Type.MouseButtonRelease, Qt.MouseButton.NoButton)):
             QApplication.sendEvent(popup, QMouseEvent(kind, QPointF(left), QPointF(popup.mapToGlobal(left)), Qt.MouseButton.LeftButton, buttons, Qt.KeyboardModifier.NoModifier))
         self.assertEqual(self.app.settings["panel_transparency"], 100)
+        # The window shows it at once, though the slider, and so the mouse, are over it
+        from unittest.mock import patch as patch_
+        with patch_("qt.docking.QCursor.pos", return_value=self.app.window.frameGeometry().center()):
+            self.app.update_glass()
+        self.assertLess(self.app.window.glass_alpha, 255)
+        self.assertEqual(controls.transparency, 100)
         popup.close()
+        popup.deleteLater()
+        QApplication.sendPostedEvents(None, QEvent.Type.DeferredDelete)
+        self.assertFalse(self.app.transparency_previewing)
 
     def test_startup_controls_do_not_change_settings(self):
         before = self.app.settings.copy()

@@ -429,6 +429,10 @@ class Docking:
             if with_main:
                 over = over or self.window.frameGeometry().contains(cursor)
             solid = over or dragging or (with_main and (app.settings_shown or not self.window.isVisible()))
+            # While the transparency slider is open everything shows the transparency being chosen, the mouse over
+            # the window or not
+            if getattr(app, "transparency_previewing", False):
+                solid = False
             if with_main:
                 self._set_main_glass(255 if solid else alpha)
             for name in members:

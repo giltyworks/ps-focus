@@ -455,6 +455,8 @@ class ModuleControls(GlassMixin, QWidget):
         self.on_toggle = on_toggle
         # Told the icon's square, to open the slider under it
         self.on_transparency = on_transparency
+        # The transparency setting, from 0 (solid) to 100, which the icon dims with
+        self.transparency = 0
         self.setMouseTracking(True)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         # Each module's square, laid out from the right edge
@@ -484,7 +486,10 @@ class ModuleControls(GlassMixin, QWidget):
         area = QRectF(self.transparency_area)
         if self.hovered == "transparency":
             paint_hover_box(painter, area.adjusted(1, 1, -1, -1), color("border"))
-        paint_module_icon(painter, "transparency", area.adjusted(inset, inset, -inset, -inset), color("text"))
+        # Solid, the icon is as bright as a shown module's; fully see-through, about as dim as a hidden one's
+        icon_color = color("text")
+        icon_color.setAlphaF(1 - 0.75 * self.transparency / 100)
+        paint_module_icon(painter, "transparency", area.adjusted(inset, inset, -inset, -inset), icon_color)
         painter.end()
 
     def interactive_at(self, point: QPoint) -> bool:

@@ -107,6 +107,7 @@ class PSFocusQt:
         self.header = Header(self.fonts)
         self.module_ticked = {name: bool(self.settings.get(f"show_{name}", True)) for name in MODULE_NAMES}
         self.module_controls = ModuleControls(self.fonts, self.module_ticked, self._module_toggled, self._open_transparency)
+        self.module_controls.transparency = self._transparency()
         self.window.set_top(self.header, self.module_controls)
         # The title bar's right-click menu holds Always on top
         self.window.title_bar.on_menu = self._title_bar_menu
@@ -315,7 +316,14 @@ class PSFocusQt:
             return
         controls = self.module_controls
         popup = TransparencyPopup(self.window, self.fonts, self._transparency, self._transparency_chosen)
+        self.transparency_previewing = True
+        popup.destroyed.connect(self._transparency_closed)
+        self.update_glass()
         popup.show_at(controls.mapToGlobal(QPoint(area.left(), area.bottom() + 4)))
+
+    def _transparency_closed(self) -> None:
+        self.transparency_previewing = False
+        self.update_glass()
 
     def _transparency(self) -> int:
         try:
@@ -326,6 +334,8 @@ class PSFocusQt:
     def _transparency_chosen(self, value: int, done: bool) -> None:
         """The panels follow the slider as it moves; the setting is saved once it is let go"""
         self.settings["panel_transparency"] = value
+        self.module_controls.transparency = value
+        self.module_controls.update()
         self.update_glass()
         if done:
             self._save_settings()
