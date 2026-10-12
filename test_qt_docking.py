@@ -1,4 +1,4 @@
-"""Floating modules in the Qt app: dragging them out by the grip, snapping, moving together, docking back, swapping,
+"""Floating modules in the Qt app: dragging them out by the grip, snapping, moving together, docking back, overlapping,
 and keeping their places between runs. Runs on Qt's offscreen platform with temporary data"""
 
 from __future__ import annotations
@@ -18,10 +18,33 @@ try:
 except ImportError:
     QApplication = None
 
-from qt.docking import attached_panels, snap_position
+from qt.docking import attached_panels, snap_position, snap_motion
 
 
 class DockingRulesTests(unittest.TestCase):
+    def test_panel_slides_along_side_without_jumping_between_corners(self):
+        ys = [snap_position(115, y, 50, 40, [(0, 50, 100, 200)])[1] for y in range(80, 141)]
+        self.assertEqual(ys, list(range(80, 141)))
+
+    def test_snap_retains_edge_until_pulled_past_release_margin(self):
+        neighbours = [(0, 50, 100, 200)]
+        x, y, held = snap_motion(119, 90, 50, 40, neighbours)
+        self.assertEqual((x, y), (100, 90))
+        x, y, held = snap_motion(124, 91, 50, 40, neighbours, held=held)
+        self.assertEqual((x, y), (100, 91))
+        x, y, held = snap_motion(127, 92, 50, 40, neighbours, held=held)
+        self.assertEqual((x, y), (127, 92))
+        self.assertEqual(held, (None, None))
+
+    def test_side_alignment_supports_top_bottom_and_internal_edges(self):
+        neighbours = [(0, 0, 200, 600)]
+        anchors = [(0, 200, 200, 400)]
+        for y, expected in ((204, 200), (344, 340), (250, 250)):
+            self.assertEqual(snap_position(210, y, 100, 60, neighbours, side_targets=anchors), (200, expected))
+
+    def test_panel_slides_horizontally_below_an_edge(self):
+        self.assertEqual(snap_position(70, 205, 50, 40, [(0, 0, 200, 200)]), (70, 200))
+
     def test_snaps_beside_a_neighbour_with_an_end_aligned(self):
         # 15 pixels right of a panel ending at 100, and 7 below its top: snaps flush, tops level
         self.assertEqual(snap_position(115, 57, 50, 40, [(0, 50, 100, 150)]), (100, 50))
@@ -77,7 +100,7 @@ class QtDockingTests(unittest.TestCase):
         from qt.app import PSFocusQt
 
         app = PSFocusQt(self.application)
-        for timer in (app.tick_timer, app.poll_timer, app.backup_timer):
+        for timer in (app.tick_timer, app.focus_timer, app.poll_timer, app.backup_timer):
             timer.stop()
         app.tray_icon = unittest.mock.Mock()
         self.addCleanup(lambda: app.store.close())
@@ -114,22 +137,85 @@ class QtDockingTests(unittest.TestCase):
 
     def test_grip_dragged_out_floats_the_module_and_the_window_closes_up(self):
         height = self.app.window.height()
+        block = self.app.modules["stats"]
+        grabbed = self._grip("stats") - block.mapToGlobal(QPoint(0, 0))
         panel = self._float("stats", QPoint(300, 400))
         self.assertTrue(panel.isVisible())
         self.assertTrue(self.app.stats.floating)
         self.assertIs(self.app.stats.parent(), panel)
-        self.assertEqual(panel.pos(), QPoint(300, 400) - QPoint(30, 12))
+        self.assertEqual(panel.pos(), QPoint(300, 400) - grabbed)
         self.assertNotIn(self.app.stats, self.app._shown_blocks())
         self.assertLess(self.app.window.height(), height)
-        self.assertEqual(self.app.settings["floating_modules"], {"stats": [270, 388]})
+        self.assertEqual(self.app.settings["floating_modules"], {"stats": [panel.x(), panel.y()]})
+
+    def test_undocking_keeps_grab_point_and_next_move_is_continuous_for_every_block(self):
+        for landscape in (False, True):
+            for name in self.app.blocks_by_name():
+                self.app.docking.dock_all()
+                self.app.landscape = landscape
+                self.app._arrange_blocks()
+                self.application.processEvents()
+                block = self.app.blocks_by_name()[name]
+                offset = QPoint(100, block.title_rect().center().y())
+                start = block.mapToGlobal(offset)
+                self.app.docking.press(name, True, start)
+                point = QPoint(2400, 1800)
+                self.app.docking.drag(point)
+                self.application.processEvents()
+                panel = self.app.docking.floating[name]
+                self.assertEqual(panel.pos()+offset, point, (landscape, name))
+                before = panel.pos()
+                self.app.docking.drag(point+QPoint(1, 1))
+                self.application.processEvents()
+                self.assertEqual(panel.pos(), before+QPoint(1, 1), (landscape, name))
+                self.app.docking.release(point+QPoint(1, 1))
+
+    def test_real_drag_slides_along_neighbour_in_both_orientations(self):
+        for landscape in (False, True):
+            self.app.docking.dock_all()
+            self.app.landscape = landscape
+            self.app._arrange_blocks()
+            self.app.docking.float_module("calendar", QPoint(1000, 500))
+            self.app.docking.float_module("graph", QPoint(1500, 600))
+            target = self.app.docking.floating["calendar"]
+            source = self.app.docking.floating["graph"]
+            self.application.processEvents()
+            start = source.pos() + QPoint(15, 15)
+            with patch.object(self.app.docking, "_main_shown", return_value=False):
+                self.app.docking.press("graph", True, start)
+                for offset in range(60, 101):
+                    raw = QPoint(target.x()+target.width()+15, target.y()+offset)
+                    self.app.docking.drag(raw+QPoint(15, 15))
+                    self.application.processEvents()
+                    self.assertEqual(source.x(), target.x()+target.width())
+                    self.assertEqual(source.y(), target.y()+offset)
+                self.app.docking.release(raw+QPoint(15, 15))
+                self.assertEqual(self.app.docking.snap_held, (None, None))
+
+    def test_every_floating_block_highlights_during_drag_and_clears_on_release(self):
+        for landscape in (False, True):
+            self.app.docking.dock_all()
+            self.app.landscape = landscape
+            self.app._arrange_blocks()
+            for name, block in self.app.blocks_by_name().items():
+                self.app.docking.float_module(name, QPoint(1500, 800))
+                self.application.processEvents()
+                start = block.mapToGlobal(block.title_rect().center())
+                with patch.object(self.app.docking, "_main_shown", return_value=False):
+                    self._mouse(block, QEvent.Type.MouseButtonPress, start)
+                    self._mouse(block, QEvent.Type.MouseMove, start+QPoint(40, 40))
+                    self.assertEqual(block.border_color, "calendar_blue", name)
+                    self._mouse(block, QEvent.Type.MouseButtonRelease, start+QPoint(40, 40))
+                    self.assertEqual(block.border_color, "border", name)
+                self.app.docking.dock_module(name)
 
     def test_grip_drag_inside_the_window_reorders_instead(self):
         calendar = self.app.modules["calendar"]
-        target = self.app.panels["Photoshop"]
+        target = self.app.panels["today"]
         above = target.mapToGlobal(QPoint(target.width() // 2, 2))
         self._drag(calendar, self._grip("calendar"), self._grip("calendar") + QPoint(0, 10), above)
         self.assertFalse(self.app.docking.is_floating("calendar"))
-        self.assertLess(self.app.block_order.index("calendar"), self.app.block_order.index("Photoshop"))
+        self.assertLess(self.app.block_order.index("calendar"), self.app.block_order.index("today"))
 
     def test_dropped_back_in_the_window_by_its_grip_docks_where_let_go(self):
         panel = self._float("graph", QPoint(300, 400))
@@ -196,7 +282,7 @@ class QtDockingTests(unittest.TestCase):
         self.assertEqual(panel.pos(), QPoint(left - panel.width() - 50, top + 30))
 
     def test_body_drag_on_a_floating_panel_moves_its_group(self):
-        # Floated well apart, as one let go over another would swap with it
+        # Floated apart first, then placed edge to edge to form a group.
         first = self._float("stats", QPoint(100, 50))
         second = self._float("graph", QPoint(700, 50))
         second.move(first.x() + first.width(), first.y())
@@ -210,6 +296,7 @@ class QtDockingTests(unittest.TestCase):
 
     def test_grip_drag_pulls_one_panel_from_its_group_and_the_gap_closes(self):
         first = self._float("stats", QPoint(100, 500))
+        first_position = first.pos()
         second = self._float("graph", QPoint(100, 100))
         third = self._float("calendar", QPoint(100, 700))
         second.move(first.x() + first.width(), first.y())
@@ -219,9 +306,9 @@ class QtDockingTests(unittest.TestCase):
         self._drag(block, grip, grip + QPoint(0, 10), grip + QPoint(0, 900))
         # The calendar slides left into the graph's slot; the stats stay
         self.assertEqual(third.x(), first.x() + first.width())
-        self.assertEqual(first.pos(), QPoint(70, 488))
+        self.assertEqual(first.pos(), first_position)
 
-    def test_grip_drop_on_another_floating_panel_swaps_them(self):
+    def test_grip_drop_on_another_floating_panel_allows_overlap(self):
         first = self._float("stats", QPoint(200, 600))
         # Clear of the window's far end, where a panel let go would dock
         second = self._float("graph", QPoint(200, 1300))
@@ -230,7 +317,32 @@ class QtDockingTests(unittest.TestCase):
         grip = block.mapToGlobal(block.title_rect().center())
         self._drag(block, grip, grip + QPoint(10, 0), grip + (second_position - first_position))
         self.assertEqual(first.pos(), second_position)
-        self.assertEqual(second.pos(), first_position)
+        self.assertEqual(second.pos(), second_position)
+
+    def test_all_floating_blocks_can_overlap_without_swapping_or_reordering(self):
+        for landscape in (False, True):
+            for name in self.app.blocks_by_name():
+                for target_name in self.app.blocks_by_name():
+                    if name == target_name:
+                        continue
+                    self.app.docking.dock_all()
+                    self.app.landscape = landscape
+                    self.app._arrange_blocks()
+                    self.app.docking.float_module(target_name, QPoint(1200, 800))
+                    self.app.docking.float_module(name, QPoint(1700, 800))
+                    self.application.processEvents()
+                    source = self.app.docking.floating[name]
+                    target = self.app.docking.floating[target_name]
+                    target_position = target.pos()
+                    order = self.app.block_order.copy()
+                    block = self.app.blocks_by_name()[name]
+                    grip = block.mapToGlobal(block.title_rect().center())
+                    destination = grip + target_position - source.pos()
+                    with patch.object(self.app.docking, "_main_shown", return_value=False):
+                        self._drag(block, grip, destination)
+                    self.assertEqual(source.pos(), target_position, (landscape, name, target_name))
+                    self.assertEqual(target.pos(), target_position, (landscape, name, target_name))
+                    self.assertEqual(self.app.block_order, order)
 
     def test_unticking_hides_a_floating_panel_and_ticking_shows_it(self):
         panel = self._float("stats", QPoint(300, 400))
@@ -271,7 +383,7 @@ class QtDockingTests(unittest.TestCase):
         self.assertTrue(self.app.chart.landscape)
 
     def test_places_are_kept_between_runs(self):
-        self._float("stats", QPoint(300, 400))
+        original = self._float("stats", QPoint(300, 400)).pos()
         # Inside the offscreen platform's 800 by 600 screen, so the place is not pulled back onto it
         self.app.window.move(0, 0)
         self.application.processEvents()
@@ -282,7 +394,7 @@ class QtDockingTests(unittest.TestCase):
         restarted.docking.restore()
         self.assertEqual(restarted.window.pos(), QPoint(0, 0))
         self.assertTrue(restarted.docking.is_floating("stats"))
-        self.assertEqual(restarted.docking.floating["stats"].pos(), QPoint(270, 388))
+        self.assertEqual(restarted.docking.floating["stats"].pos(), original)
 
 
     def _press_move(self, widget, start, *points):
@@ -296,7 +408,7 @@ class QtDockingTests(unittest.TestCase):
         panel = self._float("stats", QPoint(300, 400))
         left, top, _right, _bottom = self.app.docking.main_bounds()
         panel.move(left - panel.width(), top)
-        photoshop = self.app.panels["Photoshop"]
+        photoshop = self.app.panels["today"]
         start = photoshop.mapToGlobal(QPoint(60, 40))
         window_position, panel_position = self.app.window.pos(), panel.pos()
         self._drag(photoshop, start, start + QPoint(-30, 25))
@@ -316,66 +428,60 @@ class QtDockingTests(unittest.TestCase):
         self.assertEqual(self.app.window.pos(), position + QPoint(20, 10))
 
     def test_program_panel_title_reorders_inside_the_window(self):
-        self.app.settings["tracking_krita"] = True
-        self.app._arrange_blocks()
         self.application.processEvents()
-        photoshop = self.app.panels["Photoshop"]
+        photoshop = self.app.panels["today"]
         title = photoshop.mapToGlobal(photoshop.title_rect().center())
-        krita = self.app.panels["Krita"]
-        self._drag(photoshop, title, title + QPoint(0, 10), krita.mapToGlobal(QPoint(50, krita.height() - 3)))
+        graph = self.app.modules["graph"]
+        # Let go on the top of the graph, which comes after Friends
+        self._drag(photoshop, title, title + QPoint(0, 10), graph.mapToGlobal(QPoint(50, 3)))
         self.assertEqual(self.app.docking.floating, {})
-        self.assertLess(self.app.block_order.index("Krita"), self.app.block_order.index("Photoshop"))
+        self.assertLess(self.app.block_order.index("friends"), self.app.block_order.index("today"))
 
     def test_program_panel_floats_and_docks_like_a_module(self):
-        self.app.settings["tracking_krita"] = True
-        self.app._arrange_blocks()
-        photoshop = self.app.panels["Photoshop"]
+        photoshop = self.app.panels["today"]
         title = photoshop.mapToGlobal(photoshop.title_rect().center())
         self._drag(photoshop, title, title + QPoint(0, 10), QPoint(300, 400))
-        self.assertTrue(self.app.docking.is_floating("Photoshop"))
+        self.assertTrue(self.app.docking.is_floating("today"))
         self.assertTrue(photoshop.floating)
         self.assertIsNotNone(photoshop.dock_rect())
         self.assertNotIn(photoshop, self.app._shown_blocks())
-        # The next program panel holds the header now
-        self.assertIs(self.app._anchor_panel(), self.app.panels["Krita"])
+        # The header stands alone now
+        self.assertIsNone(self.app._anchor_panel())
         # Its figures keep counting while it floats
         self.app._track_and_refresh()
         self.assertIn("SESSIONS", photoshop.texts["sessions"].text)
-        # Unticked in Settings it hides, ticked it shows
-        self.app.settings["tracking_enabled"] = False
-        self.app.docking.sync_visibility()
-        self.assertFalse(self.app.docking.floating["Photoshop"].isVisible())
-        self.app.settings["tracking_enabled"] = True
-        self.app.docking.sync_visibility()
-        self.assertTrue(self.app.docking.floating["Photoshop"].isVisible())
+        # Another program in front, its window takes that program's name
+        with patch("qt.app.foreground_application", return_value="Krita"):
+            self.app._track_and_refresh()
+        self.assertEqual(self.app.docking.floating["today"].windowTitle(), "PS Focus - Krita")
         # The dock icon puts it back
         icon = photoshop.mapToGlobal(photoshop.dock_rect().center())
         self._mouse(photoshop, QEvent.Type.MouseButtonPress, icon)
         self._mouse(photoshop, QEvent.Type.MouseButtonRelease, icon)
-        self.assertFalse(self.app.docking.is_floating("Photoshop"))
+        self.assertFalse(self.app.docking.is_floating("today"))
         self.assertIs(self.app._anchor_panel(), photoshop)
 
     def test_floating_program_panels_are_restored(self):
-        self.app.docking.float_module("Photoshop", QPoint(150, 300))
+        self.app.docking.float_module("today", QPoint(150, 300))
         self.app.docking.save_positions()
         self.saved_settings = dict(self.app.settings)
         self.app.window_hidden()
         restarted = self._start()
         restarted.docking.restore()
-        self.assertTrue(restarted.docking.is_floating("Photoshop"))
-        self.assertEqual(restarted.docking.floating["Photoshop"].pos(), QPoint(150, 300))
+        self.assertTrue(restarted.docking.is_floating("today"))
+        self.assertEqual(restarted.docking.floating["today"].pos(), QPoint(150, 300))
 
     def test_a_lone_panel_over_the_window_makes_room_for_itself_and_docks_there(self):
         panel = self._float("stats", QPoint(200, 300))
         block = self.app.modules["stats"]
         start = block.mapToGlobal(QPoint(40, 60))
-        photoshop = self.app.panels["Photoshop"]
+        photoshop = self.app.panels["today"]
         photoshop_top = photoshop.mapTo(self.app.window, QPoint(0, 0)).y()
         over = photoshop.mapToGlobal(QPoint(100, 5))
         self._press_move(block, start, start + QPoint(10, 0), over)
         preview = self.app.docking.preview
         self.assertTrue(preview.isVisible())
-        self.assertEqual(self.app.docking.dock_slot, self.app.docking._shown_names().index("Photoshop"))
+        self.assertEqual(self.app.docking.dock_slot, self.app.docking._shown_names().index("today"))
         # The space is the module's own size, where the Photoshop panel was, which has moved down past it
         self.assertEqual(preview.size(), panel.size())
         self.assertEqual(preview.mapTo(self.app.window, QPoint(0, 0)).y(), photoshop_top)
@@ -383,11 +489,11 @@ class QtDockingTests(unittest.TestCase):
         self.assertLess(panel.windowOpacity(), 1)
         # Moving within the space keeps it where it is
         self._mouse(block, QEvent.Type.MouseMove, preview.mapToGlobal(QPoint(50, preview.height() // 2)))
-        self.assertEqual(self.app.docking.dock_slot, self.app.docking._shown_names().index("Photoshop"))
+        self.assertEqual(self.app.docking.dock_slot, self.app.docking._shown_names().index("today"))
         self._mouse(block, QEvent.Type.MouseButtonRelease, preview.mapToGlobal(QPoint(50, preview.height() // 2)))
         self.assertFalse(preview.isVisible())
         self.assertFalse(self.app.docking.is_floating("stats"))
-        self.assertEqual(self.app.block_order.index("stats") + 1, self.app.block_order.index("Photoshop"))
+        self.assertEqual(self.app.block_order.index("stats") + 1, self.app.block_order.index("today"))
         self.assertEqual(self.app.stats.mapTo(self.app.window, QPoint(0, 0)).y(), photoshop_top)
 
     def test_moving_away_from_the_window_takes_the_space_back(self):
@@ -395,7 +501,7 @@ class QtDockingTests(unittest.TestCase):
         block = self.app.modules["stats"]
         height = self.app.window.height()
         start = block.mapToGlobal(QPoint(40, 60))
-        over = self.app.panels["Photoshop"].mapToGlobal(QPoint(100, 5))
+        over = self.app.panels["today"].mapToGlobal(QPoint(100, 5))
         self._press_move(block, start, start + QPoint(10, 0), over)
         self.assertGreater(self.app.window.height(), height)
         self._mouse(block, QEvent.Type.MouseMove, QPoint(100, 1300))
@@ -437,7 +543,7 @@ class QtDockingTests(unittest.TestCase):
         second.move(first.x() + first.width(), first.y())
         block = self.app.modules["stats"]
         start = block.mapToGlobal(QPoint(40, 60))
-        over = self.app.panels["Photoshop"].mapToGlobal(QPoint(100, 20))
+        over = self.app.panels["today"].mapToGlobal(QPoint(100, 20))
         self._press_move(block, start, start + QPoint(10, 0), over)
         self.assertIsNone(self.app.docking.dock_slot)
         self.assertFalse(self.app.docking.preview.isVisible())
@@ -518,7 +624,7 @@ class QtDockingTests(unittest.TestCase):
         calendar = self.app.modules["calendar"]
         calendar.update_cursor(calendar.title_rect().center())
         self.assertEqual(calendar.cursor().shape(), Qt.CursorShape.OpenHandCursor)
-        photoshop = self.app.panels["Photoshop"]
+        photoshop = self.app.panels["today"]
         photoshop._hover("title")
         self.assertTrue(photoshop.title_hovered)
         self.assertEqual(photoshop.cursor().shape(), Qt.CursorShape.OpenHandCursor)

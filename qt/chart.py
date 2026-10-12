@@ -9,7 +9,6 @@ from typing import Callable
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
 from PySide6.QtGui import QColor, QLinearGradient, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen, QPixmap, QPolygonF
-from PySide6.QtWidgets import QWidget
 
 import app_config
 from app_config import CHART_FILL_OPACITY, CHART_PERIOD_CAPTIONS, EDGE_PADDING, MODULE_CANVAS_WIDTH, MODULE_MARGIN, format_duration

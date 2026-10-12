@@ -50,6 +50,7 @@ class QtSettingsTests(unittest.TestCase):
             self.addCleanup(item.stop)
         self.app = PSFocusQt(self.application)
         self.app.tick_timer.stop()
+        self.app.focus_timer.stop()
         self.app.poll_timer.stop()
         self.app.backup_timer.stop()
         self.addCleanup(lambda: self.app.store.close())
@@ -71,15 +72,290 @@ class QtSettingsTests(unittest.TestCase):
             self.assertTrue(self.app.module_controls.isVisible())
             self.assertFalse(self.app.settings_page.isVisible())
 
-    def test_last_panel_is_kept_and_manual_choices_persist(self):
-        self.app._setting_toggled("tracking_enabled")
-        self.assertTrue(self.app.settings["tracking_enabled"])
-        self.app._setting_toggled("tracking_krita")
-        self.app._setting_toggled("tracking_enabled")
-        self.assertFalse(self.app.settings["tracking_enabled"])
-        self.assertIn("Photoshop", self.app.settings["program_panels_chosen"])
-        self.app._setting_toggled("tracking_krita")
-        self.assertTrue(self.app.settings["tracking_krita"])
+    def test_panel_follows_the_program_in_front_and_keeps_the_last(self):
+        self.app.store.record_active_second(application="Krita")
+        with patch("qt.app.foreground_application", return_value="Krita"), patch("qt.app.user_is_active", return_value=False):
+            self.app._track_and_refresh()
+        panel = self.app.panels["today"]
+        self.assertEqual((panel.application, panel.texts["name"].text), ("Krita", "Krita"))
+        self.assertEqual(panel.texts["total"].text, "1s")
+        self.assertEqual(self.app.settings["today_program"], "Krita")
+        with patch("qt.app.foreground_application", return_value=None):
+            self.app._track_and_refresh()
+        self.assertEqual(panel.application, "Krita")
+
+    def test_settings_from_one_panel_per_program_carry_over(self):
+        self.app.settings.update({"tracking_krita": True, "program_panels_chosen": ["Krita"], "floating_modules": {"Krita": [10, 20], "stats": [5, 5]}})
+        self.app._adopt_program_panels()
+        self.assertEqual(self.app.settings["floating_modules"], {"today": [10, 20], "stats": [5, 5]})
+        self.assertNotIn("tracking_krita", self.app.settings)
+        self.app.settings["block_order"] = ["graph", "Krita", "Photoshop", "stats"]
+        self.assertEqual(self.app._read_block_order(), ["graph", "today", "stats", "friends", "calendar"])
+
+    def test_floating_today_panel_follows_each_program_without_replacing_widget(self):
+        from app_config import PROGRAMS
+        from PySide6.QtCore import QPoint
+        panel = self.app.today
+        self.app.docking.float_module("today", QPoint(100, 100))
+        floating = self.app.docking.floating["today"]
+        self.addCleanup(floating.hide)
+        for program in PROGRAMS:
+            self.app.store.record_active_second(application=program)
+            with patch("qt.app.foreground_application", return_value=program), patch("qt.app.user_is_active", return_value=False):
+                self.app._track_and_refresh()
+            self.assertIs(self.app.today, panel)
+            self.assertEqual(panel.application, program)
+            self.assertEqual(panel.texts["total"].text, "1s")
+            self.assertEqual(floating.windowTitle(), f"PS Focus - {program}")
+        self.assertEqual(self.app.store.total_for_day(date.today()), len(PROGRAMS))
+
+    def test_program_name_colors_open_active_paused_idle_and_closed(self):
+        from qt.theme import color
+        for foreground, running, active, paused, expected in (
+            (None, {"Photoshop"}, True, False, "name_online"),
+            ("Photoshop", {"Photoshop"}, True, False, "active_green"),
+            ("Photoshop", {"Photoshop"}, False, False, "name_online"),
+            ("Photoshop", {"Photoshop"}, True, True, "name_online"),
+            (None, set(), True, False, "muted"),
+        ):
+            self.app.settings["tracking_paused"] = paused
+            self.app.open_programs_checked = float("-inf")
+            with patch("qt.app.foreground_application", return_value=foreground), patch("qt.app.running_applications", return_value=running), patch("qt.app.user_is_active", return_value=active):
+                self.app._track_and_refresh()
+            self.assertEqual(self.app.today.texts["name"].color, color(expected))
+
+    def test_manual_program_selection_shows_history_until_tracking_resumes(self):
+        self.app.store.record_active_second(application="Krita")
+        with patch("qt.app.foreground_application", return_value=None):
+            self.app._select_program("Krita")
+            self.app._track_and_refresh()
+        self.assertEqual(self.app.today.application, "Krita")
+        self.assertEqual(self.app.today.texts["total"].text, "1s")
+        with patch("qt.app.foreground_application", return_value="Photoshop"), patch("qt.app.user_is_active", return_value=True):
+            self.app._track_and_refresh()
+            self.app._select_program("Clip Studio Paint")
+        self.assertEqual(self.app.today.application, "Photoshop")
+        self.assertFalse(self.app.manual_program)
+
+    def test_selection_rechecks_foreground_instead_of_using_stale_active_flag(self):
+        self.app.active = True
+        with patch("qt.app.foreground_application", return_value=None):
+            self.app._select_program("Krita")
+        self.assertEqual(self.app.today.application, "Krita")
+        self.assertFalse(self.app.active)
+        self.assertTrue(self.app.manual_program)
+
+    def test_only_manual_pause_label_is_shown_above_session_count(self):
+        for active, paused in ((False, False), (True, False), (True, True)):
+            self.app.settings["tracking_paused"] = paused
+            with patch("qt.app.foreground_application", return_value="Photoshop" if active else None), patch("qt.app.user_is_active", return_value=True):
+                self.app._track_and_refresh()
+            self.assertEqual(self.app.today.texts["status"].text, "PAUSED" if paused else "")
+        self.assertLess(self.app.today.texts["status"].top, self.app.today.texts["sessions"].top)
+
+    def test_photocraft_follows_foreground_and_records_separate_history(self):
+        with patch("qt.app.tracking_clock", return_value=100):
+            self.app.last_tick_time = 100
+            self.app._track_and_refresh(("PhotoCraft", True, False))
+        self.assertTrue(self.app.active)
+        self.assertEqual(self.app.today.application, "PhotoCraft")
+        with patch("qt.app.tracking_clock", return_value=101.5):
+            self.app._track_and_refresh((None, True, False))
+        self.assertEqual(self.app.store.total_seconds("PhotoCraft"), 1)
+        self.assertEqual(self.app.store.total_seconds("Photoshop"), 0)
+        self.assertEqual(self.app.today.application, "PhotoCraft")
+
+    def test_activity_transition_credits_previous_program_only(self):
+        with patch("qt.app.tracking_clock", return_value=100.0):
+            self.app.last_tick_time = 98.0
+            self.app._track_and_refresh(("Photoshop", True, False))
+            self.assertEqual(self.app.store.total_seconds(), 0)
+        with patch("qt.app.tracking_clock", return_value=102.0):
+            self.app._track_and_refresh(("Krita", True, False))
+            self.assertEqual(self.app.store.total_seconds("Photoshop"), 2)
+            self.assertEqual(self.app.store.total_seconds("Krita"), 0)
+        with patch("qt.app.tracking_clock", return_value=104.0):
+            self.app._track_and_refresh((None, True, False))
+            self.assertEqual(self.app.store.total_seconds("Krita"), 2)
+        with patch("qt.app.tracking_clock", return_value=106.0):
+            self.app._track_and_refresh((None, True, False))
+            self.assertEqual(self.app.store.total_seconds(), 4)
+
+    def test_failed_write_preserves_time_and_current_program_for_retry(self):
+        import sqlite3
+        self.app.activity_state = ("Photoshop", True, False)
+        self.app.last_tick_time = 100
+        with patch("qt.app.tracking_clock", return_value=101), patch.object(self.app.store, "record_activity", side_effect=sqlite3.OperationalError("locked")):
+            with self.assertRaises(sqlite3.OperationalError):
+                self.app._track_and_refresh(("Krita", True, False))
+        self.assertEqual(self.app.activity_state, ("Krita", True, False))
+        self.assertTrue(self.app.pending_activity)
+        with patch("qt.app.tracking_clock", return_value=102):
+            self.app._track_and_refresh((None, True, False))
+        self.assertEqual(self.app.store.total_seconds("Photoshop"), 1)
+        self.assertEqual(self.app.store.total_seconds("Krita"), 1)
+        self.assertFalse(self.app.pending_activity)
+
+    def test_fractional_exit_and_clock_changes_do_not_invent_time(self):
+        self.app.activity_state = ("Photoshop", True, False)
+        self.app.last_tick_time = 100
+        with patch("qt.app.tracking_clock", return_value=100.375):
+            self.app._credit_active_time("Photoshop")
+        total = self.app.store.connection.execute("SELECT SUM(seconds) FROM activity").fetchone()[0]
+        self.assertAlmostEqual(total, .375)
+        with patch("qt.app.tracking_clock", return_value=99):
+            self.app._credit_active_time("Photoshop")
+        self.assertAlmostEqual(self.app.store.connection.execute("SELECT SUM(seconds) FROM activity").fetchone()[0], .375)
+
+    def test_idle_and_paused_intervals_never_credit_time(self):
+        self.app.last_tick_time = 100
+        self.app.activity_state = ("Photoshop", False, False)
+        with patch("qt.app.tracking_clock", return_value=101):
+            self.app._track_and_refresh(("Photoshop", True, True))
+        with patch("qt.app.tracking_clock", return_value=102):
+            self.app._track_and_refresh(("Photoshop", True, False))
+        self.assertEqual(self.app.store.total_seconds(), 0)
+        with patch("qt.app.tracking_clock", return_value=103):
+            self.app._track_and_refresh((None, True, False))
+        self.assertEqual(self.app.store.total_seconds(), 1)
+
+    def test_shutdown_flushes_or_preserves_fractional_time(self):
+        import sqlite3
+        from tracker import ActivityStore
+        self.app.activity_state = ("Photoshop", True, False)
+        self.app.last_tick_time = 100
+        self.app.tray_icon = Mock()
+        path = self.app.store.database_path
+        with patch("qt.app.tracking_clock", return_value=100.25), patch("qt.app.threading.Timer"), patch.object(self.app.application, "quit"), patch.object(self.app.store, "record_activity", side_effect=sqlite3.OperationalError("locked")):
+            self.app.close()
+        recovered = ActivityStore(path)
+        try:
+            seconds = recovered.connection.execute("SELECT SUM(seconds) FROM activity").fetchone()[0]
+            self.assertAlmostEqual(seconds, .25)
+            self.assertFalse(path.with_suffix(".pending.json").exists())
+        finally:
+            recovered.close()
+
+    def test_many_short_switches_preserve_each_programs_fractional_time(self):
+        import random
+        from app_config import PROGRAMS
+        rng = random.Random(7)
+        clock = 100.0
+        state = (None, False, False)
+        self.app.last_tick_time = clock
+        self.app.activity_state = state
+        expected = {program: 0.0 for program in PROGRAMS}
+        with patch.object(self.app.chart, "refresh"), patch.object(self.app.friends_sync, "tick"):
+            for _ in range(150):
+                elapsed = rng.randint(1, 10) / 100
+                clock = round(clock + elapsed, 6)
+                if state[0] and state[1] and not state[2]:
+                    expected[state[0]] += elapsed
+                state = (rng.choice((*PROGRAMS, None)), rng.choice((True, False)), rng.choice((True, False)))
+                with patch("qt.app.tracking_clock", return_value=clock):
+                    self.app._track_and_refresh(state)
+            with patch("qt.app.tracking_clock", return_value=clock):
+                self.app._credit_active_time(None)
+        for program, seconds in expected.items():
+            row = self.app.store.connection.execute("SELECT COALESCE(SUM(seconds), 0) FROM activity WHERE application=?", (program,)).fetchone()
+            self.assertAlmostEqual(row[0], seconds, places=5)
+
+    def test_midnight_tick_splits_elapsed_time_between_days(self):
+        from datetime import datetime
+        self.app.last_tick_time = 100
+        with patch("qt.app.tracking_clock", return_value=102), patch("qt.app.datetime") as wall:
+            wall.now.return_value = datetime(2026, 10, 13, 0, 0, 1)
+            self.app._credit_active_time("Photoshop")
+        self.assertEqual(self.app.store.total_for_day(date(2026, 10, 12)), 1)
+        self.assertEqual(self.app.store.total_for_day(date(2026, 10, 13)), 1)
+
+    def test_transition_reuses_sample_and_process_snapshot(self):
+        with patch("qt.app.foreground_application", return_value="Photoshop") as foreground, patch("qt.app.user_is_active", return_value=True), patch("qt.app.running_applications", return_value={"Photoshop"}) as running:
+            self.app.open_programs_checked = float("-inf")
+            self.app._poll_activity()
+            self.assertEqual(foreground.call_count, 1)
+            self.app._track_and_refresh(("Krita", True, False))
+            self.assertEqual(running.call_count, 1)
+
+    def test_popup_clamps_to_monitor_at_requested_position(self):
+        from PySide6.QtCore import QPoint, QRect
+        from qt.status_menu import PopupMenu
+        screen = Mock()
+        screen.availableGeometry.return_value = QRect(-1000, 0, 1000, 800)
+        menu = PopupMenu(self.app.window, self.app.fonts, [("one", "One", "")], None, lambda _key: None)
+        with patch("qt.status_menu.QApplication.screenAt", return_value=screen), patch.object(menu, "move") as move:
+            menu.show_at(QPoint(-1200, -10))
+            move.assert_called_once_with(-1000, 0)
+        menu.close()
+        self.application.processEvents()
+
+    def test_focus_poll_updates_on_transition_without_continuous_refresh(self):
+        with patch("qt.app.foreground_application", return_value="Photoshop"), patch("qt.app.user_is_active", return_value=True):
+            self.app.activity_state = (None, True, False)
+            self.app.settings["tracking_paused"] = False
+            self.app._poll_activity()
+            self.assertTrue(self.app.active)
+            self.assertEqual(self.app.today.texts["name"].text, "Photoshop")
+            with patch.object(self.app, "_tick") as tick:
+                self.app._poll_activity()
+                tick.assert_not_called()
+        with patch("qt.app.foreground_application", return_value=None), patch("qt.app.user_is_active", return_value=True):
+            self.app._poll_activity()
+            self.assertFalse(self.app.active)
+        self.assertLessEqual(self.app.focus_timer.interval(), 100)
+
+    def test_program_chevron_visible_while_active_and_translucent(self):
+        from PySide6.QtGui import QImage, QPainter
+        from app_config import PROGRAMS
+        from qt.module import paint_dropdown_arrow
+        from qt.theme import color
+        from PySide6.QtCore import QRectF
+        panel = self.app.today
+        for program in PROGRAMS:
+            panel.set_application(program)
+            for active in (False, True):
+                panel.set_text("name", program, "active_green" if active else "name_online")
+                for alpha in (255, 80):
+                    panel.glass_alpha = alpha
+                    for hovered in (False, True):
+                        panel.hovered_control = "program" if hovered else None
+                        actual = panel.grab().toImage()
+                        rect = panel.program_rect()
+                        expected = QImage(rect.size(), QImage.Format.Format_ARGB32)
+                        expected.fill(color("background"))
+                        painter = QPainter(expected)
+                        paint_dropdown_arrow(painter, QRectF(0, 0, rect.width(), rect.height()))
+                        painter.end()
+                        # Central chevron pixels must match the shared fully visible glyph.
+                        glyph_pixels = 0
+                        for y in range(rect.height() // 2 - 2, rect.height() // 2 + 3):
+                            for x in range(4, 12):
+                                if expected.pixelColor(x, y) == color("muted"):
+                                    glyph_pixels += 1
+                                    self.assertEqual(actual.pixelColor(rect.x() + x, rect.y() + y), color("muted"))
+                        self.assertGreater(glyph_pixels, 0)
+
+    def test_program_dropdown_opens_without_starting_a_drag(self):
+        from PySide6.QtCore import QEvent, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+        from app_config import PROGRAMS
+        panel = self.app.today
+        point = panel.program_rect().center()
+        self.assertTrue(panel.interactive_at(point))
+        self.assertIsNone(panel.control_at(point))
+        event = QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(point), QPointF(panel.mapToGlobal(point)), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+        panel.mousePressEvent(event)
+        menu = panel.program_menu
+        self.assertTrue(panel.program_menu_open)
+        menu.mouseMoveEvent(QMouseEvent(QEvent.Type.MouseMove, QPointF(menu.rows[0][3].center()), QPointF(menu.mapToGlobal(menu.rows[0][3].center())), Qt.MouseButton.NoButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+        self.assertEqual(menu.cursor().shape(), Qt.CursorShape.PointingHandCursor)
+        self.assertEqual([row[0] for row in menu.rows], list(PROGRAMS))
+        with patch("qt.app.foreground_application", return_value=None):
+            menu.on_chosen("Krita")
+        self.assertEqual(panel.application, "Krita")
+        menu.close()
+        self.application.processEvents()
+        self.assertFalse(panel.program_menu_open)
 
     def test_startup_controls_do_not_change_settings(self):
         before = self.app.settings.copy()
@@ -90,6 +366,7 @@ class QtSettingsTests(unittest.TestCase):
     def test_hidden_dashboard_tracks_without_refreshing_chart(self):
         with patch("qt.app.foreground_application", return_value="Photoshop"), patch("qt.app.user_is_active", return_value=True), patch.object(self.app.chart, "refresh") as refresh:
             self.app.window.hide()
+            self.app._track_and_refresh()
             self.app.last_tick_time -= 2
             self.app._track_and_refresh()
             refresh.assert_not_called()
@@ -133,7 +410,7 @@ class QtSettingsTests(unittest.TestCase):
         self.app.settings.pop("block_order", None)
         self.app.settings["module_order"] = ["stats", "graph", "calendar"]
         self.app.settings["modules_left"] = ["stats"]
-        self.assertEqual(self.app._read_block_order(), ["stats", "Photoshop", "Krita", "Clip Studio Paint", "graph", "calendar", "friends"])
+        self.assertEqual(self.app._read_block_order(), ["stats", "today", "graph", "calendar", "friends"])
 
     def test_chart_reuses_picture_until_data_period_or_layout_changes(self):
         chart = self.app.chart
@@ -155,10 +432,12 @@ class QtSettingsTests(unittest.TestCase):
     def test_pause_stops_credit_and_resume_continues(self):
         with patch("qt.app.foreground_application", return_value="Photoshop"), patch("qt.app.user_is_active", return_value=True):
             self.app._setting_toggled("tracking_paused")
+            self.app._track_and_refresh()
             self.app.last_tick_time -= 2
             self.app._track_and_refresh()
             self.assertEqual(self.app.store.total_for_day(date.today(), "Photoshop"), 0)
             self.app._setting_toggled("tracking_paused")
+            self.app._track_and_refresh()
             self.app.last_tick_time -= 2
             self.app._track_and_refresh()
             self.assertGreaterEqual(self.app.store.total_for_day(date.today(), "Photoshop"), 1)
@@ -421,6 +700,7 @@ class QtSettingsTests(unittest.TestCase):
         self.assertFalse(self.app.window.isVisible())
         self.assertFalse(self.app.closing)
         with patch("qt.app.foreground_application", return_value="Photoshop"), patch("qt.app.user_is_active", return_value=True):
+            self.app._track_and_refresh()
             self.app.last_tick_time -= 2
             self.app._track_and_refresh()
         self.assertGreaterEqual(self.app.store.total_for_day(date.today(), "Photoshop"), 1)
@@ -448,6 +728,7 @@ class QtSettingsTests(unittest.TestCase):
             QTest.qWait(2300)
             self.assertGreaterEqual(self.app.store.total_for_day(date.today(), "Photoshop"), 1)
             self.app.tick_timer.stop()
+        self.app.focus_timer.stop()
 
     def test_reconnect_clears_expired_access_and_resumes_cloud_backup(self):
         from google_drive import GoogleAccountAccessRequired

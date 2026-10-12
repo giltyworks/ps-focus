@@ -49,6 +49,7 @@ backdrop.show()
 app = PSFocusQt(application)
 app._save_settings = lambda: None
 app.tick_timer.stop()
+app.focus_timer.stop()
 
 # Ten weeks of plausible drawing sessions: most weekdays, some weekends, an hour or three at a time
 rng = random.Random(11)

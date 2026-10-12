@@ -135,7 +135,7 @@ class BlockDrag(QObject):
             if self.docking is not None and self.docking.window.isVisible():
                 self.grabber = self.docking.window
                 self.grabber.grabMouse()
-            if self.candidate is not None and (self.mode == "reorder" or self.docking.kind == "title"):
+            if self.candidate is not None:
                 self._mark(True)
                 QApplication.setOverrideCursor(Qt.CursorShape.ClosedHandCursor)
         if self.mode == "move":

@@ -5,6 +5,9 @@ from __future__ import annotations
 import ctypes
 from ctypes import wintypes
 import os
+import math
+import json
+import time
 import re
 import shutil
 import sqlite3
@@ -50,6 +53,36 @@ def snapshots_to_delete(names: list[str], today: date) -> list[str]:
     return [name for name in newest_first if name not in kept] + sorted(name for name in set_aside if name.removesuffix("-wal") in dropped)
 
 
+def activity_slices(moment: datetime, seconds: float, application: str):
+    """Split elapsed activity into the local day/hour buckets it actually spans."""
+    if not math.isfinite(seconds) or seconds < 0:
+        raise ValueError("Activity duration must be finite and non-negative")
+    if not isinstance(application, str) or not application:
+        raise ValueError("Activity needs a program name")
+    while seconds > 0:
+        boundary = moment.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
+        duration = min(seconds, (boundary - moment).total_seconds())
+        yield moment.strftime("%Y-%m-%d"), moment.hour, duration, application, moment.strftime("%H:%M")
+        moment += timedelta(seconds=duration)
+        seconds = round(seconds - duration, 6)
+
+
+if os.name == "nt":
+    _query_awake_time = ctypes.WinDLL("kernel32", use_last_error=True).QueryUnbiasedInterruptTime
+    _query_awake_time.argtypes = [ctypes.POINTER(ctypes.c_ulonglong)]
+    _query_awake_time.restype = wintypes.BOOL
+
+
+def tracking_clock() -> float:
+    """Elapsed awake time, independent of wall-clock changes and Windows sleep."""
+    if os.name != "nt":
+        return time.monotonic()
+    count = ctypes.c_ulonglong()
+    if not _query_awake_time(ctypes.byref(count)):
+        raise ctypes.WinError(ctypes.get_last_error())
+    return count.value / 10_000_000
+
+
 class ActivityStore:
     def __init__(self, database_path: Path, backup_directories: tuple[Path, ...] | None = None) -> None:
         database_path.parent.mkdir(parents=True, exist_ok=True)
@@ -61,13 +94,12 @@ class ActivityStore:
         self.installation_id = self._load_installation_id()
         if not self.database_is_usable(database_path):
             self.recovered_from_backup = self._restore_latest_backup()
-        self.connection = sqlite3.connect(database_path)
+        self.connection = sqlite3.connect(database_path, timeout=0.1)
         try:
-            # A second is recorded every second. With a write-ahead log a commit is a short append rather than a
-            # journal file made, flushed to disk and deleted each time, about a hundredth of the work. A power cut
-            # can lose the last few seconds, never the database, which stays consistent
+            # WAL keeps writes small; FULL also flushes committed activity so an OS crash
+            # does not discard already acknowledged tracking time.
             self.connection.execute("PRAGMA journal_mode=WAL")
-            self.connection.execute("PRAGMA synchronous=NORMAL")
+            self.connection.execute("PRAGMA synchronous=FULL")
             self._initialize_schema()
         except BaseException:
             self.connection.close()
@@ -77,6 +109,7 @@ class ActivityStore:
         self._backed_up_changes: int | None = None
         self._last_backups: list[Path] = []
         try:
+            self.recover_pending_activity()
             self.create_local_backup()
         except (OSError, sqlite3.Error) as error:
             self.backup_error = str(error)
@@ -361,17 +394,59 @@ class ActivityStore:
         return self.create_local_backups(force)[0]
 
     def record_active_second(self, moment: datetime | None = None, application: str = "Photoshop") -> None:
-        moment = moment or datetime.now()
+        self.record_activity(activity_slices(moment or datetime.now(), 1, application))
+
+    def record_activity(self, rows, receipt: str | None = None) -> None:
+        """Commit all pending buckets together, so failed writes are safe to retry."""
         with self.connection:
-            self.connection.execute(
-                """INSERT INTO activity (day, slot, seconds, application) VALUES (?, ?, 1, ?)
-                   ON CONFLICT(day, slot, application) DO UPDATE SET seconds = seconds + 1""",
-                (moment.strftime("%Y-%m-%d"), moment.hour, application),
-            )
-            self.connection.execute(
-                "INSERT OR IGNORE INTO session_starts (day, application, started_at) VALUES (?, ?, ?)",
-                (moment.strftime("%Y-%m-%d"), application, moment.strftime("%H:%M")),
-            )
+            if receipt is not None and self.connection.execute(
+                "SELECT value FROM metadata WHERE key = 'tracking_recovery'"
+            ).fetchone() == (receipt,):
+                return
+            for day, slot, seconds, application, started_at in rows:
+                self.connection.execute(
+                    """INSERT INTO activity (day, slot, seconds, application) VALUES (?, ?, ?, ?)
+                       ON CONFLICT(day, slot, application) DO UPDATE SET seconds = seconds + excluded.seconds""",
+                    (day, slot, round(seconds, 6), application),
+                )
+                self.connection.execute(
+                    """INSERT INTO session_starts (day, application, started_at) VALUES (?, ?, ?)
+                       ON CONFLICT(day, application) DO UPDATE SET started_at = MIN(started_at, excluded.started_at)""",
+                    (day, application, started_at),
+                )
+            if receipt is not None:
+                self.connection.execute(
+                    "INSERT INTO metadata (key, value) VALUES ('tracking_recovery', ?) "
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value", (receipt,),
+                )
+
+    def save_pending_activity(self, rows) -> None:
+        """Preserve unsaved shutdown time if SQLite temporarily cannot accept writes."""
+        path = self.database_path.with_suffix(".pending.json")
+        if path.exists():
+            self.recover_pending_activity()
+        temporary = path.with_suffix(".tmp")
+        temporary.write_text(json.dumps({"receipt": uuid.uuid4().hex, "rows": list(rows)}), encoding="utf-8")
+        temporary.replace(path)
+
+    def recover_pending_activity(self) -> None:
+        path = self.database_path.with_suffix(".pending.json")
+        if not path.exists():
+            return
+        try:
+            saved = json.loads(path.read_text(encoding="utf-8"))
+            receipt, rows = saved["receipt"], saved["rows"]
+            if not isinstance(receipt, str) or not receipt:
+                raise ValueError("Missing recovery receipt")
+            for day, slot, seconds, application, started_at in rows:
+                date.fromisoformat(day)
+                datetime.strptime(started_at, "%H:%M")
+                if not isinstance(slot, int) or not 0 <= slot < 24 or not math.isfinite(seconds) or seconds <= 0 or not isinstance(application, str) or not application:
+                    raise ValueError("Invalid pending activity")
+        except (ValueError, TypeError, KeyError) as error:
+            raise OSError("Pending activity is unreadable; preserved for recovery") from error
+        self.record_activity(rows, receipt=receipt)
+        path.unlink()
 
     def total_for_day(self, day: date | None = None, application: str | None = None) -> int:
         day = day or date.today()
@@ -384,7 +459,7 @@ class ActivityStore:
             query,
             parameters,
         ).fetchone()
-        return int(row[0])
+        return int(round(row[0], 6))
 
     def first_day(self) -> date | None:
         """The first day anything was tracked, which is when the user became a member, or None before then"""
@@ -398,7 +473,7 @@ class ActivityStore:
             query += " WHERE application = ?"
             parameters = (application,)
         row = self.connection.execute(query, parameters).fetchone()
-        return int(row[0])
+        return int(round(row[0], 6))
 
     def total_for_range(self, start: date, end: date, application: str | None = None) -> int:
         query = "SELECT COALESCE(SUM(seconds), 0) FROM activity WHERE day BETWEEN ? AND ?"
@@ -410,7 +485,7 @@ class ActivityStore:
             query,
             parameters,
         ).fetchone()
-        return int(row[0])
+        return int(round(row[0], 6))
 
     def rolling_daily_average(self, days: int = 7, today: date | None = None) -> float:
         """Return average tracked seconds per day over the given number of days ending today, rest days included"""
@@ -534,7 +609,7 @@ class ActivityStore:
             "SELECT rating FROM productivity_ratings WHERE day = ?",
             (day.strftime("%Y-%m-%d"),),
         ).fetchone()
-        return int(row[0]) if row else None
+        return int(round(row[0], 6)) if row else None
 
     def set_productivity_rating(self, day: date, rating: int) -> None:
         if not 1 <= rating <= 10:
@@ -580,7 +655,7 @@ class ActivityStore:
             f"SELECT COUNT(*) FROM (SELECT day FROM activity WHERE seconds > 0{application_clause} GROUP BY day HAVING SUM(seconds) >= ?)",
             parameters,
         ).fetchone()
-        return int(row[0])
+        return int(round(row[0], 6))
 
     def month_totals(self, year: int, month: int, application: str | None = None) -> dict[int, int]:
         start = date(year, month, 1)
@@ -708,7 +783,56 @@ APPLICATION_EXECUTABLES = {
     "Photoshop": "photoshop.exe",
     "Krita": "krita.exe",
     "Clip Studio Paint": "clipstudiopaint.exe",
+    "PhotoCraft": "photocraft.exe",
 }
+
+
+def running_applications() -> set[str]:
+    """Supported programs with a running process, including background/minimized ones."""
+    if os.name != "nt":
+        return set()
+    class ProcessEntry(ctypes.Structure):
+        _fields_ = [("size", wintypes.DWORD), ("usage", wintypes.DWORD), ("pid", wintypes.DWORD),
+                    ("heap", ctypes.c_size_t), ("module", wintypes.DWORD), ("threads", wintypes.DWORD),
+                    ("parent", wintypes.DWORD), ("priority", wintypes.LONG), ("flags", wintypes.DWORD),
+                    ("exe", wintypes.WCHAR * 260)]
+    api = ctypes.WinDLL("kernel32", use_last_error=True)
+    api.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    api.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    api.Process32FirstW.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessEntry)]
+    api.Process32NextW.argtypes = [wintypes.HANDLE, ctypes.POINTER(ProcessEntry)]
+    api.CloseHandle.argtypes = [wintypes.HANDLE]
+    snapshot = api.CreateToolhelp32Snapshot(2, 0)
+    if snapshot in (None, ctypes.c_void_p(-1).value):
+        return set()
+    found = set()
+    entry = ProcessEntry()
+    entry.size = ctypes.sizeof(entry)
+    try:
+        available = api.Process32FirstW(snapshot, ctypes.byref(entry))
+        while available:
+            executable = entry.exe.casefold()
+            found.update(name for name, expected in APPLICATION_EXECUTABLES.items() if executable == expected)
+            available = api.Process32NextW(snapshot, ctypes.byref(entry))
+    finally:
+        api.CloseHandle(snapshot)
+    return found
+
+
+def _desktop_receives_input(user32, kernel32) -> bool:
+    """Exclude the lock screen and secure desktop, even if an old foreground handle remains."""
+    kernel32.GetCurrentThreadId.restype = wintypes.DWORD
+    user32.GetThreadDesktop.argtypes = [wintypes.DWORD]
+    user32.GetThreadDesktop.restype = wintypes.HANDLE
+    user32.GetUserObjectInformationW.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p,
+                                               wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
+    user32.GetUserObjectInformationW.restype = wintypes.BOOL
+    desktop = user32.GetThreadDesktop(kernel32.GetCurrentThreadId())
+    receives_input = wintypes.BOOL()
+    # UOI_IO asks whether this desktop is currently receiving user input.
+    return bool(desktop and user32.GetUserObjectInformationW(
+        desktop, 6, ctypes.byref(receives_input), ctypes.sizeof(receives_input), None
+    ) and receives_input.value)
 
 
 def foreground_application() -> str | None:
@@ -718,6 +842,8 @@ def foreground_application() -> str | None:
 
     user32 = ctypes.WinDLL("user32", use_last_error=True)
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    if not _desktop_receives_input(user32, kernel32):
+        return None
     user32.GetForegroundWindow.restype = wintypes.HWND
     user32.IsWindowVisible.argtypes = [wintypes.HWND]
     user32.IsWindowVisible.restype = wintypes.BOOL
@@ -769,6 +895,6 @@ def user_is_active(max_idle_seconds: int = 300) -> bool:
     get_tick_count.restype = wintypes.DWORD
     info = LastInputInfo(ctypes.sizeof(LastInputInfo), 0)
     if not get_last_input_info(ctypes.byref(info)):
-        return True
+        return False
     elapsed_ms = (get_tick_count() - info.dwTime) & 0xFFFFFFFF
     return elapsed_ms <= max(0, max_idle_seconds) * 1000

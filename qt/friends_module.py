@@ -15,7 +15,7 @@ from app_config import EDGE_PADDING, LINE_PADDING, MODULE_MARGIN, TODAY_PANEL_WI
 from friends import format_code
 
 from .header import NAME_MAX_LENGTH, fit_text
-from .module import DOCK_CONTROL_SIZE, MODULE_TITLE_PADDING, ModuleBlock, PaintedButton, paint_hover_box
+from .module import DOCK_CONTROL_SIZE, MODULE_TITLE_PADDING, ModuleBlock, PaintedButton, paint_hover_box, paint_dropdown_arrow, DROPDOWN_BUTTON_SIZE
 from .hover_tip import hover_tip
 from .theme import Fonts, color, draw_anchored, draw_text, line_height, text_width
 
@@ -36,8 +36,7 @@ LEVEL_RING_SIZE = 20
 # Away friends have a small zzz after their name, this wide, which shows Away under the mouse
 AWAY_MARK_WIDTH = 15
 # The arrow at the end of a friend's name, which opens their menu: the square it takes, and its half-width
-NAME_ARROW_SIZE = 16
-NAME_ARROW_ARM = 3
+NAME_ARROW_SIZE = DROPDOWN_BUTTON_SIZE
 # A friend's name: green drawing, blue online, dimmed blue away, grey offline, each lighter than the line under it
 NAME_COLORS = {"drawing": "name_drawing", "online": "name_online", "away": "name_away", "offline": "name_offline"}
 # Short names for the programs, which share a line with the person's name
@@ -329,7 +328,7 @@ class FriendsModule(ModuleBlock):
         left, right = SIDE, width - SIDE
         small_line = line_height(fonts.small) + 2 * LINE_PADDING
         self.buttons, self.items, self.person_areas = [], [], []
-        self.person_tips: dict[str, str] = {}
+        self.person_details: dict[str, str] = {}
         self.clipped_buttons, self.list_rect, self.list_items, self.max_scroll = [], QRect(), range(0), 0
         # Where each away friend's zzz is, and each friend's menu arrow, as laid out before the list is scrolled
         self.away_areas: list[QRect] = []
@@ -424,14 +423,14 @@ class FriendsModule(ModuleBlock):
                     self.items.append(("text", left, y, heading, "muted", fonts.small))
                     y += small_line
             top = y
-            # Their hours over two weeks and in all show in a tip while the mouse is on their rows, see mouseMoveEvent
+            # Detailed figures appear in the dialog opened by double-clicking their name.
             two_weeks, total = float(stats.get("two_weeks", 0) or 0), float(stats.get("total", 0) or 0)
-            self.person_tips[code] = f"{two_weeks:.1f} hrs past 2 weeks" + chr(10) + f"{total:.1f} hrs total"
+            self.person_details[code] = f"{two_weeks:.1f} hrs past 2 weeks" + chr(10) + f"{total:.1f} hrs total"
             since = stats.get("since")
             if isinstance(since, str) and len(since) == 10:
                 try:
                     day = date.fromisoformat(since)
-                    self.person_tips[code] += chr(10) + f"Member since {day.day} {day.strftime('%b %Y')}"
+                    self.person_details[code] += chr(10) + f"Member since {day.day} {day.strftime('%b %Y')}"
                 except ValueError:
                     pass
             hours_left = right
@@ -652,13 +651,23 @@ class FriendsModule(ModuleBlock):
         """The friend's rows under the mouse, which a faint box shows behind"""
         return next((area for area, _code, _name in self.person_areas if area.contains(point)), None)
 
-    def _show_person_tip(self, area: QRect | None) -> None:
-        """Their hours over the past two weeks and in all, in a tip over their rows; none off them"""
-        code = next((code for shown, code, _name in self.person_areas if shown == area), None) if area is not None else None
-        if code is None or code not in self.person_tips:
-            hover_tip(self).hide_for(self)
-        else:
-            hover_tip(self).show_for(self, area, self.person_tips[code], wrap=True)
+    def _hide_person_tip(self) -> None:
+        """Hide any old hover popup; detailed figures now live in the double-click dialog."""
+        hover_tip(self).hide_for(self)
+
+    def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        point = event.position().toPoint()
+        if event.button() == Qt.MouseButton.LeftButton and self._arrow_at(point) is None:
+            for area, code, name in self.person_areas:
+                strip = self.name_rects.get(code)
+                if strip is not None and self._shown(strip).contains(point):
+                    from .friend_details import FriendDetails
+                    self._hide_person_tip()
+                    self.details_dialog = FriendDetails(self.window(), self.fonts, name, self.person_details.get(code, ""))
+                    self.details_dialog.show()
+                    event.accept()
+                    return
+        super().mouseDoubleClickEvent(event)
 
     def _arrow_at(self, point: QPoint) -> str | None:
         """The friend whose menu arrow is here, if any"""
@@ -696,7 +705,7 @@ class FriendsModule(ModuleBlock):
         icon = self._icon_at(point)
         arrow = self._arrow_at(point)
         if area != self.hovered_area:
-            self._show_person_tip(area)
+            self._hide_person_tip()
         if area != self.hovered_area or icon != self.hovered_icon or arrow != self.hovered_arrow:
             self.hovered_area, self.hovered_icon, self.hovered_arrow = area, icon, arrow
             self.update()
@@ -715,7 +724,7 @@ class FriendsModule(ModuleBlock):
         steps = event.angleDelta().y() / 120
         self.scroll = max(0, min(self.max_scroll, round(self.scroll - steps * SCROLL_STEP)))
         self.hovered_area = None
-        self._show_person_tip(None)
+        self._hide_person_tip()
         self._layout()
         event.accept()
 
@@ -725,7 +734,7 @@ class FriendsModule(ModuleBlock):
 
     def leaveEvent(self, event) -> None:
         super().leaveEvent(event)
-        self._show_person_tip(None)
+        self._hide_person_tip()
         if self.hovered_area is not None or self.hovered_icon is not None or self.hovered_arrow is not None:
             self.hovered_area = self.hovered_icon = self.hovered_arrow = None
             self.update()
@@ -734,19 +743,7 @@ class FriendsModule(ModuleBlock):
 
     def _paint_name_arrow(self, painter: QPainter, rect: QRect, hovered: bool) -> None:
         """A small downward chevron in the muted grey; under the mouse a faint box shows behind it"""
-        if hovered:
-            fill = color("border")
-            fill.setAlpha(self.glass_alpha)
-            paint_hover_box(painter, QRectF(rect), fill)
-        painter.save()
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        pen = QPen(color("muted"), 1.4)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-        painter.setPen(pen)
-        x, y, arm = rect.x() + rect.width() / 2, rect.y() + rect.height() / 2, NAME_ARROW_ARM
-        painter.drawPolyline([QPointF(x - arm, y - arm / 2), QPointF(x, y + arm / 2), QPointF(x + arm, y - arm / 2)])
-        painter.restore()
+        paint_dropdown_arrow(painter, QRectF(rect), hovered, self.glass_alpha)
 
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)

@@ -4,13 +4,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import QPoint, QRect, Qt
+from PySide6.QtCore import QPoint, QRect, QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QFontMetrics, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QWidget
 
-from app_config import TODAY_PANEL_WIDTH
+from app_config import TODAY_PANEL_WIDTH, PROGRAMS
 
-from .module import OUTLINE_MIN_ALPHA, DOCK_CONTROL_SIZE, paint_dock_icon, paint_title_strip
+from .module import OUTLINE_MIN_ALPHA, DOCK_CONTROL_SIZE, paint_dock_icon, paint_title_strip, paint_dropdown_arrow, DROPDOWN_BUTTON_SIZE
 from .theme import Fonts, ascent, color, draw_text, halo_strength, line_height
 
 # The same measurements as the Tk panel, see main.py: space inside the panel above its first row and below its
@@ -47,6 +47,9 @@ class TodayPanel(QWidget):
     def __init__(self, application: str, fonts: Fonts, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.application = application
+        self.fonts = fonts
+        self.program_menu_open = False
+        self.on_program = lambda _program: None
         # Its name, which a window of its own takes when it floats, see docking
         self.title = application
         # Whether it is in a window of its own; how solid its background is there, lower when see-through; and which
@@ -97,11 +100,16 @@ class TodayPanel(QWidget):
             "name": text(0, False, application, muted, fonts.two_week),
             "two_week": text(0, True, "0.0 hrs past 2 weeks", muted, fonts.two_week),
             "total": text(1, False, "0s", color("text"), fonts.metric),
-            "sessions": text(2, False, "0 SESSIONS", muted, fonts.small),
+            "sessions": text(3, False, "0 SESSIONS", muted, fonts.small),
             "record_hours": text(2, True, "0.0 hrs on record", muted, fonts.counter),
-            "status": text(3, False, "NOT ACTIVE", muted, fonts.bold),
+            "status": text(2, False, "", muted, fonts.bold),
             "last_session": text(3, True, "last session on --", muted, fonts.counter),
         }
+
+    def set_application(self, application: str) -> None:
+        """Show another program's figures under its name; the app fills in the figures on its next tick"""
+        self.application = self.title = application
+        self.set_text("name", application)
 
     def title_rect(self) -> QRect:
         """The strip along the top; in landscape, where the panel is stretched, its rows stay together under it"""
@@ -119,23 +127,47 @@ class TodayPanel(QWidget):
         return QRect(left, 1 + (self.title_bottom - 1 - DOCK_CONTROL_SIZE) // 2, DOCK_CONTROL_SIZE, DOCK_CONTROL_SIZE)
 
     def control_at(self, point: QPoint) -> str | None:
+        if self.program_rect().contains(point):
+            return None
         dock = self.dock_rect()
         if dock is not None and dock.contains(point):
             return "dock"
         return "title" if self.title_rect().contains(point) else None
 
     def interactive_at(self, point: QPoint) -> bool:
-        return self.control_at(point) == "dock"
+        return self.control_at(point) == "dock" or self.program_rect().contains(point)
+
+    def program_rect(self) -> QRect:
+        item = self.texts["name"]
+        left = item.x + QFontMetrics(item.font).horizontalAdvance(item.text) + 3
+        return QRect(left, 1 + (self.title_bottom - 1 - DROPDOWN_BUTTON_SIZE) // 2,
+                     DROPDOWN_BUTTON_SIZE, DROPDOWN_BUTTON_SIZE)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and self.program_rect().contains(event.position().toPoint()):
+            from .status_menu import PopupMenu
+            if PopupMenu.opens("program"):
+                self.program_menu = PopupMenu(self.window(), self.fonts, [(p, p, "") for p in PROGRAMS], self.application, self.on_program, opener="program")
+                self.program_menu_open = True
+                self.program_menu.destroyed.connect(self._program_menu_closed)
+                self.program_menu.show_at(self.mapToGlobal(self.program_rect().bottomLeft()))
+                self.update()
+            event.accept()
+
+    def _program_menu_closed(self, *_args) -> None:
+        self.program_menu_open = False
+        self.update()
 
     def _hover(self, control: str | None) -> None:
         if control != self.hovered_control:
             self.hovered_control = control
-            shape = {"dock": Qt.CursorShape.PointingHandCursor, "title": Qt.CursorShape.OpenHandCursor}.get(control, Qt.CursorShape.ArrowCursor)
+            shape = {"dock": Qt.CursorShape.PointingHandCursor, "program": Qt.CursorShape.PointingHandCursor, "title": Qt.CursorShape.OpenHandCursor}.get(control, Qt.CursorShape.ArrowCursor)
             self.setCursor(shape)
             self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        self._hover(self.control_at(event.position().toPoint()))
+        point = event.position().toPoint()
+        self._hover("program" if self.program_rect().contains(point) else self.control_at(point))
 
     def leaveEvent(self, _event) -> None:
         self._hover(None)
@@ -193,7 +225,7 @@ class TodayPanel(QWidget):
         painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
         painter.restore()
         for name, item in self.texts.items():
-            text_color = color("text") if name == "name" and self.title_hovered else item.color
+            text_color = item.color
             metrics = QFontMetrics(item.font)
             width = metrics.horizontalAdvance(item.text)
             x = item.x - width if item.right_aligned else item.x
@@ -203,6 +235,9 @@ class TodayPanel(QWidget):
             # The name row keeps to its strip; the rows under it sit in the middle of what is left
             shift = 0 if item.top < self.title_bottom else self.stretch // 2
             draw_text(painter, x, item.top + shift, item.text, text_color, item.font)
+        paint_dropdown_arrow(painter, QRectF(self.program_rect()),
+                             self.hovered_control == "program" or self.program_menu_open,
+                             self.glass_alpha)
         dock = self.dock_rect()
         if dock is not None:
             paint_dock_icon(painter, dock, self.hovered_control == "dock")

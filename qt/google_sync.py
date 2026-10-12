@@ -49,7 +49,8 @@ class GoogleSync:
             app.header.account_text = self.display_name() or status
         friends = getattr(app, "friends_sync", None)
         # With friends on, the name is coloured as friends see it, see FriendsSync.header_name_color
-        app.header.account_color = friends.header_name_color() if friends is not None and friends.enabled() else tone
+        app.header.account_color = (friends.header_name_color() if friends is not None and friends.enabled()
+                                    else "name_online" if self.client.connected and not self.reauthentication_required else tone)
         if not self.client.connected or self.reauthentication_required:
             app.header.account_font = app.fonts.small
         else:

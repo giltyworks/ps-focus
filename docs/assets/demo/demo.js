@@ -78,13 +78,13 @@
   // ----- State -----
 
   const state = {
+    todayProgram: "Photoshop",
     drawing: true,
     transparency: 50,
     period: "3 Months",
     calendarView: "Month",
     calendarMonth: new Date(today.getFullYear(), today.getMonth(), 1),
     shown: { graph: true, calendar: true, stats: false, friends: true },
-    programs: { Photoshop: true, "Clip Studio Paint": false, Krita: false },
     // A made-up Google account; in the app the real one is chosen on Google's own page in the browser
     account: { name: "gilty", email: "demo@example.com" },
     paused: false,
@@ -94,7 +94,7 @@
     startMinimized: true,
     fanfareOff: false,
     // Every block in the window's order, program panels and modules alike, as in the app
-    order: ["today", "Clip Studio Paint", "Krita", "friends", "graph", "calendar", "stats"],
+    order: ["today", "friends", "graph", "calendar", "stats"],
     floating: {},
     status: "online",
     favourites: new Set(),
@@ -104,8 +104,8 @@
     friends: [
       { code: "MIAA", name: "Mia", level: 19, presence: "drawing", program: "Krita", two: 16.4, total: 121.6, today: 1.4, since: new Date(2025, 2, 14) },
       { code: "LEOO", name: "Leo", level: 14, presence: "online", two: 10.2, total: 71.3, today: 0.6, since: new Date(2025, 10, 2) },
-      { code: "ISAB", name: "Isabella", level: 11, presence: "away", two: 6.8, total: 47.9, today: 0.0 },
-      { code: "JONA", name: "Jonathan", level: 8, presence: "offline", two: 3.1, total: 28.4, today: 0.0, lastOnline: 11 },
+      { code: "ISAB", name: "Isabella", level: 11, presence: "away", two: 6.8, total: 47.9, today: 0.0, since: new Date(2025, 7, 9) },
+      { code: "JONA", name: "Jonathan", level: 8, presence: "offline", two: 3.1, total: 28.4, today: 0.0, lastOnline: 11, since: new Date(2026, 1, 15) },
     ],
     request: null,
     requestShown: false,
@@ -180,7 +180,7 @@
   };
 
   let menu = null, menuAnchor = null, closedFrom = null;
-  const closeMenu = () => { menu?.remove(); menu = null; menuAnchor = null; };
+  const closeMenu = () => { menuAnchor?.classList.remove("psf-open"); menu?.remove(); menu = null; menuAnchor = null; };
   // Clicking what opened a menu while it is open closes it, rather than closing and opening it again
   const openMenu = (anchor, items) => {
     const reopening = closedFrom === anchor;
@@ -188,6 +188,7 @@
     if (reopening) return;
     closeMenu();
     menuAnchor = anchor;
+    anchor.classList.add("psf-open");
     menu = el("div", { class: "psf-menu", role: "menu" }, items);
     stage.append(menu);
     const a = anchor.getBoundingClientRect(), s = stage.getBoundingClientRect();
@@ -214,8 +215,21 @@
     // On a phone, where there is no pointer to hover the tips with, a line says how the fading works
     touch.matches ? el("span", { class: "psf-hint" }, "Tap the painting to let PS Focus fade") : null);
   const stage = el("div", { class: "psf-stage" });
-  const canvas = el("div", { class: "psf-canvas", role: "img", "aria-label": "A painting on the art app's canvas" });
+  const canvas = el("div", { class: "psf-canvas", role: "img", "aria-label": "Painting representing Photoshop in the PS Focus demo." });
   canvas.style.backgroundImage = `url("${PAINTING}")`;
+  canvas.append(el("div", { class: "psf-canvas-label", "aria-hidden": "true" }, "Demo canvas"));
+
+  // Capture focus before panel drag handlers can stop propagation. Detached panels and
+  // popup dialogs belong to PS Focus too; hovering alone does not change activity.
+  root.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0) return;
+    const painting = canvas.contains(event.target);
+    const app = event.target.closest(".psf-window, .psf-floating, .psf-menu, .psf-sheet, .psf-controls");
+    if (!painting && !app) return;
+    if (state.drawing === painting) return;
+    state.drawing = painting;
+    renderToday();
+  }, true);
   stage.append(canvas);
   root.append(controls, stage);
 
@@ -273,7 +287,7 @@
   const settingsButton = el("button", { type: "button", class: "psf-icon-button psf-settings", title: "Settings", onclick: () => toggleSettings() }, "···");
   const level = el("div", { class: "psf-level" }, "Level", levelBadge);
   // In Settings the header shows the version and the credit in place of the level and account
-  const credit = el("div", { class: "psf-credit", hidden: true }, el("span", { class: "psf-version" }, "Version 1.2.0"), el("span", { class: "psf-by" }, "by giltyworks"));
+  const credit = el("div", { class: "psf-credit", hidden: true }, el("span", { class: "psf-version" }, "Version 1.1.21"), el("span", { class: "psf-by" }, "by giltyworks"));
   const header = el("div", { class: "psf-header" }, level, account, credit, settingsButton);
   const iconButtons = {};
   const icons = el("div", { class: "psf-icons" }, ["graph", "calendar", "stats", "friends"].map((name) => {
@@ -293,6 +307,14 @@
 
   // The program panel
   const today_ = {
+    name: el("span", {}, "Photoshop"),
+    program: el("button", { type: "button", class: "psf-icon-button psf-chevron", "aria-label": "Choose program history", onclick: () => {
+      state.drawing = false;
+      renderToday();
+      openMenu(today_.program, ["Photoshop", "Krita", "Clip Studio Paint", "PhotoCraft"].map((program) => el("button", { type: "button", onclick: () => {
+        state.todayProgram = program; closeMenu(); renderToday();
+      } }, program)));
+    } }, svg(ICONS.chevron)),
     two: el("span", { class: "psf-two-week" }),
     metric: el("div", { class: "psf-metric" }),
     sessions: el("span", { class: "psf-small" }),
@@ -301,10 +323,10 @@
     last: el("span", {}),
   };
   const todayBlock = el("div", { class: "psf-block psf-today", "data-name": "today" },
-    el("div", { class: "psf-strip" }, el("span", {}, "Photoshop"), today_.two, dockIcon()),
+    el("div", { class: "psf-strip" }, today_.name, today_.program, today_.two, dockIcon()),
     el("div", { class: "psf-today-body" }, today_.metric,
-      el("div", { class: "psf-row" }, today_.sessions, today_.record),
-      el("div", { class: "psf-row" }, today_.status, today_.last)));
+      el("div", { class: "psf-row" }, today_.status, today_.record),
+      el("div", { class: "psf-row" }, today_.sessions, today_.last)));
   const sessionsCount = [...history.values()].filter((hours) => hours.reduce((a, b) => a + b, 0) >= SESSION_MINIMUM).length;
   const lastSession = (() => { for (let ago = 1; ago <= STARTED_DAYS_AGO; ago++) if (dayTotal(daysAgo(ago)) > 0) return daysAgo(ago); return today; })();
 
@@ -315,10 +337,19 @@
     today_.sessions.textContent = `${sessionsCount} SESSIONS`;
     today_.record.textContent = `${(lifetime / 3600).toFixed(1)} hrs on record`;
     const active = state.drawing && !state.paused;
-    today_.status.textContent = active ? "ACTIVE" : state.paused ? "PAUSED" : "NOT ACTIVE";
-    today_.status.classList.toggle("psf-active", active);
-    // Your name turns the lighter green while drawing, as the app
-    account.classList.toggle("psf-in-app", active);
+    if (active) state.todayProgram = "Photoshop";
+    today_.name.textContent = state.todayProgram;
+    today_.program.disabled = false;
+    if (state.todayProgram !== "Photoshop") {
+      const values = { "Krita": ["0.0", "2.5", 2], "Clip Studio Paint": ["1.8", "6.2", 4], "PhotoCraft": ["0.6", "3.1", 3] }[state.todayProgram];
+      today_.two.textContent = `${values[0]} hrs past 2 weeks`;
+      today_.metric.textContent = "0s";
+      today_.sessions.textContent = `${values[2]} SESSIONS`;
+      today_.record.textContent = `${values[1]} hrs on record`;
+    }
+    today_.name.style.color = active ? "var(--psf-green)" : "var(--psf-name-online)";
+    today_.status.textContent = state.paused ? "PAUSED" : "";
+    renderAccount();
     today_.last.textContent = `last session on ${lastSession.getDate()} ${MONTHS[lastSession.getMonth()]}`;
     progressDot.classList.toggle("psf-reached", todaySeconds >= SESSION_MINIMUM);
     levelBadge.textContent = String(levelFor(lifetime / 3600));
@@ -709,13 +740,20 @@
               // Nothing today: when they were last online, as the app
               ? el("span", { class: "psf-sub" }, friend.lastOnline ? `Last online ${friend.lastOnline} hours ago` : "Offline")
               : el("span", { class: "psf-sub" }, `${todayAmount(friend.today)} today`));
-    // Their hours over two weeks and in all, in a tip while the mouse is on their rows, as the app
+    // Detailed figures open on a double-click of the name, as in the app.
     const figures = `${friend.two.toFixed(1)} hrs past 2 weeks
 ${friend.total.toFixed(1)} hrs total`
       + (friend.since ? `
 Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${friend.since.getFullYear()}` : "");
-    row.addEventListener("pointerenter", () => showTip(row, figures, true));
-    row.addEventListener("pointerleave", hideTip);
+    name.addEventListener("dblclick", (event) => {
+      if (event.target.closest("button, input")) return;
+      event.stopPropagation(); hideTip();
+      const sheet = el("div", { class: "psf-sheet", role: "dialog", "aria-label": `${shown} details` });
+      const card = el("div", { class: "psf-sheet-card" }, el("b", {}, shown),
+        figures.split("\n").map((line) => el("span", {}, line)),
+        el("button", { type: "button", class: "psf-sheet-cancel", onclick: () => sheet.remove() }, "Close"));
+      sheet.append(card); stage.append(sheet);
+    });
     friend.fresh = false;
     return row;
   }
@@ -767,7 +805,7 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     // A request shows on the requests icon in the friends strip, with its count, as in the app; its list holds it
     if (state.requestShown) return;
     state.requestShown = true;
-    state.request = { code: "SAMI", name: "Samira", level: 16, presence: "drawing", program: "Photoshop", two: 12.7, total: 92.4, today: 1.1 };
+    state.request = { code: "SAMI", name: "Samira", level: 16, presence: "drawing", program: "Photoshop", two: 12.7, total: 92.4, today: 1.1, since: new Date(2025, 5, 2) };
     // In the demo the list opens by itself, so the request is seen without hunting for it
     state.requestsOpen = true;
     renderFriends();
@@ -825,10 +863,13 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     accountName.textContent = signedIn ? state.account.name : "Local only";
     accountName.title = signedIn ? "" : "Sign in with Google";
     account.classList.toggle("psf-local", !signedIn);
+    account.classList.toggle("psf-hidden-name", state.status === "invisible" || state.status === "offline");
     statusButton.hidden = !signedIn;
     accountStatus.hidden = !signedIn;
-    accountStatus.textContent = { online: "Online", away: "Away", invisible: "Invisible", offline: "Offline" }[state.status];
-    accountStatus.dataset.status = state.status;
+    const drawing = state.status === "online" && state.drawing && !state.paused;
+    account.classList.toggle("psf-in-app", signedIn && drawing);
+    accountStatus.textContent = drawing ? "Photoshop" : { online: "Online", away: "Away", invisible: "Invisible", offline: "Offline" }[state.status];
+    accountStatus.dataset.status = drawing ? "drawing" : state.status;
   }
 
   function signIn(switching = false) {
@@ -875,14 +916,6 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
   }
 
   function renderSettings() {
-    const programs = Object.entries(state.programs).map(([program, on]) => el("label", { class: "psf-check-label" },
-      program === "Clip Studio Paint" ? "CSP" : program === "Photoshop" ? "PS" : program,
-      checkbox(on, program, () => {
-        // One program panel is always shown, as in the app
-        if (on && Object.values(state.programs).filter(Boolean).length === 1) return toast("One program stays shown");
-        state.programs[program] = !on;
-        renderSettings();
-      })));
     const orientation = el("div", { class: "psf-orientation" },
       el("button", { type: "button", class: `psf-shape psf-tall${state.landscape ? "" : " psf-chosen"}`, "aria-label": "Portrait", onclick: () => chooseOrientation(false) }),
       el("button", { type: "button", class: "psf-shape psf-wide psf-disabled", "aria-label": "Landscape, disabled in the demo", title: "Disabled in the demo",
@@ -891,8 +924,7 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     settingsPage.replaceChildren(
       el("h3", {}, "Settings"),
       el("p", { class: "psf-settings-text" }, "PS Focus counts time in Photoshop, Krita and CSP while they are in front and pauses when you're inactive"),
-      el("div", { class: "psf-check-row" }, programs),
-      boxedRow("Orientation", "Modules below or beside the program panels", orientation),
+      boxedRow("Orientation", "Modules below or beside the program panel", orientation),
       boxedRow("Transparency", "PS Focus turns see-through while the mouse is elsewhere", settingsSlider),
       boxedRow("Start with Windows", "Launch PS Focus when you sign in to Windows", toggle("startWithWindows")),
       boxedRow("Start minimized", "Open PS Focus minimized when launched at sign-in", toggle("startMinimized")),
@@ -945,21 +977,9 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
 
   // ----- Showing, hiding and arranging the modules -----
 
-  // The other programs' panels, quieter: this visitor draws in Photoshop
-  const otherProgram = (program, two, record, sessions, last) => el("div", { class: "psf-block psf-today", "data-name": program },
-    el("div", { class: "psf-strip" }, el("span", {}, program), el("span", { class: "psf-two-week" }, `${two} hrs past 2 weeks`), dockIcon()),
-    el("div", { class: "psf-today-body" }, el("div", { class: "psf-metric" }, "0s"),
-      el("div", { class: "psf-row" }, el("span", { class: "psf-small" }, `${sessions} SESSIONS`), el("span", {}, `${record} hrs on record`)),
-      el("div", { class: "psf-row" }, el("span", { class: "psf-status" }, "NOT ACTIVE"), el("span", {}, `last session on ${last}`))));
-  const blockOf = {
-    today: todayBlock, graph: graphBlock, calendar: calendarBlock, stats: statsBlock, friends: friendsBlock,
-    "Clip Studio Paint": otherProgram("Clip Studio Paint", "1.8", "6.2", 4, `${daysAgo(9).getDate()} ${MONTHS[daysAgo(9).getMonth()]}`),
-    Krita: otherProgram("Krita", "0.0", "2.5", 2, `${daysAgo(23).getDate()} ${MONTHS[daysAgo(23).getMonth()]}`),
-  };
-  const PROGRAM_BLOCKS = { Photoshop: "today", "Clip Studio Paint": "Clip Studio Paint", Krita: "Krita" };
-  const PROGRAM_OF = { today: "Photoshop", "Clip Studio Paint": "Clip Studio Paint", Krita: "Krita" };
-  // A block is wanted when its program is ticked in Settings, or its module in the icons
-  const wanted = (name) => (PROGRAM_OF[name] ? state.programs[PROGRAM_OF[name]] : state.shown[name]);
+  const blockOf = { today: todayBlock, graph: graphBlock, calendar: calendarBlock, stats: statsBlock, friends: friendsBlock };
+  // The automatic Today panel is always wanted; the other modules follow their toggles.
+  const wanted = (name) => name === "today" || state.shown[name];
 
   function toggleModule(name) {
     state.shown[name] = !state.shown[name];
@@ -987,7 +1007,7 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     if (state.landscape && !state.settingsOpen) {
       // The header and icons head the column of the Photoshop panel, or the first program panel shown, wherever it
       // stands; with none in the window they stand first on their own, as in the app
-      const anchor = docked.find((name) => name === "today") || docked.find((name) => PROGRAM_OF[name]);
+      const anchor = docked.find((name) => name === "today");
       if (anchor) {
         anchorColumn.replaceChildren(header, icons, blockOf[anchor]);
         children[docked.indexOf(anchor)] = anchorColumn;
@@ -1571,8 +1591,6 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
 
   const PANEL_TIPS = {
     today: "Your time in Photoshop today, past two weeks and in total.",
-    "Clip Studio Paint": "Your time in Clip Studio Paint.",
-    Krita: "Your time in Krita.",
     graph: "How much you draw, from today to the past year.",
     calendar: "Days with 15+ minutes turn blue. Keep your streak going.",
     stats: "Your averages, best day and longest session.",

@@ -14,7 +14,7 @@ from tracker import ActivityStore
 
 from .icons import icon
 from .module import ModuleBlock
-from .theme import Fonts, anchored_top_left, color, draw_anchored, draw_outline_text, halo_strength, line_height, text_width
+from .theme import Fonts, anchored_top_left, draw_anchored, draw_outline_text, halo_strength, line_height, text_width
 
 # The same measurements as the Tk stats, see ui_calendar.py: the space kept on each side of the lines and under
 # the last; the medal and the gap between it and its value; the gap between a value and the column of notes

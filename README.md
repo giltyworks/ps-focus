@@ -1,6 +1,6 @@
 # PS Focus
 
-A Windows desktop app that counts time while Photoshop, Krita, or Clip Studio Paint owns the visible foreground window. All three are always counted; ticking one in Settings shows its panel, and a program's panel switches on by itself the first time it is used unless the user has already shown or hidden it. PS Focus stores totals locally, displays day/week/month charts, and can sync preferences to a private Google Drive app-data folder
+A Windows desktop app that counts time while Photoshop, Krita, Clip Studio Paint, or PhotoCraft owns the visible foreground window. All four are always counted. One Today panel automatically follows the supported program in front and keeps showing the last program when none is in front. PS Focus stores totals locally, displays day/week/month charts, and can sync preferences to a private Google Drive app-data folder
 
 - **Website:** https://giltyworks.github.io/ps-focus/ (its files are in `docs/`)
 - **Download:** https://github.com/giltyworks/ps-focus/releases/latest

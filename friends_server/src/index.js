@@ -12,7 +12,7 @@ const CODE_LENGTH = 8;
 const MAX_FRIENDS = 100;
 const MAX_PENDING = 50;
 const NAME_MAX_LENGTH = 32;
-const PROGRAMS = ['Photoshop', 'Krita', 'Clip Studio Paint'];
+const PROGRAMS = ['Photoshop', 'Krita', 'Clip Studio Paint', 'PhotoCraft'];
 // What friends see of someone: online, away, or offline (also what someone invisible sends)
 const STATUSES = ['online', 'away', 'offline'];
 // Most requests one person may make in a minute, counted per server instance, against runaway loops

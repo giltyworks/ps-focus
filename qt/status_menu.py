@@ -69,11 +69,14 @@ class PopupMenu(QWidget):
 
     def show_at(self, point: QPoint) -> None:
         """Open with its top left here, kept on the screen"""
-        screen = self.screen().availableGeometry()
-        self.move(min(point.x(), screen.right() - self.width()), min(point.y(), screen.bottom() - self.height()))
+        target_screen = QApplication.screenAt(point) or self.screen()
+        screen = target_screen.availableGeometry()
+        self.move(max(screen.left(), min(point.x(), screen.right() + 1 - self.width())),
+                  max(screen.top(), min(point.y(), screen.bottom() + 1 - self.height())))
         self.show()
         # Over the arrow that opened it, the hand stays
-        self.setCursor(self._cursor_outside(QCursor.pos()))
+        point = QCursor.pos()
+        self.setCursor(Qt.CursorShape.PointingHandCursor if self.rect().contains(self.mapFromGlobal(point)) else self._cursor_outside(point))
 
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
@@ -108,7 +111,7 @@ class PopupMenu(QWidget):
             # click, such as the arrow that opened it
             self.setCursor(self._cursor_outside(event.globalPosition().toPoint()))
         else:
-            self.unsetCursor()
+            self.setCursor(Qt.CursorShape.PointingHandCursor)
         key = self._row_at(point)
         if key != self.hovered:
             self.hovered = key

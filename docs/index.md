@@ -8,7 +8,7 @@ body_class: home
 
 # Every second counts.
 
-<p class="what">Automatically tracks your time in Photoshop, Krita, and Clip Studio Paint.</p>
+<p class="what">Automatically tracks your time in Photoshop, Krita, Clip Studio Paint, and PhotoCraft.</p>
 <p class="what-sub">Free for Windows. Your hours become charts, a calendar, and a level.</p>
 
 <a class="button" href="https://github.com/giltyworks/ps-focus/releases/latest">Download for Windows</a> <a class="try-link" href="#try">or try it right here</a>
@@ -44,8 +44,8 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
   <p class="caption">Sample data and made-up friends; nothing you do here is sent anywhere. Painting: Joaquín Sorolla, <em>Strolling along the Seashore</em> (1909), public domain.</p>
   <noscript><p class="caption">The demo needs JavaScript.</p></noscript>
 </section>
-<link rel="stylesheet" href="{{ '/assets/demo/demo.css' | relative_url }}">
-<script src="{{ '/assets/demo/demo.js' | relative_url }}" defer></script>
+<link rel="stylesheet" href="{{ '/assets/demo/demo.css' | relative_url }}?v=1.1.21">
+<script src="{{ '/assets/demo/demo.js' | relative_url }}?v=1.1.21" defer></script>
 
 <figure class="wide-shot">
   <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1495" height="229" alt="PS Focus in landscape: today's time in Photoshop, then friends and their hours, the hours graph and the October calendar side by side in one wide, short window">

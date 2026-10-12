@@ -93,7 +93,7 @@ class QtFriendsTests(unittest.TestCase):
         for item in self.patches:
             self.addCleanup(item.stop)
         self.app = PSFocusQt(self.application)
-        for timer in (self.app.tick_timer, self.app.poll_timer, self.app.backup_timer):
+        for timer in (self.app.tick_timer, self.app.focus_timer, self.app.poll_timer, self.app.backup_timer):
             timer.stop()
         self.addCleanup(lambda: self.app.store.close())
         self.addCleanup(self.app.window.hide)
@@ -124,7 +124,7 @@ class QtFriendsTests(unittest.TestCase):
 
         with patch("qt.app.load_settings", return_value={**app_config.DEFAULT_SETTINGS, "show_friends": True, "landscape": True}):
             app = PSFocusQt(self.application)
-        for timer in (app.tick_timer, app.poll_timer, app.backup_timer):
+        for timer in (app.tick_timer, app.focus_timer, app.poll_timer, app.backup_timer):
             timer.stop()
         self.addCleanup(app.store.close)
         self.addCleanup(app.window.hide)
@@ -172,6 +172,50 @@ class QtFriendsTests(unittest.TestCase):
         self.assertIn("Offline", texts)
         self.assertEqual([person[3] for person in people], ["Krita", None, None, None])
 
+    def test_friend_details_open_on_double_click_including_scrolled_names(self):
+        from PySide6.QtCore import QEvent, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+        self.service.answer = server_state(friends=[
+            {"code": f"TEST{i:04d}", "name": f"Friend {i}", "stats": {"two_weeks": 3, "total": 40, "since": "2025-03-14"}, "updated_at": 1000}
+            for i in range(8)
+        ])
+        self._turn_on()
+        module = self.app.friends
+        for scrolled, code in ((False, "TEST0000"), (True, "TEST0007")):
+            module.scroll = module.max_scroll if scrolled else 0
+            module._layout()
+            point = module._shown(module.name_rects[code]).center()
+            event = QMouseEvent(QEvent.Type.MouseButtonDblClick, QPointF(point), QPointF(module.mapToGlobal(point)), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+            self.application.sendEvent(module, event)
+            self.application.processEvents()
+            dialog = module.details_dialog
+            self.assertTrue(dialog.isVisible())
+            self.assertIn("3.0 hrs past 2 weeks", dialog.lines)
+            self.assertIn("40.0 hrs total", dialog.lines)
+            self.assertIn("Member since 14 Mar 2025", dialog.lines)
+            self.assertEqual(dialog.windowTitle(), "Friend 7" if scrolled else "Friend 0")
+            dialog.close()
+            self.application.processEvents()
+
+    def test_header_online_status_and_username_follow_live_program_activity(self):
+        from app_config import PROGRAMS
+        self._turn_on()
+        for program in PROGRAMS:
+            self.sync.tick(program)
+            self.assertEqual(self.app.header.status_text, program)
+            self.assertEqual(self.app.header.status_color, "active_green")
+            self.assertEqual(self.app.header.account_color, "name_drawing")
+        self.sync.tick(None)
+        self.assertEqual(self.app.header.status_text, "Online")
+        self.assertEqual(self.app.header.status_color, "friend_away")
+        self.assertEqual(self.app.header.account_color, "name_online")
+        for status in ("away", "invisible", "offline"):
+            self.app.settings["friends_status"] = status
+            self.sync.tick("Krita")
+            self.assertEqual(self.app.header.status_text, status.capitalize())
+            self.assertNotEqual(self.app.header.status_color, "active_green")
+            self.assertEqual(self.app.header.account_color, "name_online" if status == "away" else "muted")
+
     def test_status_menu_sets_what_friends_see(self):
         from qt import friends_sync
 
@@ -182,6 +226,7 @@ class QtFriendsTests(unittest.TestCase):
             self.sync.set_status(status)
             self._settle()
             self.assertEqual((self.service.calls[-1][2]["status"], self.service.calls[-1][2]["active"]), (sent, active))
+            self.assertEqual(self.sync.header_name_color(), "muted" if status == "invisible" else "name_online")
         # Invisible, the name at the top is greyed
         from unittest.mock import PropertyMock
 
@@ -191,9 +236,12 @@ class QtFriendsTests(unittest.TestCase):
         self.sync.set_status("invisible")
         self._settle()
         self.assertEqual(self.app.header.account_color, "muted")
+        self.sync.set_status("away")
+        self._settle()
+        self.assertEqual(self.app.header.account_color, "name_online")
         self.sync.set_status("online")
         self._settle()
-        self.assertEqual(self.app.header.account_color, "name_drawing")
+        self.assertEqual(self.app.header.account_color, "name_online")
         # Offline tells friends once, then sends nothing more
         self.sync.set_status("offline")
         self._settle()

@@ -11,8 +11,8 @@ import time
 import webbrowser
 from datetime import date, datetime, timedelta
 
-from PySide6.QtCore import QPoint, QTimer
-from PySide6.QtGui import QAction, QCursor, QIcon
+from PySide6.QtCore import QTimer
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 import app_config
@@ -26,7 +26,7 @@ from app_config import (
     FEEDBACK_UNLOCK_SECONDS,
     IDLE_TIMEOUT_SECONDS,
     MAX_TICK_CREDIT_SECONDS,
-    PROGRAM_PANEL_SETTINGS,
+    PROGRAMS,
     SESSION_MINIMUM_SECONDS,
     format_duration,
     load_settings,
@@ -34,7 +34,7 @@ from app_config import (
     user_level,
 )
 from feedback import FeedbackOutbox
-from tracker import ActivityStore, foreground_application, user_is_active
+from tracker import ActivityStore, activity_slices, tracking_clock, foreground_application, user_is_active, running_applications
 from unpack_cleanup import remove_stale_unpack_folders
 from update_check import UPDATE_CHECK_INTERVAL_MS, available_update, is_safe_download_url
 from windows_startup import (
@@ -68,8 +68,8 @@ from .google_sync import GoogleSync
 
 # Every block that can be put in order: the program panels and the modules, as in the Tk ui_modules
 MODULE_NAMES = ("graph", "calendar", "stats", "friends")
-# The first order: the program panels, then Friends, the most used after them, then the rest
-BLOCK_NAMES = tuple(PROGRAM_PANEL_SETTINGS) + ("friends", "graph", "calendar", "stats")
+# The first order: the program panel, then Friends, the most used after it, then the rest
+BLOCK_NAMES = ("today", "friends", "graph", "calendar", "stats")
 # Longest the app may take to close after Exit before it is ended regardless
 EXIT_TIMEOUT_SECONDS = 10
 
@@ -80,9 +80,7 @@ class PSFocusQt:
         self.instance = instance
         self.closing = False
         self.settings = load_settings()
-        # One program panel is always shown; settings from before that rule may have none, so Photoshop's comes back
-        if not any(self.settings.get(key) for key in PROGRAM_PANEL_SETTINGS.values()):
-            self.settings["tracking_enabled"] = True
+        self._adopt_program_panels()
         self.block_order = self._read_block_order()
         self.store = ActivityStore(app_config.DATABASE_PATH, app_config.BACKUP_DIRECTORIES)
         self.fonts = Fonts()
@@ -116,8 +114,15 @@ class PSFocusQt:
         self.header.on_level = self._level_clicked
         self.header.on_version = self._open_update_page
         self.header.version_text = f"Version {app_config.APP_VERSION}"
-        # Made without a parent, so a panel stays out of sight until the window's column takes it in
-        self.panels = {name: TodayPanel(name, self.fonts) for name in PROGRAM_PANEL_SETTINGS}
+        # One panel for the program in front, or the last one that was. Made without a parent, so it stays out of
+        # sight until the window's column takes it in
+        program = self.settings.get("today_program")
+        self.today = TodayPanel(program if program in PROGRAMS else PROGRAMS[0], self.fonts)
+        self.panels = {"today": self.today}
+        self.today.on_program = self._select_program
+        self.manual_program = False
+        self.open_programs: set[str] = set()
+        self.open_programs_checked = float("-inf")
         period = self.settings.get("period")
         self.chart = ChartModule(self.fonts, self.store, period if period in CHART_PERIODS else "Day", self._period_chosen)
         self.chart_drawn_day: date | None = None
@@ -160,11 +165,16 @@ class PSFocusQt:
         self.backup_timer = QTimer(interval=BACKUP_INTERVAL_MS, timeout=self._backup_activity_now)
         self.backup_timer.start()
         self._start_tray_icon()
-        self.last_tick_time = time.monotonic()
-        self.unrecorded_active_seconds = 0.0
+        self.last_tick_time = tracking_clock()
+        self.pending_activity: dict[tuple[str, int, str], tuple[float, str]] = {}
+        self.tracking_error: str | None = None
+        self.activity_state = (None, False, False)
         self._tick()
         self.tick_timer = QTimer(interval=1000, timeout=self._tick)
         self.tick_timer.start()
+        # Cheap focus checks make status changes responsive without repainting charts at 10Hz.
+        self.focus_timer = QTimer(interval=100, timeout=self._poll_activity)
+        self.focus_timer.start()
         self.poll_timer = QTimer(interval=150, timeout=self._poll_signals)
         self.poll_timer.start()
         self._send_pending_feedback()
@@ -192,9 +202,24 @@ class PSFocusQt:
             modules = [name for name in modules if isinstance(name, str)] if isinstance(modules, list) else []
             before = self.settings.get("modules_left")
             before = before if isinstance(before, list) else []
-            order = [name for name in modules if name in before] + list(PROGRAM_PANEL_SETTINGS) + [name for name in modules if name not in before]
+            order = [name for name in modules if name in before] + ["today"] + [name for name in modules if name not in before]
+        # Before the panel followed the program in front, each program had one; the first of them gives its place
+        order = ["today" if name in PROGRAMS else name for name in order]
         order = list(dict.fromkeys(name for name in order if name in BLOCK_NAMES))
         return order + [name for name in BLOCK_NAMES if name not in order]
+
+    def _adopt_program_panels(self) -> None:
+        """Settings from when each program had a panel of its own: a floating one floats the one panel in its place,
+        Photoshop's first"""
+        floating = self.settings.get("floating_modules")
+        if isinstance(floating, dict):
+            place = next((floating[name] for name in PROGRAMS if name in floating), None)
+            if place is not None and "today" not in floating:
+                floating["today"] = place
+            for name in PROGRAMS:
+                floating.pop(name, None)
+        for key in ("tracking_enabled", "tracking_krita", "tracking_clip_studio_paint", "program_panels_chosen"):
+            self.settings.pop(key, None)
 
     def _backup_activity_now(self, force: bool = False) -> None:
         """Use the shared store's snapshot/retention logic on its owning UI thread."""
@@ -244,11 +269,6 @@ class PSFocusQt:
         if key in self.settings_page.disabled_settings:
             return
         value = not bool(self.settings.get(key, DEFAULT_SETTINGS[key]))
-        if key in PROGRAM_PANEL_SETTINGS.values():
-            if not value and not any(self.settings.get(other) for other in PROGRAM_PANEL_SETTINGS.values() if other != key):
-                return
-            application = next(name for name, setting in PROGRAM_PANEL_SETTINGS.items() if setting == key)
-            self.settings["program_panels_chosen"] = list(dict.fromkeys([*self._chosen_panels(), application]))
         if key in ("launch_on_startup", "start_minimized"):
             launch = value if key == "launch_on_startup" else bool(self.settings.get("launch_on_startup"))
             minimized = value if key == "start_minimized" else bool(self.settings.get("start_minimized"))
@@ -261,11 +281,10 @@ class PSFocusQt:
                     if key == "launch_on_startup":
                         return
         self.settings[key] = value
+        if key == "tracking_paused":
+            self._tick()
         self._save_settings()
         self.settings_page.update()
-        if key in PROGRAM_PANEL_SETTINGS.values():
-            # A floating program panel shows or hides at once; one in the window does on leaving Settings
-            self.docking.sync_visibility()
 
     def _title_bar_menu(self, point) -> None:
         if not PopupMenu.opens("title"):
@@ -399,12 +418,8 @@ class PSFocusQt:
         return self.docking.shown_with_preview([blocks[name] for name in self.block_order if self._block_shown(name)])
 
     def _anchor_panel(self) -> TodayPanel | None:
-        """The program panel kept in view under the header as the window gets shorter: Photoshop's when it is
-        shown, otherwise the first shown, or none"""
-        shown = [name for name in self.block_order if name in self.panels and self._block_shown(name)]
-        if not shown:
-            return None
-        return self.panels["Photoshop" if "Photoshop" in shown else shown[0]]
+        """The program panel, kept in view under the header as the window gets shorter; none while it floats"""
+        return self.today if self._block_shown("today") else None
 
     def _blocks_reordered(self, order: list[str]) -> None:
         # Kept when the drag ends, see BlockDrag
@@ -413,10 +428,8 @@ class PSFocusQt:
         self.window.reorder_blocks(self._shown_blocks())
 
     def _block_wanted(self, name: str) -> bool:
-        """A module ticked in the checkboxes, or a program panel ticked in Settings, in the window or floating"""
-        if name in self.module_ticked:
-            return self.module_ticked[name]
-        return bool(self.settings.get(PROGRAM_PANEL_SETTINGS[name]))
+        """A module ticked in the checkboxes, in the window or floating; the program panel always"""
+        return self.module_ticked.get(name, True)
 
     def _block_shown(self, name: str) -> bool:
         """Wanted, and in the window rather than floating"""
@@ -475,20 +488,21 @@ class PSFocusQt:
         if upload and hasattr(self, "google_sync"):
             self.google_sync.settings_changed()
 
-    def _chosen_panels(self) -> list[str]:
-        chosen = self.settings.get("program_panels_chosen")
-        return [name for name in chosen if isinstance(name, str)] if isinstance(chosen, list) else []
-
-    def _reveal_panel_on_first_use(self, application: str) -> None:
-        """Switch on a program's panel the first time the program is used, so its time is not counted unseen; a
-        panel the user has shown or hidden by hand is left alone, see the Tk version"""
-        key = PROGRAM_PANEL_SETTINGS[application]
-        if self.settings.get(key) or DEFAULT_SETTINGS[key] or application in self._chosen_panels():
+    def _follow_program(self, application: str | None) -> None:
+        """The panel turns to the program in front; with none in front it keeps the last"""
+        if application not in PROGRAMS or application == self.today.application:
             return
-        self.settings[key] = True
-        self.settings["program_panels_chosen"] = self._chosen_panels() + [application]
-        self._save_settings()
-        self._arrange_blocks()
+        self.today.set_application(application)
+        self.docking.retitle("today")
+        self.settings["today_program"] = application
+        self._save_settings(upload=False)
+
+    def _select_program(self, application: str) -> None:
+        if application not in PROGRAMS:
+            return
+        self.manual_program = True
+        self._follow_program(application)
+        self._track_and_refresh()
 
     def _start_tray_icon(self) -> None:
         self.tray_menu = QMenu()
@@ -536,44 +550,75 @@ class PSFocusQt:
         if self.instance.exit_requested():
             self.close()
 
-    def _tick(self) -> None:
+    def _tick(self, activity_state=None) -> None:
+        if self.closing:
+            return
         try:
-            self._track_and_refresh()
-        except Exception:
+            self._track_and_refresh(activity_state)
+        except Exception as error:
+            self.tracking_error = str(error)
+            self.today.set_text("status", "TRACKING ERROR", "red")
+            self.today.setToolTip("Tracking could not save or refresh: " + str(error))
             # One failed update must not stop tracking for good; the timer keeps calling
             import traceback
 
             traceback.print_exc()
 
-    def _credit_active_time(self, application: str | None) -> None:
-        """Record tracked time from the real time since the last tick, which runs slightly over a second apart"""
-        now = time.monotonic()
-        elapsed = min(now - self.last_tick_time, MAX_TICK_CREDIT_SECONDS)
-        self.last_tick_time = now
-        if not self.active:
+    def _poll_activity(self) -> None:
+        if self.closing:
             return
-        self.unrecorded_active_seconds += elapsed
-        while self.unrecorded_active_seconds >= 1:
-            self.store.record_active_second(datetime.now(), application)
-            self.unrecorded_active_seconds -= 1
+        foreground = foreground_application()
+        idle_active = user_is_active(IDLE_TIMEOUT_SECONDS)
+        state = (foreground, idle_active, bool(self.settings.get("tracking_paused")))
+        if state != self.activity_state:
+            self._tick(state)
 
-    def _track_and_refresh(self) -> None:
-        foreground_app = foreground_application()
-        paused = bool(self.settings.get("tracking_paused"))
-        # Every supported program is counted, whether or not its panel is shown
-        self.active = not paused and foreground_app is not None and user_is_active(IDLE_TIMEOUT_SECONDS)
-        self._credit_active_time(foreground_app)
+    def _credit_active_time(self, application: str | None) -> None:
+        now = tracking_clock()
+        elapsed = max(0.0, min(now - self.last_tick_time, MAX_TICK_CREDIT_SECONDS))
+        self.last_tick_time = max(self.last_tick_time, now)
+        if application is not None and elapsed > 0:
+            start = datetime.now() - timedelta(seconds=elapsed)
+            for day, slot, seconds, program, started_at in activity_slices(start, elapsed, application):
+                key = (day, slot, program)
+                pending, first = self.pending_activity.get(key, (0.0, started_at))
+                self.pending_activity[key] = (round(pending + seconds, 6), min(first, started_at))
+        if self.pending_activity:
+            rows = [(day, slot, seconds, program, first)
+                    for (day, slot, program), (seconds, first) in self.pending_activity.items()]
+            self.store.record_activity(rows)
+            self.pending_activity.clear()
+        self.tracking_error = None
+        self.today.setToolTip("")
+
+    def _track_and_refresh(self, activity_state=None) -> None:
+        if activity_state is None:
+            activity_state = (foreground_application(), user_is_active(IDLE_TIMEOUT_SECONDS),
+                              bool(self.settings.get("tracking_paused")))
+        # Elapsed time belongs to the previously observed foreground state.
+        previous_program, previous_present, previous_paused = self.activity_state
+        foreground_app, idle_active, paused = activity_state
+        self.activity_state = activity_state
+        self.active = not paused and foreground_app is not None and idle_active
+        self._credit_active_time(previous_program if previous_present and not previous_paused else None)
         if self.active:
-            self._reveal_panel_on_first_use(foreground_app)
+            self.manual_program = False
+        if self.active or not self.manual_program:
+            self._follow_program(foreground_app)
+        now = time.monotonic()
+        if now - self.open_programs_checked >= 1:
+            self.open_programs = running_applications()
+            self.open_programs_checked = now
+        open_programs = self.open_programs | ({foreground_app} if foreground_app else set())
         today = date.today()
-        total_today_seconds = lifetime_seconds = 0
-        for name, panel in self.panels.items():
+        total_today_seconds = self.store.total_for_day(today)
+        lifetime_seconds = self.store.total_seconds()
+        for panel in self.panels.values():
+            name = panel.application
             today_seconds = self.store.total_for_day(today, name)
             two_weeks_seconds = self.store.total_for_range(today - timedelta(days=13), today, name)
             total_seconds = self.store.total_seconds(name)
             last_session = self.store.last_recorded_day(name)
-            total_today_seconds += today_seconds
-            lifetime_seconds += total_seconds
             panel.set_text("total", format_duration(today_seconds))
             panel.set_text("two_week", f"{two_weeks_seconds / 3600:.1f} hrs past 2 weeks")
             panel.set_text("sessions", f"{self.store.lifetime_sessions(application=name)} SESSIONS")
@@ -581,10 +626,11 @@ class PSFocusQt:
             last_session_text = last_session.strftime("%d %b").lstrip("0") if last_session else "--"
             panel.set_text("last_session", f"last session on {last_session_text}")
             app_active = self.active and foreground_app == name
+            panel.set_text("name", name, "active_green" if app_active else "name_online" if name in open_programs else "muted")
             panel.set_text(
                 "status",
-                "ACTIVE" if app_active else "PAUSED" if paused else "NOT ACTIVE",
-                "active_green" if app_active else "muted",
+                "PAUSED" if paused else "",
+                "muted",
             )
         self.header.set_progress_reached(total_today_seconds >= SESSION_MINIMUM_SECONDS)
         level = user_level(lifetime_seconds)
@@ -592,7 +638,7 @@ class PSFocusQt:
         self.update_glass()
         self._celebrate_level_up(level)
         self._set_feedback_unlocked(lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS)
-        self.friends_sync.tick(foreground_app if self.active else None, user_is_active(IDLE_TIMEOUT_SECONDS))
+        self.friends_sync.tick(foreground_app if self.active else None, idle_active)
         # Tracking continues in the tray and Settings; drawing the modules out of sight waits for them to show.
         # Floating ones stay in view with Settings open, so they keep up
         if self.window.isVisible() and not self.window.isMinimized() and self.settings_shown:
@@ -736,9 +782,23 @@ class PSFocusQt:
         watchdog.daemon = True
         watchdog.start()
         self.tick_timer.stop()
+        self.focus_timer.stop()
         self.poll_timer.stop()
         self.backup_timer.stop()
         self.update_timer.stop()
+        try:
+            program, present, paused = self.activity_state
+            self._credit_active_time(program if present and not paused else None)
+        except Exception:
+            # Keep failed writes for recovery on next launch; don't silently drop them.
+            if self.pending_activity:
+                rows = [(day, slot, seconds, program, first)
+                        for (day, slot, program), (seconds, first) in self.pending_activity.items()]
+                try:
+                    self.store.save_pending_activity(rows)
+                except Exception:
+                    import traceback
+                    traceback.print_exc()
         if self.fireworks is not None:
             self.fireworks.stop()
         self.docking.save_positions()

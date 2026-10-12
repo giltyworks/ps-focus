@@ -14,7 +14,7 @@ from PySide6.QtWidgets import QWidget
 from app_config import COMPACT_BOTTOM_SPACE, EDGE_PADDING, PANEL_GAP, TODAY_PANEL_WIDTH
 
 from .header import draw_checkbox
-from .module import PaintedButton, draw_rounded_box, paint_hover_box
+from .module import PaintedButton, draw_rounded_box
 from .theme import Fonts, ascent, color, draw_text, line_height, text_width
 
 # The same measurements as the Tk page, see ui_settings.py
@@ -41,7 +41,6 @@ BUTTON_PADX = 10
 BUTTON_PADY = 3
 BUTTON_ROW_PADDING = 4
 
-PROGRAM_CHECKBOXES = (("tracking_enabled", "PS"), ("tracking_clip_studio_paint", "CSP"), ("tracking_krita", "Krita"))
 OPTION_CHECKBOXES = (("tracking_paused", "Pause tracking"), ("disable_fanfare_sound", "Disable fanfare sound"))
 TOGGLES = (
     ("launch_on_startup", "Start with Windows", "Launch PS Focus when you sign in to Windows"),
@@ -219,12 +218,11 @@ class SettingsPage(QWidget):
             "muted", fonts.normal, PAGE_TEXT_WIDTH,
         )
         y += description.height() + DESCRIPTION_GAP
-        y += self._checkbox_row(y, PROGRAM_CHECKBOXES) + PANEL_GAP
         # Orientation: a tall shape for portrait and a wide one for landscape, the chosen one filled
         long_side, short_side = ORIENTATION_ICON_SIZE
         choice_width = short_side + ORIENTATION_ICON_GAP + long_side
         height, self.orientation_top = self._boxed_row(
-            y, "Orientation", "Modules below or beside the program panels", PAGE_TEXT_WIDTH - choice_width - EDGE_PADDING, long_side
+            y, "Orientation", "Modules below or beside the program panel", PAGE_TEXT_WIDTH - choice_width - EDGE_PADDING, long_side
         )
         self.orientation_left = TODAY_PANEL_WIDTH - 1 - EDGE_PADDING - choice_width
         landscape_left = short_side + ORIENTATION_ICON_GAP

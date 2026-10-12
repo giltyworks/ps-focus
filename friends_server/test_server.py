@@ -58,6 +58,10 @@ friends = ok("bo", "accept", {"code": code_amy})
 assert friends["incoming"] == [] and [f["name"] for f in friends["friends"]] == ["Amy"]
 amy_seen = friends["friends"][0]["stats"]
 assert amy_seen == {"two_weeks": 12.3, "total": 456.8, "today": 1.5, "week": 6.2, "level": 23, "streak": 4, "status": "online", "active": "Krita", "since": "2025-03-14"}, amy_seen
+# Newly supported PhotoCraft activity reaches friends without being stripped.
+ok("amy", "sync", {"name": "Amy", "stats": {**stats, "active": "PhotoCraft"}})
+assert ok("bo", "sync", {"name": "Bo", "stats": odd})["friends"][0]["stats"]["active"] == "PhotoCraft"
+ok("amy", "sync", {"name": "Amy", "stats": stats})
 bo_seen = ok("amy", "sync", {"name": "Amy", "stats": stats})["friends"][0]
 assert bo_seen["stats"]["two_weeks"] == 336 and bo_seen["stats"]["level"] == 0 and bo_seen["stats"]["active"] is None and bo_seen["stats"]["since"] is None, bo_seen
 assert call("amy", "add", {"code": code_bo})[0] == 409

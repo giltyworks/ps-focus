@@ -26,6 +26,8 @@ from .window import frame_insets, set_topmost
 Rect = tuple[int, int, int, int]
 # How near an edge has to come before it snaps to another
 SNAP_DISTANCE = 20
+SNAP_RELEASE = 6
+ALIGN_DISTANCE = 8
 # How far outside the window a module's title may be dragged and still be put back in order rather than float
 DOCK_MARGIN = 24
 # How far past the window's far end, below it or in landscape right of it, a panel let go still docks
@@ -71,25 +73,46 @@ _MOVE_ONLY = 0x0001 | 0x0004 | 0x0010
 def snap_position(
     x: int, y: int, width: int, height: int, neighbours: list[Rect], distance: int = SNAP_DISTANCE, side_targets: list[Rect] = ()
 ) -> tuple[int, int]:
-    """Snap to the nearest touching edge with either end aligned. A side target, a block inside the window, is snapped
-    to only beside the window, level with the block's top or bottom"""
-    candidates = []
+    """Snap each axis independently, with gentle alignment along a touched edge."""
+    sx, sy, _held = snap_motion(x, y, width, height, neighbours, distance, side_targets)
+    return sx, sy
+
+
+def snap_motion(x, y, width, height, neighbours, distance=SNAP_DISTANCE, side_targets=(), held=(None, None)):
+    """Match the demo: slide along edges and retain a snap until deliberately pulled away."""
+    def pick(raw, options, before, reach):
+        if before is not None:
+            for value, rect in options:
+                if value == before and abs(raw-value) <= reach + SNAP_RELEASE:
+                    return value, rect
+        nearby = [option for option in options if abs(raw-option[0]) <= reach]
+        return min(nearby, key=lambda option: abs(raw-option[0])) if nearby else None
+
+    sides, ends = [], []
     for left, top, right, bottom in neighbours:
+        rect = (left, top, right, bottom)
         if y <= bottom + distance and y + height >= top - distance:
-            for edge in (left - width, right):
-                if abs(edge - x) <= distance:
-                    candidates.extend((edge, anchor) for anchor in (top, bottom - height))
+            sides.extend((edge, rect) for edge in (left-width, right))
         if x <= right + distance and x + width >= left - distance:
-            for edge in (top - height, bottom):
-                if abs(edge - y) <= distance:
-                    candidates.extend((anchor, edge) for anchor in (left, right - width))
+            ends.extend((edge, rect) for edge in (top-height, bottom))
+    # Also supports callers supplying only internal side anchors.
     for left, top, right, bottom in side_targets:
-        if y > bottom + distance or y + height < top - distance:
-            continue
-        for edge in (left - width, right):
-            if abs(edge - x) <= distance:
-                candidates.extend((edge, anchor) for anchor in (top, bottom - height))
-    return min(candidates, key=lambda point: abs(point[0] - x) + abs(point[1] - y)) if candidates else (x, y)
+        if y <= bottom+distance and y+height >= top-distance:
+            sides.extend((edge, (left, top, right, bottom)) for edge in (left-width, right))
+    sx = pick(x, sides, held[0], distance)
+    sy = pick(y, ends, held[1], distance)
+    if sx and not sy:
+        left, top, right, bottom = sx[1]
+        lines = [(top, None), (bottom-height, None)]
+        for tl, tt, tr, tb in side_targets:
+            if sx[0] in (tl-width, tr):
+                lines.extend(((tt, None), (tb-height, None)))
+        sy = pick(y, lines, held[1], ALIGN_DISTANCE)
+    elif sy and not sx:
+        left, top, right, bottom = sy[1]
+        sx = pick(x, [(left, None), (right-width, None)], held[0], ALIGN_DISTANCE)
+    return (sx[0] if sx else x, sy[0] if sy else y,
+            (sx[0] if sx else None, sy[0] if sy else None))
 
 
 def attached_panels(start: Rect, panels: dict[str, Rect], tolerance: int = TOUCH_TOLERANCE) -> set[str]:
@@ -108,14 +131,6 @@ def attached_panels(start: Rect, panels: dict[str, Rect], tolerance: int = TOUCH
                 connected.add(name)
                 frontier.append((pl, pt, pr, pb))
     return connected
-
-
-def overlaps(a: Rect, b: Rect) -> bool:
-    return min(a[2], b[2]) > max(a[0], b[0]) and min(a[3], b[3]) > max(a[1], b[1])
-
-
-def overlap_area(a: Rect, b: Rect) -> int:
-    return max(0, min(a[2], b[2]) - max(a[0], b[0])) * max(0, min(a[3], b[3]) - max(a[1], b[1]))
 
 
 def left_button_down() -> bool:
@@ -268,7 +283,8 @@ class Docking:
         self.grab_offset = GRAB_OFFSET
         self.group_positions: dict[str, QPoint] = {}
         self.moves_main = False
-        # Where a panel moved by its title started, for a swap; None for a module dragged out of the window
+        self.snap_held = (None, None)
+        # Where a panel moved by its title started, for gap closure; None for a module dragged out of the window
         self.swap_origin: QPoint | None = None
         # The slot a panel moved by its title left, and the panels around it then, so the gap can be closed
         self.gap_source: Rect | None = None
@@ -278,6 +294,12 @@ class Docking:
         self.dock_slot = None
 
     # Where things are
+
+    def retitle(self, name: str) -> None:
+        """A floating block's window takes the block's new name, as the program panel's when another program is in front"""
+        panel = self.floating.get(name)
+        if panel is not None:
+            panel.setWindowTitle(f"PS Focus - {self.app.blocks_by_name()[name].title}")
 
     def is_floating(self, name: str) -> bool:
         return name in self.floating
@@ -548,6 +570,8 @@ class Docking:
             self._begin_group(name, detach=True)
         elif on_title:
             self.kind = "title"
+            block = self.app.blocks_by_name()[name]
+            self.grab_offset = point - block.mapToGlobal(QPoint(0, 0))
         elif floating:
             self.kind = "group"
             self.grab_offset = point - self.floating[name].pos()
@@ -581,9 +605,8 @@ class Docking:
             if self.dock_target(point, margin=DOCK_MARGIN):
                 return False
             # Dragged out of the window: it floats under the pointer, and is moved alone from then on
-            self.float_module(self.source, point - GRAB_OFFSET)
+            self.float_module(self.source, point - self.grab_offset)
             self.kind = "detach"
-            self.grab_offset = GRAB_OFFSET
             self.swap_origin = None
             self.moves_main = False
             panel = self.floating[self.source]
@@ -616,6 +639,8 @@ class Docking:
         # Over the window, or just past its far end, the panel docks rather than snaps
         if slot is None and not self.moves_main and len(self.group_positions) <= 1:
             x, y = self._snap(name, x, y)
+        else:
+            self.snap_held = (None, None)
         self._show_dock_slot(slot)
         if self.kind == "detach" and self.gap_source is not None and not self.gap_closed and self.swap_origin is not None:
             left, top, right, bottom = self.gap_source
@@ -698,7 +723,9 @@ class Docking:
                 block_bottom = block_top + block.height()
                 if main[1] <= block_top < main[3]:
                     side_targets.append((main[0], block_top, main[2], min(block_bottom, main[3])))
-        return snap_position(x, y, panel.width(), panel.height(), neighbours, side_targets=side_targets)
+        x, y, self.snap_held = snap_motion(x, y, panel.width(), panel.height(), neighbours,
+                                         side_targets=side_targets, held=self.snap_held)
+        return x, y
 
     def release(self, point: QPoint) -> None:
         name, kind, slot = self.source, self.kind, self.dock_slot
@@ -717,7 +744,6 @@ class Docking:
                 self.floating[name].setWindowOpacity(1.0)
                 self.dock_module(name, slot)
             else:
-                self._resolve_overlap(name)
                 self.save_positions()
         elif kind == "window":
             self.save_positions()
@@ -784,35 +810,3 @@ class Docking:
                 mover.begin(moved)
                 mover.move(QPoint(dx, dy))
             pending -= component
-
-    def _resolve_overlap(self, name: str) -> None:
-        """Let go over another floating panel by its title, a panel swaps places with it; then panels a larger one now
-        covers move aside to the nearest clear edge, the dragged group staying as it is"""
-        moving = (set(self.group_positions) or {name}) & set(self.floating)
-        source = self.floating[name]
-        bounds = source.bounds()
-        targets = [(key, panel) for key, panel in self.floating.items()
-                   if key not in moving and panel.isVisible() and overlaps(bounds, panel.bounds())]
-        if targets and self.kind == "detach":
-            key, target = max(targets, key=lambda item: overlap_area(bounds, item[1].bounds()))
-            destination = target.pos()
-            if self.swap_origin is None:
-                # A module dragged out of the window swaps its place in the window too
-                order = self.app.block_order
-                a, b = order.index(name), order.index(key)
-                order[a], order[b] = order[b], order[a]
-                self.app.settings["block_order"] = order.copy()
-                self.dock_module(key)
-            else:
-                target.move(self.swap_origin)
-            source.move(destination)
-        occupied = [self.floating[key].bounds() for key in moving if key in self.floating]
-        for key, panel in self.floating.items():
-            if key in moving or not panel.isVisible():
-                continue
-            left, top, right, bottom = panel.bounds()
-            width, height = right - left, bottom - top
-            while any(overlaps((left, top, left + width, top + height), rect) for rect in occupied):
-                left = max(rect[2] for rect in occupied if overlaps((left, top, left + width, top + height), rect))
-            panel.move(left, top)
-            occupied.append((left, top, left + width, top + height))

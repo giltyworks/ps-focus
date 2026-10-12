@@ -65,6 +65,14 @@
   background: #111 74% 50% / cover no-repeat; box-shadow: 0 6px 30px rgba(0, 0, 0, .45);
 }
 
+/* A quiet caption identifies the painting's role without competing with the app. */
+.psf-canvas-label {
+  position: absolute; top: 10px; left: 12px; max-width: calc(100% - 24px);
+  font-size: 12px; font-weight: 400;
+  color: rgba(255, 255, 255, .9); pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .8);
+}
+
 /* A window or panel: every background as see-through as --a, text solid, with a soft glow behind it as --g grows */
 .psf-window, .psf-floating {
   position: absolute; width: 300px; --a: 1; --g: 0;
@@ -93,17 +101,22 @@
 .psf-header { background: rgba(var(--psf-background), var(--a)); height: 34px; display: flex; align-items: center; padding: 0 2px 0 8px; font-size: 13.333px; position: relative; }
 .psf-level { display: flex; align-items: center; gap: 4px; }
 .psf-badge { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--psf-red); display: grid; place-items: center; font-size: 12px; margin-left: 2px; }
-.psf-account { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14.667px; color: var(--psf-green); }
+.psf-account { position: absolute; left: 50%; transform: translateX(-50%); max-width: calc(100% - 168px); display: flex; align-items: center; justify-content: center; font-size: 14.667px; color: var(--psf-green); }
+.psf-account > .psf-dot { position: absolute; right: calc(100% + 6px); }
+.psf-header > .psf-settings { margin-left: auto; }
 .psf-account.psf-hidden-name { color: var(--psf-muted); }
 /* Names a lighter shade than the line under them, so they read first */
 .psf-account-name { cursor: pointer; font-weight: 600; color: var(--psf-name-online); }
 .psf-account.psf-in-app .psf-account-name { color: var(--psf-name-drawing); }
 .psf-account.psf-hidden-name .psf-account-name, .psf-account.psf-local .psf-account-name { color: inherit; }
-.psf-account-text { display: flex; flex-direction: column; }
-.psf-account-line { display: flex; align-items: center; gap: 2px; line-height: 18px; }
+.psf-account-text { display: flex; flex-direction: column; align-items: center; text-align: center; min-width: 0; }
+.psf-account-line { position: relative; display: flex; align-items: center; justify-content: center; max-width: 100%; line-height: 18px; }
+.psf-account-line > .psf-chevron { position: absolute; left: calc(100% + 2px); }
+.psf-account-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .psf-account-status { font-size: 10.667px; line-height: 12px; color: var(--psf-muted); }
 .psf-account-status[data-status="online"] { color: var(--psf-away); }
 .psf-account-status[data-status="away"] { color: var(--psf-away); }
+.psf-account-status[data-status="drawing"] { color: var(--psf-green); }
 .psf-name-field { width: 160px; background: #151515; border: 0; border-radius: 4px; color: var(--psf-text); font: 15px inherit; font-family: inherit; text-align: center; padding: 1px 4px; outline: none; }
 .psf-name-field::selection { background: #284e45; }
 .psf-dot { width: 13px; height: 13px; border-radius: 50%; background: #151515; border: 1px solid rgba(var(--psf-border), 1); }
@@ -111,7 +124,7 @@
 .psf-icon-button { border: 0; background: none; color: var(--psf-muted); cursor: pointer; border-radius: 4px; padding: 0; display: grid; place-items: center; }
 .psf-icon-button:hover, .psf-icon-button.psf-open { background: rgba(var(--psf-border), max(var(--a), .6)); }
 .psf-icon-button svg { display: block; }
-.psf-chevron { width: 16px; height: 18px; }
+.psf-chevron { width: 16px; height: 16px; flex: 0 0 16px; }
 .psf-settings { width: 22px; height: 18px; letter-spacing: 1px; font-size: 13.333px; line-height: 1; }
 
 .psf-icons { height: 24px; display: flex; justify-content: flex-end; gap: 2px; padding: 2px 4px 0 0; background: rgba(var(--psf-background), var(--a)); }

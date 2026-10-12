@@ -12,8 +12,8 @@ from PySide6.QtWidgets import QLineEdit, QWidget
 from app_config import EDGE_PADDING, LEVEL_BADGE_SIZE, TODAY_PANEL_WIDTH
 
 from .badge import render_level_badge
-from .module import paint_hover_box
-from .theme import Fonts, ascent, color, draw_text, halo_strength, line_height
+from .module import paint_hover_box, paint_dropdown_arrow, DROPDOWN_BUTTON_SIZE
+from .theme import Fonts, color, draw_text, halo_strength, line_height
 
 # The same measurements as the Tk header, see ui_header.py: the header is as wide as the panels; the square the
 # level badge and the settings button each take, and the least height of the row; the space holding the progress
@@ -25,8 +25,7 @@ ACCOUNT_TEXT_INSET_X = 5
 ACCOUNT_TEXT_INSET_Y = 4
 HEADER_GROUP_GAP = 6
 # The arrow after the account name that opens the friends status menu: the space it takes, and its half-width
-STATUS_ARROW_ROOM = 16
-STATUS_ARROW_ARM = 3
+STATUS_ARROW_ROOM = DROPDOWN_BUTTON_SIZE
 # How far the status line under the name tucks up into the name's line, which has space below its letters
 STATUS_LINE_OVERLAP = 2
 # How far a Tk label kept its text from its own edge, which the word Level is still placed by
@@ -351,22 +350,11 @@ class Header(GlassMixin, QWidget):
 
     def _paint_status_arrow(self, painter: QPainter, left: int, height: int, middle_y: float | None = None) -> None:
         """A small downward chevron, which opens the friends status menu; under the mouse a faint box shows behind it"""
-        top = (height - HEADER_ICON_SIZE) // 2
-        self.status_area = (left, top + 4, left + STATUS_ARROW_ROOM, top + HEADER_ICON_SIZE - 4)
-        if self.status_hovered:
-            paint_hover_box(painter, QRectF(left, top + 4, STATUS_ARROW_ROOM, HEADER_ICON_SIZE - 8), color("border"))
-        painter.save()
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        pen = QPen(color("muted"), 1.4)
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-        painter.setPen(pen)
-        middle_x = left + STATUS_ARROW_ROOM / 2
-        # Level with the name
         middle_y = height / 2 if middle_y is None else middle_y
-        arm = STATUS_ARROW_ARM
-        painter.drawPolyline([QPointF(middle_x - arm, middle_y - arm / 2), QPointF(middle_x, middle_y + arm / 2), QPointF(middle_x + arm, middle_y - arm / 2)])
-        painter.restore()
+        top = round(middle_y - DROPDOWN_BUTTON_SIZE / 2)
+        self.status_area = (left, top, left + DROPDOWN_BUTTON_SIZE, top + DROPDOWN_BUTTON_SIZE)
+        paint_dropdown_arrow(painter, QRectF(left, top, DROPDOWN_BUTTON_SIZE, DROPDOWN_BUTTON_SIZE),
+                             self.status_hovered)
 
     def _paint_level(self, painter: QPainter, height: int) -> None:
         """The word Level and the badge at the left, centred on the row"""

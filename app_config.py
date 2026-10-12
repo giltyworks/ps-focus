@@ -12,7 +12,7 @@ from pathlib import Path
 
 APP_NAME = "PS Focus"
 # Raise for every published build; the installer, the executable's file properties, and the update check all use it
-APP_VERSION = "1.1.0"
+APP_VERSION = "1.1.21"
 APP_PUBLISHER = "Giltyworks"
 APP_USER_MODEL_ID = "PSFocus.PSFocus"
 LEGACY_APP_NAME = "FocusTrace"
@@ -65,7 +65,7 @@ IDLE_TIMEOUT_SECONDS = 300
 SESSION_MINIMUM_SECONDS = 15 * 60
 ROLLING_AVERAGE_DAYS = 7
 MONTHLY_AVERAGE_DAYS = 30
-# Longest gap one tick may count, so time asleep or with a stalled window is not recorded as activity
+# Longest unobserved gap one tick may count; longer UI stalls cannot prove continuous foreground activity
 MAX_TICK_CREDIT_SECONDS = 2.0
 # Cumulative tracked hours needed to reach a level; the levels in between are interpolated, see LEVEL_HOURS.
 # The curve is fixed here in code and is never read from settings, so it cannot be changed from a settings file
@@ -97,13 +97,8 @@ CHART_PERIOD_CAPTIONS = {
     "3 Months": "Past 90 days",
     "6 Months": "Past 180 days",
 }
-# The programs PS Focus counts time in, each with the setting that shows its panel. All three are always
-# counted; the settings keep their original names, from when they switched counting on and off
-PROGRAM_PANEL_SETTINGS = {
-    "Photoshop": "tracking_enabled",
-    "Krita": "tracking_krita",
-    "Clip Studio Paint": "tracking_clip_studio_paint",
-}
+# The programs PS Focus counts time in, all three always; the one panel shows whichever is in front
+PROGRAMS = ("Photoshop", "Krita", "Clip Studio Paint", "PhotoCraft")
 COLORS = {
     # A near-black background, the logo's own, under panels only a little lighter, so the two do not contrast
     # harshly; the title bar takes the background colour too
@@ -144,10 +139,7 @@ COLORS = {
     "name_offline": "#b0b9b7",
 }
 DEFAULT_SETTINGS = {
-    "tracking_enabled": True,
     "tracking_paused": False,
-    "tracking_krita": False,
-    "tracking_clip_studio_paint": False,
     "launch_on_startup": True,
     "start_minimized": True,
     "disable_fanfare_sound": False,
@@ -160,9 +152,8 @@ DEFAULT_SETTINGS = {
     "friends_status": "online",
     # Program panels and modules side by side instead of one under another, see PSFocusApp._apply_layout
     "landscape": False,
-    # Programs whose panel the user has shown or hidden, or that switched on by itself at first use, see
-    # PSFocusApp._reveal_panel_on_first_use. Their panels are never switched on automatically again
-    "program_panels_chosen": [],
+    # The program the panel last showed, kept while none of them is in front
+    "today_program": "Photoshop",
     "period": "Day",
     # Names chosen for each Google account, keyed by its email; google_display_name is the single name of earlier versions
     "google_display_names": {},

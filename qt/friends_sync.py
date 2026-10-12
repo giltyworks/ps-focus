@@ -46,12 +46,12 @@ STATUS_SENT = {"online": "online", "away": "away", "invisible": "offline", "offl
 # without time today
 SAMPLE_FRIENDS = (
     ("Mia", {"two_weeks": 16.4, "today": 1.4, "total": 121.6, "level": 19, "since": "2025-03-14"}, "drawing", "Krita", "SAMPLE01"),
-    ("Samuel", {"two_weeks": 12.7, "today": 0.4, "total": 92.4, "level": 16}, "drawing", "Photoshop", "SAMPLE02"),
-    ("Leo", {"two_weeks": 10.2, "today": 0.6, "total": 71.3, "level": 14}, "online", None, "SAMPLE03"),
-    ("Isabella", {"two_weeks": 8.9, "today": 0.0, "total": 60.2, "level": 13}, "online", None, "SAMPLE04"),
-    ("Priya", {"two_weeks": 6.8, "today": 0.0, "total": 47.9, "level": 11}, "away", None, "SAMPLE05"),
-    ("Jonathan", {"two_weeks": 3.1, "today": 1.2, "total": 28.4, "level": 8}, "offline", None, "SAMPLE06"),
-    ("Chloe", {"two_weeks": 2.4, "today": 0.0, "total": 19.7, "level": 6, "last_online_ago": 11 * 3600}, "offline", None, "SAMPLE07"),
+    ("Samuel", {"two_weeks": 12.7, "today": 0.4, "total": 92.4, "level": 16, "since": "2025-06-02"}, "drawing", "Photoshop", "SAMPLE02"),
+    ("Leo", {"two_weeks": 10.2, "today": 0.6, "total": 71.3, "level": 14, "since": "2025-01-20"}, "online", None, "SAMPLE03"),
+    ("Isabella", {"two_weeks": 8.9, "today": 0.0, "total": 60.2, "level": 13, "since": "2025-08-09"}, "online", None, "SAMPLE04"),
+    ("Priya", {"two_weeks": 6.8, "today": 0.0, "total": 47.9, "level": 11, "since": "2025-11-27"}, "away", None, "SAMPLE05"),
+    ("Jonathan", {"two_weeks": 3.1, "today": 1.2, "total": 28.4, "level": 8, "since": "2026-02-15"}, "offline", None, "SAMPLE06"),
+    ("Chloe", {"two_weeks": 2.4, "today": 0.0, "total": 19.7, "level": 6, "since": "2026-05-03", "last_online_ago": 11 * 3600}, "offline", None, "SAMPLE07"),
 )
 
 
@@ -72,6 +72,7 @@ class FriendsSync:
         self.pending_sync = False
         self.last_active_time = 0.0
         self.active_program: str | None = None
+        self.display_program: str | None = None
         self.reported_active: str | None = None
         # Whether anyone has used the PC in the last few minutes, see sync_interval
         self.present = True
@@ -141,11 +142,10 @@ class FriendsSync:
         }
 
     def header_name_color(self) -> str:
-        """The user's name in the header, coloured as friends see them: grey while invisible or offline, the lighter
-        green while drawing in an art app, otherwise the lighter blue, online or away"""
+        """Light green while actively tracking Online, light blue Online/Away otherwise."""
         if self.status() in ("invisible", "offline"):
             return "muted"
-        return "name_drawing" if self.active_program else "name_online"
+        return "name_drawing" if self.status() == "online" and self.display_program else "name_online"
 
     def status(self) -> str:
         status = self.app.settings.get("friends_status")
@@ -172,6 +172,7 @@ class FriendsSync:
         change in what friends would see as drawing now is sent once it has lasted, and no sooner than a minute after
         the last check-in"""
         now = time.monotonic()
+        self.display_program = program
         self.present = present
         if program:
             self.last_active_time = now
@@ -179,14 +180,16 @@ class FriendsSync:
         elif self.active_program and now - self.last_active_time > ACTIVE_LINGER_SECONDS:
             self.active_program = None
         if self.enabled():
-            # The name turns green while drawing, blue again after
+            # The name follows live activity; Away remains blue.
             header = self.app.header
             name_color = self.header_name_color()
             if header.account_color != name_color and not header.settings_shown:
                 header.account_color = name_color
                 header.update()
         if not self.enabled():
+            self._refresh_header_status()
             return
+        self._refresh_header_status()
         since = now - self.last_sync
         # Starting or stopping drawing is told to friends, if there are any to tell
         drawing_changed = self.shown_program() != self.reported_active and self.has_friends()
@@ -399,10 +402,15 @@ class FriendsSync:
 
     def refresh_view(self) -> None:
         self.module.show_view(self.view())
+        self._refresh_header_status()
+
+    def _refresh_header_status(self) -> None:
         # The status menu is offered next to the account name while friends are on
         header = self.app.header
         status = self.status() if self.enabled() else None
-        shown = (self.enabled(), STATUS_LABELS.get(status, ""), STATUS_COLORS.get(status, "muted"))
+        drawing = self.display_program if status == "online" else None
+        shown = (self.enabled(), drawing or STATUS_LABELS.get(status, ""),
+                 "active_green" if drawing else STATUS_COLORS.get(status, "muted"))
         if (header.status_arrow_shown, header.status_text, header.status_color) != shown:
             header.status_arrow_shown, header.status_text, header.status_color = shown
             header.update()

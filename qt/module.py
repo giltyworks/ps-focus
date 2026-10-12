@@ -18,6 +18,8 @@ MODULE_TITLE_PADDING = 5
 # The corners of a rounded button, as widgets.BUTTON_CORNER_RADIUS, and of the box behind a button under the mouse
 BUTTON_CORNER_RADIUS = 6
 HOVER_BOX_RADIUS = 4
+# All dropdowns share the friend menu button dimensions.
+DROPDOWN_BUTTON_SIZE = 16
 # The dock icon at the right of a floating module's name row: the square it takes
 DOCK_CONTROL_SIZE = 18
 # Space between the line under the name strip and the module's contents
@@ -39,6 +41,25 @@ def paint_title_strip(painter: QPainter, rect: QRect, hovered: bool, alpha: int 
     painter.fillRect(rect, fill)
     if line:
         painter.fillRect(rect.left(), rect.bottom() + 1, rect.width(), 1, edge)
+    painter.restore()
+
+
+def paint_dropdown_arrow(painter: QPainter, rect: QRectF, hovered: bool = False,
+                         alpha: int = 255, middle_y: float | None = None) -> None:
+    """Shared dropdown chevron; its glyph stays visible even on translucent panels."""
+    painter.save()
+    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+    if hovered:
+        fill = color("border")
+        fill.setAlpha(alpha)
+        paint_hover_box(painter, rect, fill)
+    pen = QPen(color("muted"), 1.4)
+    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.setPen(pen)
+    x = rect.x() + rect.width() / 2
+    y = rect.y() + rect.height() / 2 if middle_y is None else middle_y
+    painter.drawPolyline([QPointF(x - 3, y - 1.5), QPointF(x, y + 1.5), QPointF(x + 3, y - 1.5)])
     painter.restore()
 
 

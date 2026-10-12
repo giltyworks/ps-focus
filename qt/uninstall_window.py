@@ -6,7 +6,7 @@ from __future__ import annotations
 import sys
 from typing import Callable
 
-from PySide6.QtCore import QPointF, QRectF, Qt
+from PySide6.QtCore import QPointF, Qt
 from PySide6.QtGui import QIcon, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
 
@@ -15,7 +15,7 @@ from uninstall import DONE_MESSAGE_DELETED, DONE_MESSAGE_KEPT, WARNING_MESSAGE, 
 from windows_startup import set_title_bar_colors_for_handle
 
 from .header import draw_checkbox
-from .module import PaintedButton, paint_hover_box
+from .module import PaintedButton
 from .settings_page import wrap
 from .theme import Fonts, color, draw_text, line_height, text_width
 
