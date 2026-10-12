@@ -25,7 +25,12 @@ body_class: home
 <div class="note" markdown="1">
 Free and [open source](https://github.com/giltyworks/ps-focus) · Windows 10 and 11 (64-bit)
 
-The app isn't code-signed yet, so you may see warnings. Your browser may say the file isn't commonly downloaded: choose to keep it (in Edge, **⋯** › **Keep** › **Keep anyway**). Then Windows may say "Windows protected your PC": choose **More info**, then **Run anyway**. Each release lists a SHA-256 checksum for checking your download.
+The app isn't code-signed yet, so you may see two warnings:
+
+- If your browser says the file isn't commonly downloaded, keep it. In Edge, choose **⋯**, then **Keep**, then **Keep anyway**.
+- If Windows says "Windows protected your PC", choose **More info**, then **Run anyway**.
+
+Each release lists a SHA-256 checksum for checking your download.
 </div>
 
 <div class="hero-features" markdown="1">
