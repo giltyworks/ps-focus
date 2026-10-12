@@ -870,7 +870,6 @@ class PSFocusQt:
         self.application.quit()
 
 
-
 class InstantTips(QProxyStyle):
     """The app's look, with tooltips shown as soon as the mouse is over what they explain"""
 

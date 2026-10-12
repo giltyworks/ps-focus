@@ -1513,10 +1513,12 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
   const TUG_REACH = 36;
   const TUG_START = 6;
   const UNTUGGED = "button, input, label, .psf-day, .psf-grip, .psf-account-name, .psf-request-row, .psf-chart-box, .psf-menu, .psf-scroll-edge, .psf-friend-list";
-  // The window and its arrows move together; on a phone the arrows all point at the window
+  // The window and its arrows move together; on a phone the arrows all point at the window. The window keeps its
+  // glass fading as it moves, see .psf-window's transition in demo.css
+  const GLASS_TRANSITION = "--a .3s, --g .3s";
   function tug(transition, offset = "") {
     for (const node of [win, hotspots]) {
-      node.style.transition = transition;
+      node.style.transition = node === win ? (transition === "none" ? GLASS_TRANSITION : `${GLASS_TRANSITION}, ${transition}`) : transition;
       node.style.translate = offset;
     }
   }

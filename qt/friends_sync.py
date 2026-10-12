@@ -56,7 +56,6 @@ SAMPLE_FRIENDS = (
 )
 
 
-
 def friend_order(person: tuple) -> tuple:
     """Favourites, then those drawing, the others online, then those offline; in each by hours over the past two weeks"""
     sections = {"Favourites": 0, "In App": 1, "Online": 2, "Offline": 3}
