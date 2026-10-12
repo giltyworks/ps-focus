@@ -1651,9 +1651,12 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     hotspots.replaceChildren();
     // A few at a time, in order; one that would land on an arrow already placed gives way to the next
     const placed = [];
+    // Placed where the window rests: while it is tugged, or springing back, the arrows are moved with it, see tug
+    const [tugX = 0, tugY = 0] = (getComputedStyle(win).translate.match(/-?[\d.]+/g) || []).map(Number);
     for (const spot of waiting) {
       if (placed.length >= TIPS_AT_ONCE) break;
-      const [x, y, direction] = spot.at(rect(spot.target()));
+      let [x, y, direction] = spot.at(rect(spot.target()));
+      if (win.contains(spot.target())) { x -= tugX; y -= tugY; }
       // An arrow in the app's blue, its tip at the point, nudging towards the feature
       const dot = el("button", { type: "button", class: `psf-hotspot psf-point-${direction}`, "aria-label": spot.text },
         svg('<path d="M1 7H10M6 2.5L10.5 7L6 11.5" stroke-width="2.4"/>', 18));
