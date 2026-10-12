@@ -282,7 +282,9 @@
 
 .psf-toast {
   position: absolute; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 40; background: #151515; border: 1px solid #2c2c2c;
-  border-radius: 6px; padding: 8px 12px; font-size: 13.333px; color: var(--psf-text); text-shadow: none; white-space: nowrap; pointer-events: none;
+  border-radius: 6px; padding: 8px 12px; font-size: 13.333px; color: var(--psf-text); text-shadow: none; pointer-events: none;
+  /* One line when it fits, wrapping inside the scene when it does not */
+  width: max-content; max-width: calc(100% - 24px); text-align: center; line-height: 1.4;
 }
 
 /* Settings, in the window as in the app */
@@ -407,6 +409,8 @@
   .psf-tip-wrap { max-width: 260px; }
   /* At 16 pixels, an iPhone types into a field without zooming the page in */
   .psf-demo input[type="text"] { font-size: 16px; }
+  /* A note shows at the foot of the screen, where it is seen, rather than the scene's, which may be out of view */
+  .psf-toast { position: fixed; bottom: 24px; max-width: calc(100vw - 32px); font-size: 14px; }
   .psf-scroll-edge { display: block; position: absolute; top: 28px; bottom: 0; width: 22px; z-index: 5; touch-action: pan-y pinch-zoom; }
   .psf-scroll-edge-left { left: 0; }
   .psf-scroll-edge-right { right: 0; }
