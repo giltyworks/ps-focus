@@ -1289,3 +1289,23 @@ class DevToolsTests(unittest.TestCase):
         left, top, right, bottom = self.app.docking.main_bounds()
         self.assertFalse(menu.geometry().intersects(QRect(left, top, right - left, bottom - top)), (menu.geometry(), (left, top, right, bottom), screen))
         menu.close()
+
+    def test_the_dev_menu_stays_open_until_the_badge_is_clicked_again(self):
+        from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+
+        self.app.window.show()
+        self.tools.open_menu(QPoint(0, 0))
+        panel = self.tools.panel
+        self.assertTrue(panel.isVisible())
+        key, _name, _note, area = next(row for row in panel.rows if row[0] == "hour")
+        point = QPointF(area.center())
+        for kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
+            QApplication.sendEvent(panel, QMouseEvent(kind, point, QPointF(panel.mapToGlobal(point)), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+        self.assertAlmostEqual(self.app.store.total_for_day(date.today()), 3600, delta=1)
+        self.assertTrue(panel.isVisible())
+        # Turning sample friends on redraws it in place, still open
+        self.tools.choose("sample_friends")
+        self.assertTrue(self.tools.panel.isVisible())
+        self.tools.open_menu(QPoint(0, 0))
+        self.assertIsNone(self.tools.panel)

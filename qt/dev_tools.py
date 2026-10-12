@@ -7,7 +7,8 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
 
-from PySide6.QtCore import QPoint
+from PySide6.QtCore import QPoint, Qt
+from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 
 from app_config import APP_NAME, LEVEL_HOURS, user_level
@@ -21,14 +22,44 @@ PROGRAM = "Photoshop"
 GOLD_RANK = 10
 
 
+class DevPanel(PopupMenu):
+    """The menu kept open beside the window, rather than closing at the first click elsewhere: a tool window that
+    stays until the DEV badge is clicked again, choosing as often as wanted"""
+
+    def __init__(self, parent, fonts, choices, on_chosen) -> None:
+        super().__init__(parent, fonts, choices, None, on_chosen, min_width=220)
+        self.setWindowFlags(Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
+
+    def mousePressEvent(self, event: QMouseEvent) -> None:
+        self.pressed = self.rect().contains(event.position().toPoint())
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        key = self._row_at(event.position().toPoint())
+        if self.pressed and event.button() == Qt.MouseButton.LeftButton and key is not None:
+            self.on_chosen(key)
+        self.pressed = False
+
+    def leaveEvent(self, _event) -> None:
+        if self.hovered is not None:
+            self.hovered = None
+            self.update()
+
+
 class DevTools:
     def __init__(self, app) -> None:
         self.app = app
         self.requests_made = 0
+        self.panel: DevPanel | None = None
 
     def open_menu(self, point: QPoint) -> None:
-        if not PopupMenu.opens("dev"):
+        """The DEV badge opens the panel, and closes it again"""
+        if self.panel is not None:
+            self.panel.close()
+            self.panel = None
             return
+        self._show_panel(point)
+
+    def _show_panel(self, point: QPoint) -> None:
         friends = self.app.friends_sync
         choices = [
             ("level_up", "Level up", "Adds the hours to reach the next level"),
@@ -43,15 +74,16 @@ class DevTools:
             ("sample_friends", f"Sample friends: {'on' if friends.sample_friends else 'off'}", "Shown signed out too"),
             ("request", "Get a friend request", "Accept or decline it in Friends"),
         ]
-        menu = PopupMenu(self.app.window, self.app.fonts, choices, None, self.choose, min_width=220, opener="dev")
+        self.panel = panel = DevPanel(self.app.window, self.app.fonts, choices, self.choose)
+        panel.destroyed.connect(lambda: setattr(self, "panel", None) if self.panel is panel else None)
         # Beside the window rather than over it, so what a tool changes stays in view: to its right, or its left when
         # the screen has no room there; with room on neither side, the roomier one
         left, top, right, _bottom = self.app.docking.main_bounds()
         screen = (QApplication.screenAt(point) or self.app.window.screen()).availableGeometry()
         room_right, room_left = screen.right() + 1 - right, left - screen.left()
-        fits_right = room_right >= menu.width() + 4
-        x = right + 4 if fits_right or (room_left < menu.width() + 4 and room_right >= room_left) else left - 4 - menu.width()
-        menu.show_at(QPoint(x, top))
+        fits_right = room_right >= panel.width() + 4
+        x = right + 4 if fits_right or (room_left < panel.width() + 4 and room_right >= room_left) else left - 4 - panel.width()
+        panel.show_at(QPoint(x, top))
 
     def choose(self, key: str) -> None:
         getattr(self, key)()
@@ -132,6 +164,12 @@ class DevTools:
         friends = self.app.friends_sync
         friends.sample_friends = not friends.sample_friends
         friends.refresh_view()
+        if self.panel is not None:
+            # Its row says on or off, so the panel is made again where it stood
+            where = self.panel.pos()
+            self.panel.close()
+            self._show_panel(where)
+            self.panel.move(where)
 
     def request(self) -> None:
         self.requests_made += 1
