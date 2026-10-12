@@ -109,7 +109,9 @@ class PSFocusQt:
         # While the transparency slider is open, everything shows the transparency being chosen, see update_glass
         self.transparency_previewing = False
         self.modules_were_hidden = True
-        self.window = MainWindow(on_close=self.window_hidden, on_resized_by_user=self._window_width_chosen, fonts=self.fonts)
+        self.window = MainWindow(
+            on_close=self.close, on_resized_by_user=self._window_width_chosen, fonts=self.fonts, on_minimize=self.window_hidden,
+        )
         self.header = Header(self.fonts)
         self.module_ticked = {name: bool(self.settings.get(f"show_{name}", True)) for name in MODULE_NAMES}
         self.module_controls = ModuleControls(self.fonts, self.module_ticked, self._module_toggled, self._open_transparency)
@@ -199,13 +201,19 @@ class PSFocusQt:
             self.update_timer.start()
         # Windows closing the app, for an installer upgrading it or for signing out or shutting down
         application.commitDataRequest.connect(lambda _manager: self.close())
-        if "--minimized" in sys.argv:
+        # Started minimised at sign-in, it is made as a minimised window, so it has all a shown one has, and then
+        # hidden in the tray as minimising does
+        minimized = "--minimized" in sys.argv
+        if minimized:
             self.window.showMinimized()
         else:
             self.window.show()
         # Where the window was left, and the modules floating then
         self.docking.restore()
         self.apply_always_on_top()
+        if minimized:
+            self.window.hide()
+            self.docking.sync_visibility(hidden=True)
 
     def _read_block_order(self) -> list[str]:
         """The saved order of the program panels and modules, with any missing added at the end; see the Tk
@@ -303,8 +311,8 @@ class PSFocusQt:
     def _title_bar_menu(self, point) -> None:
         if not PopupMenu.opens("title"):
             return
-        choices = [("always_on_top", "Always on top", ""), ("minimize", "Minimise", ""), ("close", "Close to the tray", "")]
-        chosen = {"always_on_top": self._toggle_always_on_top, "minimize": self.window.showMinimized, "close": self.window.close}
+        choices = [("always_on_top", "Always on top", ""), ("minimize", "Minimise to the tray", ""), ("close", "Exit", "")]
+        chosen = {"always_on_top": self._toggle_always_on_top, "minimize": self.window_hidden, "close": self.close}
         current = "always_on_top" if self.settings.get("always_on_top") else None
         PopupMenu(self.window, self.fonts, choices, current, lambda key: chosen[key](), opener="title").show_at(point)
 

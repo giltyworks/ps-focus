@@ -104,7 +104,10 @@ class MainWindow(QWidget):
     the window can be dragged narrower. Everything is placed by hand, as the header moves between the two
     """
 
-    def __init__(self, on_close: Callable[[], None], on_resized_by_user: Callable[[int], None] | None = None, fonts: Fonts | None = None) -> None:
+    def __init__(
+        self, on_close: Callable[[], None], on_resized_by_user: Callable[[int], None] | None = None, fonts: Fonts | None = None,
+        on_minimize: Callable[[], None] | None = None,
+    ) -> None:
         # Without Windows' frame, which cannot have a see-through background behind it: the window draws its own title
         # bar and edges, and its background turns to glass as a floating panel's does
         super().__init__(None, Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
@@ -127,7 +130,8 @@ class MainWindow(QWidget):
         self.setWindowIcon(QIcon(str(resource_path("assets/icons/PSFocus.ico"))))
         self.title_bar = TitleBar(self, fonts or Fonts())
         self.title_bar.on_close = self.close
-        self.title_bar.on_minimize = self.showMinimized
+        # Minimising hides it in the tray, where it keeps counting, see the app's window_hidden
+        self.title_bar.on_minimize = on_minimize or self.showMinimized
         # The blocks are placed in the container, which slides within the viewport
         self.viewport = QWidget(self)
         self.container = QWidget(self.viewport)
@@ -422,7 +426,7 @@ class MainWindow(QWidget):
         self.move(self.x() + round(right), self.y() - round(top))
 
     def closeEvent(self, event: QCloseEvent) -> None:
-        # The window's X hides the app to the tray, where it keeps counting
+        # The window's X, or Alt+F4, exits the app, which closes the window itself once it has saved
         event.ignore()
         self.on_close()
 

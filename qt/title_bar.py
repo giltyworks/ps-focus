@@ -119,7 +119,7 @@ class TitleBar(QWidget):
         button = self._button_at(event.position().toPoint())
         if button != self.hovered:
             self.hovered = button
-            self.setToolTip({"close": "Close to the tray", "minimize": "Minimise", "dev": "Developer tools"}.get(button, ""))
+            self.setToolTip({"close": "Exit", "minimize": "Minimise to the tray", "dev": "Developer tools"}.get(button, ""))
             self.update()
 
     def leaveEvent(self, _event) -> None:

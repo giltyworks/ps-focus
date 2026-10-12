@@ -835,21 +835,12 @@ class QtSettingsTests(unittest.TestCase):
         self.assertNotEqual(self.app.header.account_text, "test@example.com")
         self.assertFalse(controller.busy)
 
-    def test_close_event_hides_to_tray_and_tray_action_restores_tracking_window(self):
+    def test_minimise_hides_to_tray_and_tray_action_restores_tracking_window(self):
         from qt.app import PSFocusQt
 
         self.start_tray_icon(self.app)
         self.addCleanup(self.app.tray_icon.hide)
-        if self.application.platformName() == "windows":
-            import ctypes
-            from ctypes import wintypes
-            user32 = ctypes.WinDLL("user32", use_last_error=True)
-            user32.PostMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
-            self.assertTrue(user32.PostMessageW(int(self.app.window.winId()), 0x0010, 0, 0))  # WM_CLOSE
-            from PySide6.QtTest import QTest
-            QTest.qWait(100)
-        else:
-            self.app.window.close()
+        self.app.window.title_bar.on_minimize()
         self.application.processEvents()
         self.assertFalse(self.app.window.isVisible())
         self.assertFalse(self.app.closing)
@@ -862,6 +853,13 @@ class QtSettingsTests(unittest.TestCase):
         self.application.processEvents()
         self.assertTrue(self.app.window.isVisible())
         self.assertFalse(self.app.window.isMinimized())
+
+    def test_the_windows_close_exits_the_app(self):
+        # Its X, Alt+F4 or Windows' own close: PS Focus exits rather than hiding in the tray
+        with patch.object(self.app, "close") as close:
+            self.app.window.on_close = close
+            self.app.window.close()
+        close.assert_called_once()
 
     def test_pause_checkbox_mouse_click_stops_and_resumes_timer_tracking(self):
         from PySide6.QtCore import QPoint, Qt
