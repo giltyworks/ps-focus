@@ -403,6 +403,8 @@
   .psf-point-down { margin: -30px 0 0 -15px; --nudge-y: 5px; }
   .psf-tip { font-size: 14px; padding: 8px 11px; }
   .psf-tip-wrap { max-width: 260px; }
+  /* At 16 pixels, an iPhone types into a field without zooming the page in */
+  .psf-demo input[type="text"] { font-size: 16px; }
   .psf-scroll-edge { display: block; position: absolute; top: 28px; bottom: 0; width: 22px; z-index: 5; touch-action: pan-y; }
   .psf-scroll-edge-left { left: 0; }
   .psf-scroll-edge-right { right: 0; }

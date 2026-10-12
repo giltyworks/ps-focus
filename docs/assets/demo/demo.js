@@ -749,7 +749,8 @@
     const shown = state.nicknames.get(friend.code) || friend.name;
     const name = el("span", { class: `psf-name ${nameClass}` }, shown);
     if (state.nicknaming === friend.code) {
-      // The nickname is typed over the name: Enter keeps it, Escape or clicking elsewhere leaves it as it was
+      // The nickname is typed over the name: Enter keeps it, Escape or clicking elsewhere leaves it as it was. On a
+      // phone, whose keyboard is put away with Done, putting it away keeps what was typed
       const field = el("input", { type: "text", class: "psf-nick-input", maxlength: 32, value: shown, placeholder: "Nickname", "aria-label": "Nickname" });
       const finish = (keep) => {
         if (state.nicknaming !== friend.code) return;
@@ -758,7 +759,7 @@
         renderFriends();
       };
       field.addEventListener("keydown", (event) => { if (event.key === "Enter") finish(true); if (event.key === "Escape") finish(false); });
-      field.addEventListener("blur", () => finish(false));
+      field.addEventListener("blur", () => finish(touch.matches));
       name.replaceChildren(field);
       setTimeout(() => { field.focus(); field.select(); });
     }
@@ -867,7 +868,12 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     const nickname = state.nicknames.get(friend.code);
     openMenu(anchor, [
       el("button", { type: "button", onclick: () => { favourite ? state.favourites.delete(friend.code) : state.favourites.add(friend.code); closeMenu(); renderFriends(); } }, favourite ? "Remove from favourites" : "Add to favourites"),
-      el("button", { type: "button", onclick: () => { closeMenu(); state.nicknaming = friend.code; renderFriends(); } }, nickname ? "Change nickname" : "Set nickname"),
+      el("button", { type: "button", onclick: () => {
+        closeMenu(); state.nicknaming = friend.code; renderFriends();
+        // Focused within the tap itself, as a phone shows its keyboard only then
+        const field = friendList.querySelector(".psf-nick-input");
+        if (field) { field.focus(); field.select(); }
+      } }, nickname ? "Change nickname" : "Set nickname"),
       nickname ? el("button", { type: "button", onclick: () => { state.nicknames.delete(friend.code); closeMenu(); renderFriends(); } }, "Clear nickname") : null,
       el("button", { type: "button", class: "psf-danger", onclick: () => { state.friends = state.friends.filter((f) => f !== friend); closeMenu(); renderFriends(); toast(`${nickname || friend.name} removed`); } }, "Remove friend"),
     ]);
