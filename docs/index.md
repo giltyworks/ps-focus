@@ -39,13 +39,13 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 
 <section class="try" id="try" markdown="0">
   <h2>Try it</h2>
-  <p class="try-intro">A simplified demo, not the app itself, so some things differ. <span class="psf-pointer-only">Drag the window around; the arrows show the rest.</span><span class="psf-touch-only">Tap around; the arrows show the rest. On a computer you can also drag the window around.</span></p>
+  <p class="try-intro"><span class="psf-pointer-only">A simplified demo, not the app itself, so some things differ. Drag the window around; the arrows show the rest.</span><span class="psf-touch-only">A simplified demo of the Windows app, best tried on a computer. Tap around; the arrows show the rest.</span></p>
   <div class="psf-demo" data-painting="{{ '/assets/demo/sorolla.jpg' | relative_url }}" data-logo="{{ '/assets/logo-v2.png' | relative_url }}"></div>
   <p class="caption">Sample data and made-up friends; nothing you do here is sent anywhere. Painting: Joaquín Sorolla, <em>Strolling along the Seashore</em> (1909), public domain.</p>
   <noscript><p class="caption">The demo needs JavaScript.</p></noscript>
 </section>
-<link rel="stylesheet" href="{{ '/assets/demo/demo.css' | relative_url }}?v=1.1.25c">
-<script src="{{ '/assets/demo/demo.js' | relative_url }}?v=1.1.25c" defer></script>
+<link rel="stylesheet" href="{{ '/assets/demo/demo.css' | relative_url }}?v=1.1.25d">
+<script src="{{ '/assets/demo/demo.js' | relative_url }}?v=1.1.25d" defer></script>
 
 <figure class="wide-shot">
   <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1495" height="228" alt="PS Focus in landscape: today's time in Photoshop, then friends and their hours, the hours graph and the October calendar side by side in one wide, short window">

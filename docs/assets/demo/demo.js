@@ -1583,6 +1583,8 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     if (!hotspots.isConnected) return;
     const waiting = HOTSPOTS.filter((spot) => {
       if (used.has(spot.id)) return false;
+      // On a phone the window and its panels stay put, and the line above the demo says how the fading works
+      if (touch.matches && (spot.id === "drag" || spot.id === "fade")) return false;
       const target = spot.target();
       return target && target.offsetParent !== null && !target.closest("[hidden]");
     });
