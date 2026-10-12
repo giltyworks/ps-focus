@@ -1274,3 +1274,18 @@ class DevToolsTests(unittest.TestCase):
             QApplication.sendEvent(bar, QMouseEvent(kind, point, QPointF(bar.mapToGlobal(point)), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
         self.assertEqual(len(opened), 1)
         self.assertTrue(bar.interactive_at(point.toPoint()))
+
+    def test_the_dev_menu_opens_beside_the_window_not_over_it(self):
+        from PySide6.QtCore import QPoint, QRect
+        from qt.status_menu import PopupMenu
+
+        self.app.window.show()
+        screen = self.app.window.screen().availableGeometry()
+        self.app.window.move(screen.left(), screen.top() + 100)
+        self.application.processEvents()
+        PopupMenu.dismissed = None
+        self.tools.open_menu(QPoint(screen.left() + 120, screen.top() + 120))
+        menu = next(widget for widget in QApplication.topLevelWidgets() if isinstance(widget, PopupMenu) and widget.isVisible())
+        left, top, right, bottom = self.app.docking.main_bounds()
+        self.assertFalse(menu.geometry().intersects(QRect(left, top, right - left, bottom - top)), (menu.geometry(), (left, top, right, bottom), screen))
+        menu.close()

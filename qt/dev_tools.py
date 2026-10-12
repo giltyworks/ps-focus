@@ -8,6 +8,7 @@ from __future__ import annotations
 from datetime import date, datetime, time, timedelta
 
 from PySide6.QtCore import QPoint
+from PySide6.QtWidgets import QApplication
 
 from app_config import APP_NAME, LEVEL_HOURS, user_level
 from tracker import activity_slices
@@ -42,7 +43,15 @@ class DevTools:
             ("sample_friends", f"Sample friends: {'on' if friends.sample_friends else 'off'}", "Shown signed out too"),
             ("request", "Get a friend request", "Accept or decline it in Friends"),
         ]
-        PopupMenu(self.app.window, self.app.fonts, choices, None, self.choose, min_width=220, opener="dev").show_at(point)
+        menu = PopupMenu(self.app.window, self.app.fonts, choices, None, self.choose, min_width=220, opener="dev")
+        # Beside the window rather than over it, so what a tool changes stays in view: to its right, or its left when
+        # the screen has no room there; with room on neither side, the roomier one
+        left, top, right, _bottom = self.app.docking.main_bounds()
+        screen = (QApplication.screenAt(point) or self.app.window.screen()).availableGeometry()
+        room_right, room_left = screen.right() + 1 - right, left - screen.left()
+        fits_right = room_right >= menu.width() + 4
+        x = right + 4 if fits_right or (room_left < menu.width() + 4 and room_right >= room_left) else left - 4 - menu.width()
+        menu.show_at(QPoint(x, top))
 
     def choose(self, key: str) -> None:
         getattr(self, key)()
