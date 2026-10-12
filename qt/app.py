@@ -904,7 +904,7 @@ def main(preview: bool, smoke_test: bool = False, dev: bool = False) -> None:
     # The small tooltips on buttons are dark like the app's own tips, see hover_tip
     application.setStyleSheet("QToolTip { background: #151515; color: #eef3f1; border: 1px solid #2c2c2c; padding: 4px 6px; }")
     # And at once, as the calendar's and friends' own tips, rather than after Windows' usual wait
-    application.setStyle(InstantTips(application.style()))
+    application.setStyle(InstantTips())
     app = PSFocusQt(application, instance, dev)
     if dev:
         app.window.setWindowTitle("PS Focus Dev")

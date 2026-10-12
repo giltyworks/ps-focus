@@ -1345,4 +1345,4 @@ class DevToolsTests(unittest.TestCase):
         from PySide6.QtWidgets import QStyle
         from qt.app import InstantTips
 
-        self.assertEqual(InstantTips(self.application.style()).styleHint(QStyle.StyleHint.SH_ToolTip_WakeUpDelay), 0)
+        self.assertEqual(InstantTips().styleHint(QStyle.StyleHint.SH_ToolTip_WakeUpDelay), 0)
