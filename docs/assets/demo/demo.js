@@ -81,7 +81,7 @@
     todayProgram: "Photoshop",
     programSeconds: { "Krita": 0, "Clip Studio Paint": 0, "PhotoCraft": 0 },
     drawing: true,
-    transparency: 75,
+    transparency: 25,
     period: "3 Months",
     calendarView: "Month",
     calendarMonth: new Date(today.getFullYear(), today.getMonth(), 1),
