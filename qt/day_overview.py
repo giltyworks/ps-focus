@@ -6,7 +6,7 @@ from datetime import date
 from typing import Callable
 
 from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QIcon, QKeyEvent, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtGui import QColor, QIcon, QKeyEvent, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QDialog, QWidget
 
 from app_config import format_duration, resource_path
@@ -15,7 +15,7 @@ from tracker import ActivityStore
 from windows_startup import set_title_bar_colors_for_handle
 
 from .icons import icon
-from .theme import Fonts, color, draw_text, line_height, text_width
+from .theme import Fonts, color, draw_outline_text, draw_text, line_height, text_width
 
 # Laid out as the Tk dialog was packed, see ui_calendar._open_day_overview. A Tk label kept its text this far from
 # its edges, two pixels of border and one of padding, which its height and the rows' spacing still follow
@@ -24,7 +24,10 @@ AWARD_BADGE_SIZE = 16
 # Pixels the award is nudged down so its middle lines up with the middle of the text beside it
 AWARD_BADGE_DROP = 5
 STAR_COUNT = 10
-EMPTY_STAR, FULL_STAR = "\U00002606", "\U00002605"
+# The rating star as the calendar and stats show it: the star emoji drawn as a plain shape, gold up to the rating and
+# a dim grey after it
+STAR = "\U00002b50"
+UNRATED_STAR = "#5c5c5c"
 
 
 class DayOverview(QDialog):
@@ -100,7 +103,7 @@ class DayOverview(QDialog):
                 detail += f" · started {format_clock(started_at)}"
             rows.append((application, detail))
             widths.append(2 * 16 + 2 + 2 * 10 + text_width(fonts.small, application) + text_width(fonts.small, detail) + 4 * LABEL_INSET)
-        stars_width = 14 + STAR_COUNT * (text_width(fonts.rating_star, EMPTY_STAR) + 4 + 2) + 14
+        stars_width = 14 + STAR_COUNT * (text_width(fonts.rating_star, STAR) + 4 + 2) + 14
         widths.append(stars_width)
         width = max(widths)
         if rows:
@@ -120,7 +123,7 @@ class DayOverview(QDialog):
             self.panel = None
         self.pieces.append(("text", 16 + LABEL_INSET, top + LABEL_INSET, "How productive was this session?", "text", fonts.bold))
         top += bold + 2 * LABEL_INSET + 6
-        star_width = text_width(fonts.rating_star, EMPTY_STAR) + 4
+        star_width = text_width(fonts.rating_star, STAR) + 4
         star_height = line_height(fonts.rating_star) + 2 * LABEL_INSET
         # Ten stars for the ratings 1 to 10, each in its own area that a click rates by
         self.star_areas = [(14 + 1 + index * (star_width + 2), top, star_width, star_height) for index in range(STAR_COUNT)]
@@ -144,9 +147,8 @@ class DayOverview(QDialog):
                 draw_text(painter, left, top, text, color(color_name), font)
         for value, (left, top, _width, _height) in enumerate(self.star_areas, start=1):
             filled = value <= self.rating
-            draw_text(
-                painter, left + 2, top + LABEL_INSET, FULL_STAR if filled else EMPTY_STAR,
-                color("gold" if filled else "muted"), self.fonts.rating_star,
+            draw_outline_text(
+                painter, left + 2, top + LABEL_INSET, STAR, color("gold") if filled else QColor(UNRATED_STAR), self.fonts.rating_star,
             )
         painter.end()
 

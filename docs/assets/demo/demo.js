@@ -169,7 +169,7 @@
     return picture(`<mask id="${id}"><rect width="14" height="14" fill="#fff"/><circle cx="9.24" cy="5.6" r="5.04" fill="#000"/></mask><circle cx="7" cy="7" r="6.16" fill="#3d5ce6" mask="url(#${id})"/>`, 14, "psf-streak-icon");
   };
   // The rating star: the emoji's outline in one colour, as the app draws it
-  const ratingStar = () => picture('<path d="M7 1.3l1.62 3.5 3.83.42-2.86 2.6.8 3.77L7 9.66l-3.39 1.93.8-3.77-2.86-2.6 3.83-.42z" fill="currentColor" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>', 12, "psf-star-icon");
+  const ratingStar = (size = 12) => picture('<path d="M7 1.3l1.62 3.5 3.83.42-2.86 2.6.8 3.77L7 9.66l-3.39 1.93.8-3.77-2.86-2.6 3.83-.42z" fill="currentColor" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>', size, "psf-star-icon");
   const PERSON = '<circle cx="7" cy="4.2" r="2.6" fill="currentColor" stroke="none"/><path d="M1.6 13C1.6 8 12.4 8 12.4 13Z" fill="currentColor" stroke="none"/>';
   const PERSON_PLUS = '<circle cx="6" cy="4.2" r="2.4" fill="currentColor" stroke="none"/><path d="M1 13C1 8.4 11 8.4 11 13Z" fill="currentColor" stroke="none"/><circle cx="11" cy="10.4" r="3.4" fill="#080808" stroke="none"/><circle cx="11" cy="10.4" r="2.4" stroke-width="1.1"/><path d="M9.8 10.4H12.2M11 9.2V11.6" stroke-width="1.1"/>';
 
@@ -546,11 +546,10 @@
     const dialog = el("div", { class: "psf-day-overview", role: "dialog", "aria-label": `${longDate(date)} overview` });
     const stars = el("div", { class: "psf-stars" });
     const paintStars = (shown) => [...stars.children].forEach((star, index) => {
-      star.textContent = index < shown ? "★" : "☆";
       star.classList.toggle("psf-lit", index < shown);
     });
     for (let value = 1; value <= 10; value++) {
-      const star = el("button", { type: "button", class: "psf-star", "aria-label": `Rate ${value} out of 10` }, "☆");
+      const star = el("button", { type: "button", class: "psf-star", "aria-label": `Rate ${value} out of 10` }, ratingStar(20));
       star.addEventListener("pointerenter", () => paintStars(value));
       star.addEventListener("click", () => {
         if (ratings.get(key(date)) === value) ratings.delete(key(date));
