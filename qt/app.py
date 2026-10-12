@@ -176,6 +176,10 @@ class PSFocusQt:
         )
         self.google_sync = GoogleSync(self, client)
         self.friends_sync = FriendsSync(self, self.friends, FriendsService(client.identity_token))
+        if dev:
+            # The developer version shows the made-up friends from the start; its menu turns them off
+            self.friends_sync.sample_friends = True
+            self.friends_sync.refresh_view()
         self.settings_page.backup_button.command = lambda: self._backup_activity_now(force=True)
         self._backup_activity_now()
         self.backup_timer = QTimer(interval=BACKUP_INTERVAL_MS, timeout=self._backup_activity_now)

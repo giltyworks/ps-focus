@@ -1344,3 +1344,14 @@ class DevToolsTests(unittest.TestCase):
         from qt.app import InstantTips
 
         self.assertEqual(InstantTips().styleHint(QStyle.StyleHint.SH_ToolTip_WakeUpDelay), 0)
+
+    def test_the_dev_version_starts_with_sample_friends(self):
+        from qt.app import PSFocusQt
+
+        self.app.store.close()
+        app = PSFocusQt(self.application, dev=True)
+        self.addCleanup(app.store.close)
+        self.addCleanup(app.window.hide)
+        for timer in (app.tick_timer, app.focus_timer, app.poll_timer, app.backup_timer):
+            timer.stop()
+        self.assertTrue(app.friends_sync.sample_friends)
