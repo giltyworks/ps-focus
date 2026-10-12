@@ -289,8 +289,9 @@
 .psf-credit { flex: 1; display: flex; align-items: center; }
 .psf-version { font-size: 12px; color: var(--psf-muted); }
 .psf-by { flex: 1; text-align: center; color: var(--psf-green); font-size: 14.667px; margin-right: 54px; }
-.psf-settings-page { padding: 0 8px 8px; background: rgba(var(--psf-background), var(--a)); }
-.psf-settings-page h3 { font-size: 26.667px; font-weight: 600; margin: 6px 0 6px; color: var(--psf-text); }
+/* The heading's space above it is the page's own, so the page meets the header with no see-through gap */
+.psf-settings-page { padding: 6px 8px 8px; background: rgba(var(--psf-background), var(--a)); }
+.psf-settings-page h3 { font-size: 26.667px; font-weight: 600; margin: 0 0 6px; color: var(--psf-text); }
 .psf-settings-text { font-size: 13.333px; color: var(--psf-muted); margin: 0 0 10px; line-height: 1.35; }
 .psf-check-row { display: flex; justify-content: flex-end; gap: 14px; margin: 6px 0; font-size: 12px; color: var(--psf-muted); }
 .psf-check-label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
