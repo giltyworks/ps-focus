@@ -401,10 +401,11 @@
   .psf-friend-list { touch-action: pan-y pinch-zoom; }
   /* The arrows and their tips a size up, for a finger and a small screen */
   .psf-hotspot, .psf-hotspot svg { width: 30px; height: 30px; }
-  .psf-point-right { margin: -15px 0 0 -30px; --nudge-x: 5px; }
-  .psf-point-left { margin: -15px 0 0 0; --nudge-x: -5px; }
-  .psf-point-up { margin: 0 0 0 -15px; --nudge-y: -5px; }
-  .psf-point-down { margin: -30px 0 0 -15px; --nudge-y: 5px; }
+  /* Stopping a little short of the point, so even at the end of its nudge the bigger arrow does not cover it */
+  .psf-point-right { margin: -15px 0 0 -37px; --nudge-x: 5px; }
+  .psf-point-left { margin: -15px 0 0 7px; --nudge-x: -5px; }
+  .psf-point-up { margin: 7px 0 0 -15px; --nudge-y: -5px; }
+  .psf-point-down { margin: -37px 0 0 -15px; --nudge-y: 5px; }
   .psf-tip { font-size: 14px; padding: 8px 11px; }
   .psf-tip-wrap { max-width: 260px; }
   /* At 16 pixels, an iPhone types into a field without zooming the page in */
