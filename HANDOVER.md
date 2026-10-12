@@ -2,6 +2,14 @@
 
 Updated 12 October 2026. Read this before resuming work.
 
+## Full release rollup since 1.1.0
+
+Compared all commits v1.1.0..v1.1.21 and current implemented behaviour. Expanded published 1.1.21 What's new notes to cover the major omitted changes: Friends, presence choices, favourites/nicknames/sections, double-click details, custom Windows-aware title bar, compact layouts/Settings, transparent text readability, refined docking, consistent controls, calendar/Stats readouts, Today auto-follow, PhotoCraft, tracking reliability and interactive demo. Canonical notes are now versioned in release-notes/1.1.21.md. Kept Install formatting, exact existing asset/hash, and the UI-stall accuracy limitation. Published the expanded notes and verified the full body through the GitHub API. Installer assets were not replaced.
+
+## Stale local preview resolved
+
+User still saw old program copy and dead policy links because their browser URL was a file:// Claude scratchpad site_preview.html, not GitHub Pages. Inspected exact supplied file: old three-program text and href="#" policy placeholders. Live homepage and both policy pages were independently verified HTTP 200 with PhotoCraft. Replaced only the named temporary preview with a redirect to https://giltyworks.github.io/ps-focus/ and absolute fallback policy links; original preserved beside it as site_preview.before-live-redirect.html. No production code/deployment change was needed. Refreshing the user's existing preview tab now opens the live website.
+
 ## Release formatting and PhotoCraft website coverage
 
 Reformatted published v1.1.21 notes to match v1.1.0: What's new heading, bold feature lead-ins, Install heading, preservation/SmartScreen instructions and inline SHA-256. Kept the sampled-tracking/UI-stall limitation. Installer assets unchanged. Website hero already named PhotoCraft; now the feature list, shared footer, privacy and terms pages also include it. Source PRIVACY.md/TERMS.md synced to site, and privacy sampling language now says regularly rather than once per second. These policy text updates are website/source-only; existing published installer still embeds its original policy text until a future rebuild. Site tests/diff checks passed. Published website commit 694e8d4882f513fb54059c65b1bd7b99471ee78c; live homepage/footer, privacy and terms content verified. Published release notes verified through GitHub API.
