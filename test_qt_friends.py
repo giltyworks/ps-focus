@@ -243,6 +243,7 @@ class QtFriendsTests(unittest.TestCase):
             module = self.app.friends
             point = module._shown(module.name_rects["TEST0000"]).center()
             self.application.sendEvent(module, QMouseEvent(QEvent.Type.MouseButtonDblClick, QPointF(point), QPointF(module.mapToGlobal(point)), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+            self.application.sendEvent(module, QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(point), QPointF(module.mapToGlobal(point)), Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
             self.application.processEvents()
             module.details_dialog.close()
             self.application.processEvents()
@@ -256,7 +257,7 @@ class QtFriendsTests(unittest.TestCase):
             self.application.processEvents()
 
     def test_friend_details_open_on_double_click_including_scrolled_names(self):
-        from PySide6.QtCore import QEvent, QPointF, Qt
+        from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
         from PySide6.QtGui import QMouseEvent
         self.service.answer = server_state(friends=[
             {"code": f"TEST{i:04d}", "name": f"Friend {i}", "stats": {"two_weeks": 3, "total": 40, "since": "2025-03-14"}, "updated_at": 1000}
@@ -267,9 +268,14 @@ class QtFriendsTests(unittest.TestCase):
         for scrolled, code in ((False, "TEST0000"), (True, "TEST0007")):
             module.scroll = module.max_scroll if scrolled else 0
             module._layout()
-            point = module._shown(module.name_rects[code]).center()
+            # The name, or the line under it: the whole of a friend's rows
+            point = module._shown(module.name_rects[code]).center() + QPoint(0, module.name_rects[code].height() if scrolled else 0)
             event = QMouseEvent(QEvent.Type.MouseButtonDblClick, QPointF(point), QPointF(module.mapToGlobal(point)), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier)
+            module.details_dialog = None
             self.application.sendEvent(module, event)
+            # It opens once the button is let go
+            self.assertIsNone(module.details_dialog)
+            self.application.sendEvent(module, QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(point), QPointF(module.mapToGlobal(point)), Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
             self.application.processEvents()
             dialog = module.details_dialog
             self.assertTrue(dialog.isVisible())

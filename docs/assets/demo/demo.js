@@ -776,7 +776,8 @@
 ${friend.total.toFixed(1)} hrs total`
       + (friend.since ? `
 Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${friend.since.getFullYear()}` : "");
-    name.addEventListener("dblclick", (event) => {
+    // Anywhere on the friend's rows, as the app, but their menu arrow
+    row.addEventListener("dblclick", (event) => {
       if (event.target.closest("button, input")) return;
       event.stopPropagation(); hideTip();
       const sheet = el("div", { class: "psf-sheet", role: "dialog", "aria-label": `${shown} details` });

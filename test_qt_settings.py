@@ -357,6 +357,25 @@ class QtSettingsTests(unittest.TestCase):
         self.application.processEvents()
         self.assertFalse(panel.program_menu_open)
 
+    def test_a_calendar_day_opens_when_the_button_is_let_go(self):
+        from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+        from PySide6.QtWidgets import QApplication
+
+        calendar = self.app.calendar
+        calendar.refresh()
+        opened = []
+        calendar.on_open_day = opened.append
+        point = next(QPoint(x, y) for y in range(0, calendar.height(), 3) for x in range(0, calendar.width(), 3) if calendar._day_at(QPoint(x, y)))
+
+        def send(kind, buttons):
+            QApplication.sendEvent(calendar, QMouseEvent(kind, QPointF(point), QPointF(calendar.mapToGlobal(point)), Qt.MouseButton.LeftButton, buttons, Qt.KeyboardModifier.NoModifier))
+
+        send(QEvent.Type.MouseButtonPress, Qt.MouseButton.LeftButton)
+        self.assertEqual(opened, [])
+        send(QEvent.Type.MouseButtonRelease, Qt.MouseButton.NoButton)
+        self.assertEqual(opened, [calendar._day_at(point)])
+
     def test_windows_opened_from_the_app_get_no_handle_before_they_show(self):
         # Asking Windows for a window's handle before it is shown made it stop showing PS Focus's small redraws, so
         # hover, clicks and scrolling looked frozen after the rating or friend window had been open

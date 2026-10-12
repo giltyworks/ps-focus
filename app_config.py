@@ -1,4 +1,4 @@
-"""Paths, constants, colours, and default settings shared across PS Focus"""
+﻿"""Paths, constants, colours, and default settings shared across PS Focus"""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from pathlib import Path
 
 APP_NAME = "PS Focus"
 # Raise for every published build; the installer, the executable's file properties, and the update check all use it
-APP_VERSION = "1.1.24"
+APP_VERSION = "1.1.25"
 APP_PUBLISHER = "Giltyworks"
 APP_USER_MODEL_ID = "PSFocus.PSFocus"
 LEGACY_APP_NAME = "FocusTrace"
@@ -111,7 +111,7 @@ COLORS = {
     "accent": "#79d6bd",
     "accent_dark": "#284e45",
     "active_green": "#22c55e",
-    # Session days, checkboxes, the graph, and the progress dot. A royal blue (hue 229°) rather than the
+    # Session days, checkboxes, the graph, and the progress dot. A royal blue (hue 229Â°) rather than the
     # earlier #3478c9, which leaned towards green; white day numbers on it read at 4.8:1
     "calendar_blue": "#3d5ce6",
     "calendar_cell": "#151515",

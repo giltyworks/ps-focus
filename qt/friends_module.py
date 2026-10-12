@@ -277,6 +277,8 @@ class FriendsModule(ModuleBlock):
         # The part of the scroll bar under the mouse, see _scroll_part; and while its bar is dragged, where the press
         # was and how far the list was scrolled then
         self.hovered_scroll: str | None = None
+        # The friend whose figures open when the double-click's button is let go, see mouseDoubleClickEvent
+        self.details_pending: tuple[str, str] | None = None
         self.scroll_drag: tuple[int, int] | None = None
         # Buttons in the list scrolled partly out of view: drawn cut off, but not clickable
         self.clipped_buttons: list[PaintedButton] = []
@@ -666,18 +668,24 @@ class FriendsModule(ModuleBlock):
         hover_tip(self).hide_for(self)
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
+        # Anywhere on a friend's rows, as their highlight shows, but their menu arrow. Their figures open once the
+        # button is let go: a window opening while it is held takes the release, and PS Focus would go on thinking it
+        # held, missing the next click
         point = event.position().toPoint()
-        if event.button() == Qt.MouseButton.LeftButton and self._arrow_at(point) is None:
+        if event.button() == Qt.MouseButton.LeftButton and self._arrow_at(point) is None and self._scroll_part(point) is None:
             for area, code, name in self.person_areas:
-                strip = self.name_rects.get(code)
-                if strip is not None and self._shown(strip).contains(point):
-                    from .friend_details import FriendDetails
-                    self._hide_person_tip()
-                    self.details_dialog = FriendDetails(self.window(), self.fonts, name, self.person_details.get(code, ""))
-                    self.details_dialog.show_centred_on(self.window())
+                if area.intersected(self.list_rect).contains(point):
+                    self.details_pending = (code, name)
                     event.accept()
                     return
         super().mouseDoubleClickEvent(event)
+
+    def _open_details(self, code: str, name: str) -> None:
+        from .friend_details import FriendDetails
+
+        self._hide_person_tip()
+        self.details_dialog = FriendDetails(self.window(), self.fonts, name, self.person_details.get(code, ""))
+        self.details_dialog.show_centred_on(self.window())
 
     def _arrow_at(self, point: QPoint) -> str | None:
         """The friend whose menu arrow is here, if any"""
@@ -807,6 +815,11 @@ class FriendsModule(ModuleBlock):
             self._scroll_to(start_scroll + (point.y() - start_y) * self.max_scroll / room)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        pending, self.details_pending = self.details_pending, None
+        if pending is not None and event.button() == Qt.MouseButton.LeftButton:
+            self._open_details(*pending)
+            event.accept()
+            return
         if self.scroll_drag is not None and event.button() == Qt.MouseButton.LeftButton:
             self.scroll_drag = None
             self.hovered_scroll = self._scroll_part(event.position().toPoint())

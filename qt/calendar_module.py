@@ -91,6 +91,8 @@ class CalendarModule(ModuleBlock):
         self.drawn_state: tuple | None = None
         # The day under the mouse, whose square is drawn a shade lighter; and what the calendar was last drawn from
         self.hovered_day: date | None = None
+        # The day pressed on, which opens if the button is let go on it, see mouseReleaseEvent
+        self.pressed_day: date | None = None
         self.drawn_with: tuple | None = None
         self.picture: QPixmap | None = None
         self.day_boxes: list[DayBox] = []
@@ -451,10 +453,16 @@ class CalendarModule(ModuleBlock):
     def mousePressEvent(self, event: QMouseEvent) -> None:
         super().mousePressEvent(event)
         if event.button() == Qt.MouseButton.LeftButton:
-            day = self._day_at(event.position().toPoint())
-            if day is not None:
-                self._show_day_tip(None)
-                self.on_open_day(day)
+            self.pressed_day = self._day_at(event.position().toPoint())
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        # A day opens once the button is let go on it: a window opening while it is held takes the release, and PS
+        # Focus would go on thinking it held, missing the next click
+        super().mouseReleaseEvent(event)
+        pressed, self.pressed_day = self.pressed_day, None
+        if event.button() == Qt.MouseButton.LeftButton and pressed is not None and self._day_at(event.position().toPoint()) == pressed:
+            self._show_day_tip(None)
+            self.on_open_day(pressed)
 
     def _day_fill(self, day: date, active: bool) -> QColor:
         """A session day is blue; another day's square is grey, a shade lighter under the mouse as a button's box is,
