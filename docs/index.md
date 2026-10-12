@@ -39,7 +39,7 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 
 <section class="try" id="try" markdown="0">
   <h2>Try it</h2>
-  <p class="try-intro"><span class="psf-pointer-only">A simplified demo, not the app itself, so some things differ. Drag the window around; the arrows show the rest.</span><span class="psf-touch-only">PS Focus is made for Windows PCs, so the demo is limited on a phone. Tap around; the arrows show the rest.</span></p>
+  <p class="try-intro"><span class="psf-pointer-only">A simplified demo, not the app itself, so some things differ. Drag the window around; the arrows show the rest.</span><span class="psf-touch-only">A simplified demo, not the app itself, so some things differ. It's made for PCs, so it's limited on a phone; the arrows show the rest.</span></p>
   <div class="psf-demo" data-painting="{{ '/assets/demo/sorolla.jpg' | relative_url }}" data-logo="{{ '/assets/logo-v2.png' | relative_url }}"></div>
   <p class="caption">Sample data and made-up friends; nothing you do here is sent anywhere. Painting: Joaquín Sorolla, <em>Strolling along the Seashore</em> (1909), public domain.</p>
   <noscript><p class="caption">The demo needs JavaScript.</p></noscript>
