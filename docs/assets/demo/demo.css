@@ -394,6 +394,7 @@
   .psf-window { left: 50%; transform: translateX(-50%); }
   /* The window is tugged rather than the page scrolled, but for a band down each side; see TUG_REACH in demo.js */
   .psf-window { touch-action: none; }
+  .psf-friend-list { touch-action: pan-y; }
   .psf-scroll-edge { display: block; position: absolute; top: 28px; bottom: 0; width: 22px; z-index: 5; touch-action: pan-y; }
   .psf-scroll-edge-left { left: 0; }
   .psf-scroll-edge-right { right: 0; }

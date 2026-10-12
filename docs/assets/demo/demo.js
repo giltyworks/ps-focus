@@ -1502,10 +1502,11 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
   });
 
   // On a phone the window stays put, but it can be tugged from anywhere free: it gives a little, less the further it is
-  // pulled, and springs back once let go. What has a job of its own is left to it, and the graph to its readout
+  // pulled, and springs back once let go. What has a job of its own is left to it, the graph to its readout and the
+  // friends list to scrolling
   const TUG_REACH = 36;
   const TUG_START = 6;
-  const UNTUGGED = "button, input, label, .psf-day, .psf-grip, .psf-account-name, .psf-request-row, .psf-chart-box, .psf-menu, .psf-scroll-edge";
+  const UNTUGGED = "button, input, label, .psf-day, .psf-grip, .psf-account-name, .psf-request-row, .psf-chart-box, .psf-menu, .psf-scroll-edge, .psf-friend-list";
   win.addEventListener("pointerdown", (event) => {
     if (!touch.matches || !event.isPrimary || event.target.closest(UNTUGGED)) return;
     const start = { x: event.clientX, y: event.clientY };
