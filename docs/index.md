@@ -12,8 +12,13 @@ body_class: home
 <p class="what-sub">Free for Windows. Your hours become charts, a calendar, and a level.</p>
 
 <a class="button" id="download" href="https://github.com/giltyworks/ps-focus/releases/download/v1.1.26/PS-Focus-Setup-1.1.26.exe">Download for Windows</a> <a class="try-link" href="#try">or try it right here</a>
-<script>/* A phone can't run the installer, so it gets the release page to read instead */
-if (matchMedia("(max-width: 760px), (pointer: coarse)").matches) document.getElementById("download").href = "https://github.com/giltyworks/ps-focus/releases/latest";</script>
+<script>/* A PC downloads the installer and opens the release page beside it to read meanwhile; a phone can't run
+   the installer, so it gets the release page alone */
+(function () {
+  var button = document.getElementById("download"), release = "https://github.com/giltyworks/ps-focus/releases/latest";
+  if (matchMedia("(max-width: 760px), (pointer: coarse)").matches) button.href = release;
+  else button.addEventListener("click", function () { window.open(release, "_blank", "noopener"); });
+})();</script>
 
 </div>
 
