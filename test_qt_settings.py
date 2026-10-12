@@ -357,6 +357,29 @@ class QtSettingsTests(unittest.TestCase):
         self.application.processEvents()
         self.assertFalse(panel.program_menu_open)
 
+    def test_windows_opened_from_the_app_get_no_handle_before_they_show(self):
+        # Asking Windows for a window's handle before it is shown made it stop showing PS Focus's small redraws, so
+        # hover, clicks and scrolling looked frozen after the rating or friend window had been open
+        from datetime import date
+        from PySide6.QtCore import Qt
+        from PySide6.QtWidgets import QWidget
+        from qt.day_overview import DayOverview
+        from qt.feedback_dialog import FeedbackDialog
+        from qt.friend_details import FriendDetails
+        from qt.window import set_topmost
+
+        created = Qt.WidgetAttribute.WA_WState_Created
+        windows = [
+            DayOverview(self.app.window, self.app.fonts, self.app.store, date.today(), lambda _day, _rating: None),
+            FriendDetails(self.app.window, self.app.fonts, "Friend", "3.0 hrs past 2 weeks"),
+            FeedbackDialog(self.app.window, self.app.fonts, self.app.feedback, lambda: None, lambda: None),
+        ]
+        hidden = QWidget(self.app.window, Qt.WindowType.Tool)
+        set_topmost(hidden, True)
+        for window in windows + [hidden]:
+            self.assertFalse(window.testAttribute(created), type(window).__name__)
+            window.deleteLater()
+
     def test_transparency_icon_opens_its_slider(self):
         from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
         from PySide6.QtGui import QMouseEvent

@@ -308,6 +308,7 @@ class PSFocusQt:
         self.window.show_always_on_top(on)
         for panel in self.docking.floating.values():
             if panel is not None:
+                panel.topmost = on
                 set_topmost(panel, on)
 
     def _open_transparency(self, area) -> None:

@@ -48,6 +48,11 @@ class DayOverview(QDialog):
         # The star that Tab has moved to, which Enter or Space chooses, as with the Tk dialog's stars
         self.focused_star: int | None = None
         self._lay_out()
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        # Coloured as it shows, not before: asking for the window's handle before it is shown made Windows stop
+        # passing PS Focus's small redraws to the screen, so hover and scrolling seemed frozen until a full redraw
         set_title_bar_colors_for_handle(int(self.winId()))
 
     def _lay_out(self) -> None:

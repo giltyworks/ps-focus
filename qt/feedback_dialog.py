@@ -50,6 +50,12 @@ class MessageBox(QPlainTextEdit):
         width = text_width(fonts.small, "0" * MESSAGE_CHARACTERS) + 2 * MESSAGE_PADX + 2
         self.setFixedSize(width, MESSAGE_LINES * line_height(fonts.small) + 2 * MESSAGE_PADY + 2)
 
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        # Coloured as it shows, not before: asking for the window's handle before it is shown made Windows stop
+        # passing PS Focus's small redraws to the screen, so hover and scrolling seemed frozen until a full redraw
+        set_title_bar_colors_for_handle(int(self.winId()))
+
     def paintEvent(self, event: QPaintEvent) -> None:
         super().paintEvent(event)
         if self.document().isEmpty():
@@ -184,7 +190,6 @@ class FeedbackDialog(QDialog):
         self._lay_out()
         if self._show_cooldown():
             self.submit_button.enabled = False
-        set_title_bar_colors_for_handle(int(self.winId()))
 
     def _lay_out(self) -> None:
         small = line_height(self.fonts.small)

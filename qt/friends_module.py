@@ -674,8 +674,7 @@ class FriendsModule(ModuleBlock):
                     from .friend_details import FriendDetails
                     self._hide_person_tip()
                     self.details_dialog = FriendDetails(self.window(), self.fonts, name, self.person_details.get(code, ""))
-                    shown = self._shown(strip)
-                    self.details_dialog.show_at(self.mapToGlobal(QPoint(shown.left(), shown.bottom() + 3)))
+                    self.details_dialog.show_centred_on(self.window())
                     event.accept()
                     return
         super().mouseDoubleClickEvent(event)

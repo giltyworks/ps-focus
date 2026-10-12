@@ -197,6 +197,13 @@ class FloatingPanel(QWidget):
         self.setFixedSize(block.size())
         # The module grows and shrinks, such as the stats gaining a line or the calendar a week, and the window with it
         block.installEventFilter(self)
+        # Whether it stays above other programs' windows, applied as it shows, see set_topmost
+        self.topmost = False
+
+    def showEvent(self, event) -> None:
+        super().showEvent(event)
+        if self.topmost:
+            set_topmost(self, True)
 
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         if watched is self.block and event.type() == QEvent.Type.Resize:
@@ -350,7 +357,8 @@ class Docking:
         self.floating[name] = panel
         panel.move(top_left)
         panel.setVisible(self._panel_should_show(name))
-        if self.app.settings.get("always_on_top"):
+        panel.topmost = bool(self.app.settings.get("always_on_top"))
+        if panel.topmost:
             set_topmost(panel, True)
         self.update_glass(name)
         self.app._refresh_module(name)

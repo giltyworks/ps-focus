@@ -48,8 +48,10 @@ HEADER_GAP = 2
 
 
 def set_topmost(window: QWidget, on: bool) -> None:
-    """Keep the window above other programs' windows, or let them cover it again"""
-    if os.name != "nt":
+    """Keep the window above other programs' windows, or let them cover it again. A window not yet shown is left
+    alone, since asking for its handle early makes Windows stop showing PS Focus's small redraws; a floating panel
+    applies the setting as it shows, see FloatingPanel.showEvent"""
+    if os.name != "nt" or not window.testAttribute(Qt.WidgetAttribute.WA_WState_Created):
         return
     # HWND_TOPMOST or HWND_NOTOPMOST, neither moving, sizing nor activating it
     insert_after = wintypes.HWND(-1 if on else -2)
