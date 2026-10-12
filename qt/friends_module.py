@@ -61,7 +61,13 @@ def friend_lines(fonts: Fonts) -> tuple[int, int]:
     """The heights of a friend's name line and the line of details under it, snug together"""
     return line_height(fonts.account) - 2, line_height(fonts.small) + LINE_PADDING
 SCROLL_STEP = 36
-SCROLL_BAR_WIDTH = 3
+# The list's scroll bar, as the website's demo shows it in the browser: a rounded grey bar this wide, this far in from
+# the border, with a small arrow in a space at each end; lighter under the mouse and while dragged
+SCROLL_BAR_WIDTH = 6
+SCROLL_BAR_INSET = 2
+SCROLL_ARROW_SPACE = 10
+SCROLL_BAR_MIN = 16
+SCROLL_BAR_COLORS = {None: "#333333", "hover": "#4d4d4d", "pressed": "#5c5c5c"}
 # At the right of the name strip: Copy code, then the friend requests icon while any wait, and the add friend icon, each
 # icon in a square as the dock icon is, with this much between them; and how long a copied code stays shown
 ICON_GAP = 2
@@ -268,6 +274,10 @@ class FriendsModule(ModuleBlock):
         self.max_scroll = 0
         self.list_rect = QRect()
         self.list_items = range(0)
+        # The part of the scroll bar under the mouse, see _scroll_part; and while its bar is dragged, where the press
+        # was and how far the list was scrolled then
+        self.hovered_scroll: str | None = None
+        self.scroll_drag: tuple[int, int] | None = None
         # Buttons in the list scrolled partly out of view: drawn cut off, but not clickable
         self.clipped_buttons: list[PaintedButton] = []
         self.entry = CodeEntry(self, fonts.small)
@@ -675,10 +685,16 @@ class FriendsModule(ModuleBlock):
 
     def interactive_at(self, point: QPoint) -> bool:
         # A friend's row moves the window like any other part; only their arrow is clicked
-        return super().interactive_at(point) or self._arrow_at(point) is not None or self._icon_at(point) is not None
+        return (super().interactive_at(point) or self._arrow_at(point) is not None or self._icon_at(point) is not None
+                or self._scroll_part(point) is not None)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
+        scroll_part = self._scroll_part(point) if event.button() == Qt.MouseButton.LeftButton else None
+        if scroll_part is not None:
+            self._scroll_pressed(scroll_part, point)
+            event.accept()
+            return
         if event.button() == Qt.MouseButton.LeftButton and not any(button.contains(point) for button in self.buttons):
             icon = self._icon_at(point)
             if icon == "requests":
@@ -701,6 +717,22 @@ class FriendsModule(ModuleBlock):
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
+        if self.scroll_drag is not None:
+            self._scroll_dragged(point)
+            return
+        scroll_part = self._scroll_part(point)
+        if scroll_part != self.hovered_scroll:
+            self.hovered_scroll = scroll_part
+            self.update()
+        if scroll_part is not None:
+            # The scroll bar is not part of a friend's row
+            if self.hovered_area is not None or self.hovered_arrow is not None:
+                self.hovered_area = self.hovered_arrow = None
+                self._hide_person_tip()
+                self.update()
+            self.setToolTip("")
+            self.update_cursor(point)
+            return
         area = self._area_at(point)
         icon = self._icon_at(point)
         arrow = self._arrow_at(point)
@@ -717,19 +749,74 @@ class FriendsModule(ModuleBlock):
         """Where something laid out in the list is, as it is scrolled, cut to the list's room"""
         return rect.translated(0, -self.scroll).intersected(self.list_rect)
 
-    def wheelEvent(self, event) -> None:
+    def _scroll_track(self) -> QRect:
+        """Where the scroll bar moves, between the arrows at the list's right edge"""
+        left = self.width() - 1 - SCROLL_BAR_INSET - SCROLL_BAR_WIDTH
+        return QRect(left, self.list_rect.top() + SCROLL_ARROW_SPACE, SCROLL_BAR_WIDTH, self.list_rect.height() - 2 * SCROLL_ARROW_SPACE)
+
+    def _scroll_bar(self) -> QRect:
+        """The bar, as long as the share of the list in view, as far down as the list is scrolled"""
+        track = self._scroll_track()
+        length = max(SCROLL_BAR_MIN, track.height() * self.list_rect.height() // (self.list_rect.height() + self.max_scroll))
+        length = min(length, track.height())
+        top = track.top() + (track.height() - length) * self.scroll // max(1, self.max_scroll)
+        return QRect(track.left(), top, SCROLL_BAR_WIDTH, length)
+
+    def _scroll_part(self, point: QPoint) -> str | None:
+        """Which part of the scroll bar is here: "up" or "down", its arrows; "bar"; "above" or "below" it on the track"""
         if not self.max_scroll:
-            event.ignore()
-            return
-        delta = event.pixelDelta().y() or event.angleDelta().y() / 120 * SCROLL_STEP
+            return None
+        left = self.width() - 1 - SCROLL_BAR_INSET - SCROLL_BAR_WIDTH - 2
+        if not (left <= point.x() < self.width() - 1 and self.list_rect.top() <= point.y() <= self.list_rect.bottom()):
+            return None
+        track, bar = self._scroll_track(), self._scroll_bar()
+        if point.y() < track.top():
+            return "up"
+        if point.y() > track.bottom():
+            return "down"
+        if point.y() < bar.top():
+            return "above"
+        return "below" if point.y() > bar.bottom() else "bar"
+
+    def _scroll_to(self, scroll: float) -> None:
         before = self.scroll
-        self.scroll = max(0, min(self.max_scroll, round(self.scroll - delta)))
+        self.scroll = max(0, min(self.max_scroll, round(scroll)))
         if self.scroll != before:
             self.hovered_area = self.hovered_arrow = self.hovered_icon = None
             self._hide_person_tip()
             self._layout()
             # Present scrolling before returning, even on a layered Windows surface.
             self.repaint(self.list_rect)
+
+    def _scroll_pressed(self, part: str, point: QPoint) -> None:
+        """An arrow scrolls a step, the track either side of the bar a page; the bar is taken to drag"""
+        page = max(SCROLL_STEP, self.list_rect.height() - SCROLL_STEP)
+        if part == "bar":
+            self.scroll_drag = (point.y(), self.scroll)
+            self.update()
+        else:
+            self._scroll_to(self.scroll + {"up": -SCROLL_STEP, "down": SCROLL_STEP, "above": -page, "below": page}[part])
+
+    def _scroll_dragged(self, point: QPoint) -> None:
+        start_y, start_scroll = self.scroll_drag
+        room = self._scroll_track().height() - self._scroll_bar().height()
+        if room > 0:
+            self._scroll_to(start_scroll + (point.y() - start_y) * self.max_scroll / room)
+
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if self.scroll_drag is not None and event.button() == Qt.MouseButton.LeftButton:
+            self.scroll_drag = None
+            self.hovered_scroll = self._scroll_part(event.position().toPoint())
+            self.update()
+            event.accept()
+            return
+        super().mouseReleaseEvent(event)
+
+    def wheelEvent(self, event) -> None:
+        if not self.max_scroll:
+            event.ignore()
+            return
+        self._scroll_to(self.scroll - (event.pixelDelta().y() or event.angleDelta().y() / 120 * SCROLL_STEP))
         event.accept()
 
     def enterEvent(self, event) -> None:
@@ -739,11 +826,39 @@ class FriendsModule(ModuleBlock):
     def leaveEvent(self, event) -> None:
         super().leaveEvent(event)
         self._hide_person_tip()
+        if self.hovered_scroll is not None and self.scroll_drag is None:
+            self.hovered_scroll = None
+            self.update()
         if self.hovered_area is not None or self.hovered_icon is not None or self.hovered_arrow is not None:
             self.hovered_area = self.hovered_icon = self.hovered_arrow = None
             self.update()
 
     # ----- Drawing -----
+
+    def _paint_scroll_bar(self, painter: QPainter) -> None:
+        """The rounded bar, and a small arrow at each end of its track, each lighter under the mouse"""
+        def tone(part: str) -> QColor:
+            if part == "bar" and self.scroll_drag is not None:
+                return QColor(SCROLL_BAR_COLORS["pressed"])
+            return QColor(SCROLL_BAR_COLORS["hover" if self.hovered_scroll == part else None])
+
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(tone("bar"))
+        radius = SCROLL_BAR_WIDTH / 2
+        painter.drawRoundedRect(QRectF(self._scroll_bar()), radius, radius)
+        track = self._scroll_track()
+        middle = track.left() + SCROLL_BAR_WIDTH / 2
+        for part, tip, base in (("up", self.list_rect.top() + 3.5, self.list_rect.top() + 6.5),
+                                ("down", self.list_rect.bottom() - 2.5, self.list_rect.bottom() - 5.5)):
+            painter.setBrush(tone(part))
+            path = QPainterPath(QPointF(middle, tip))
+            path.lineTo(middle + 3, base)
+            path.lineTo(middle - 3, base)
+            path.closeSubpath()
+            painter.drawPath(path)
+        painter.restore()
 
     def _paint_name_arrow(self, painter: QPainter, rect: QRect, hovered: bool) -> None:
         """A small downward chevron in the muted grey; under the mouse a faint box shows behind it"""
@@ -794,11 +909,7 @@ class FriendsModule(ModuleBlock):
         for button in self.clipped_buttons:
             button.paint(painter)
         if self.max_scroll:
-            # A thin bar at the list's right edge, showing how much of it is in view and where
-            full = self.list_rect.height() + self.max_scroll
-            bar = max(12, self.list_rect.height() * self.list_rect.height() // full)
-            top = self.list_rect.top() + (self.list_rect.height() - bar) * self.scroll // self.max_scroll
-            paint_hover_box(painter, QRectF(self.width() - 1 - SCROLL_BAR_WIDTH - 1, top, SCROLL_BAR_WIDTH, bar), self.border())
+            self._paint_scroll_bar(painter)
         painter.setClipping(False)
         for button in self.buttons:
             button.paint(painter)

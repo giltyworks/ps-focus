@@ -43,12 +43,12 @@ STATUS_SENT = {"online": "online", "away": "away", "invisible": "offline", "offl
 
 
 # Made-up friends for trying the list out, shown when PSFOCUS_SAMPLE_FRIENDS is set: one of each state, with and
-# without time today
+# without time today; one has chosen a username, and one set no name, so goes by their Google email
 SAMPLE_FRIENDS = (
     ("Mia", {"two_weeks": 16.4, "today": 1.4, "total": 121.6, "level": 19, "since": "2025-03-14"}, "drawing", "Krita", "SAMPLE01"),
     ("Samuel", {"two_weeks": 12.7, "today": 0.4, "total": 92.4, "level": 16, "since": "2025-06-02"}, "drawing", "Photoshop", "SAMPLE02"),
-    ("Leo", {"two_weeks": 10.2, "today": 0.6, "total": 71.3, "level": 14, "since": "2025-01-20"}, "online", None, "SAMPLE03"),
-    ("Isabella", {"two_weeks": 8.9, "today": 0.0, "total": 60.2, "level": 13, "since": "2025-08-09"}, "online", None, "SAMPLE04"),
+    ("inkbyleo", {"two_weeks": 10.2, "today": 0.6, "total": 71.3, "level": 14, "since": "2025-01-20"}, "online", None, "SAMPLE03"),
+    ("isabella.marsh21@gmail.com", {"two_weeks": 8.9, "today": 0.0, "total": 60.2, "level": 13, "since": "2025-08-09"}, "online", None, "SAMPLE04"),
     ("Priya", {"two_weeks": 6.8, "today": 0.0, "total": 47.9, "level": 11, "since": "2025-11-27"}, "away", None, "SAMPLE05"),
     ("Jonathan", {"two_weeks": 3.1, "today": 1.2, "total": 28.4, "level": 8, "since": "2026-02-15"}, "offline", None, "SAMPLE06"),
     ("Chloe", {"two_weeks": 2.4, "today": 0.0, "total": 19.7, "level": 6, "since": "2026-05-03", "last_online_ago": 11 * 3600}, "offline", None, "SAMPLE07"),
@@ -388,7 +388,7 @@ class FriendsSync:
         # For trying the list out: made-up friends shown beside the real ones, never sent anywhere
         if os.environ.get("PSFOCUS_SAMPLE_FRIENDS"):
             for name, stats, presence, program, code in SAMPLE_FRIENDS:
-                shown = self._local("friends_nicknames").get(code) or name
+                shown = (self._local("friends_nicknames").get(code) or name).split("@", 1)[0]
                 people.append((shown, stats, presence, program, code, code in self._local("friends_favourites")))
         # Favourites, then those drawing, the others online, then those offline; in each by hours over the past two weeks
         sections = {"Favourites": 0, "In App": 1, "Online": 2, "Offline": 3}

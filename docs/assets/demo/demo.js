@@ -104,8 +104,8 @@
     nicknaming: null,
     friends: [
       { code: "MIAA", name: "Mia", level: 19, presence: "drawing", program: "Krita", two: 16.4, total: 121.6, today: 1.4, since: new Date(2025, 2, 14) },
-      { code: "LEOO", name: "Leo", level: 14, presence: "online", two: 10.2, total: 71.3, today: 0.6, since: new Date(2025, 10, 2) },
-      { code: "ISAB", name: "Isabella", level: 11, presence: "away", two: 6.8, total: 47.9, today: 0.0, since: new Date(2025, 7, 9) },
+      { code: "LEOO", name: "inkbyleo", level: 14, presence: "online", two: 10.2, total: 71.3, today: 0.6, since: new Date(2025, 10, 2) },
+      { code: "ISAB", name: "isabella.marsh21", level: 11, presence: "away", two: 6.8, total: 47.9, today: 0.0, since: new Date(2025, 7, 9) },
       { code: "JONA", name: "Jonathan", level: 8, presence: "offline", two: 3.1, total: 28.4, today: 0.0, lastOnline: 11, since: new Date(2026, 1, 15) },
     ],
     request: null,

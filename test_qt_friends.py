@@ -200,6 +200,39 @@ class QtFriendsTests(unittest.TestCase):
                 self.assertGreater(counter.paints, before_paints)
         module.removeEventFilter(counter)
 
+    def test_scroll_bar_drags_steps_and_pages(self):
+        from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+        self.service.answer = server_state(friends=[
+            {"code": f"TEST{i:04d}", "name": f"Friend {i}", "stats": {"two_weeks": 3}, "updated_at": 1000} for i in range(12)
+        ])
+        self._turn_on()
+        module = self.app.friends
+
+        def mouse(kind, point, buttons=Qt.MouseButton.LeftButton):
+            self.application.sendEvent(module, QMouseEvent(kind, QPointF(point), QPointF(module.mapToGlobal(point)), Qt.MouseButton.LeftButton, buttons, Qt.KeyboardModifier.NoModifier))
+
+        track = module._scroll_track()
+        down_arrow = QPoint(track.center().x(), module.list_rect.bottom() - 2)
+        # A press there is the scroll bar's, not the start of moving the window
+        self.assertTrue(module.interactive_at(down_arrow))
+        mouse(QEvent.Type.MouseButtonPress, down_arrow)
+        mouse(QEvent.Type.MouseButtonRelease, down_arrow, Qt.MouseButton.NoButton)
+        self.assertEqual(module.scroll, 36)
+        self.assertIsNone(self.app.block_drag.mode)
+        bar = module._scroll_bar().center()
+        mouse(QEvent.Type.MouseButtonPress, bar)
+        mouse(QEvent.Type.MouseMove, bar + QPoint(0, 15))
+        mouse(QEvent.Type.MouseButtonRelease, bar + QPoint(0, 15), Qt.MouseButton.NoButton)
+        self.assertGreater(module.scroll, 36)
+        self.assertIsNone(module.scroll_drag)
+        # Below the bar, a page down
+        dragged = module.scroll
+        below = QPoint(track.center().x(), track.bottom() - 1)
+        mouse(QEvent.Type.MouseButtonPress, below)
+        mouse(QEvent.Type.MouseButtonRelease, below, Qt.MouseButton.NoButton)
+        self.assertEqual(module.scroll, min(module.max_scroll, dragged + module.list_rect.height() - 36))
+
     def test_transparency_friend_dialog_and_settings_keep_full_page(self):
         from PySide6.QtCore import QEvent, QPointF, Qt
         from PySide6.QtGui import QMouseEvent
