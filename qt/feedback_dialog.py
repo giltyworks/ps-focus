@@ -6,15 +6,16 @@ import math
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QRect, Qt, QTimer
-from PySide6.QtGui import QFocusEvent, QKeyEvent, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtGui import QColor, QFocusEvent, QKeyEvent, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QPlainTextEdit, QWidget
 
 from app_config import FEEDBACK_PLACEHOLDER, FEEDBACK_PLACEHOLDER_PROMPT
 from feedback import FeedbackOutbox
 
 from .app_dialog import AppDialog
+from .day_overview import STAR, UNRATED_STAR
 from .module import PaintedButton
-from .theme import Fonts, color, draw_text, font, line_height, text_width
+from .theme import Fonts, color, draw_outline_text, draw_text, font, line_height, text_width
 
 # Laid out as the Tk dialog was packed, see ui_feedback._open_feedback_dialog: the space at the dialog's sides, the
 # inset a Tk label kept its text at, the message box's size in characters and lines and its padding, and the buttons'
@@ -25,7 +26,8 @@ MESSAGE_LINES = 7
 MESSAGE_PADX, MESSAGE_PADY = 8, 6
 BUTTON_PADX, BUTTON_PADY = 17, 6
 STAR_COUNT = 5
-EMPTY_STAR, FULL_STAR = "\U00002606", "\U00002605"
+# Pixels between the stars
+STAR_GAP = 6
 # How long the thank-you stays before the form closes
 CLOSE_DELAY_MS = 1200
 
@@ -72,19 +74,21 @@ class StarRow(QWidget):
     def __init__(self, on_changed: Callable[[], None]) -> None:
         super().__init__()
         self.on_changed = on_changed
-        self.font = font(18, family="Segoe UI Symbol")
+        # The star the day's rating window and the calendar show, a little larger here with only five of them
+        self.font = font(16, family="Segoe UI Symbol", bold=True)
         self.rating = 0
+        # The star under the mouse: the stars light up to it, showing the rating a click would give
+        self.hovered_star: int | None = None
         self.focused_star = 1
         # The focused star is outlined only once the keyboard has been used to reach it
         self.keyboard_focus = False
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.setMouseTracking(True)
-        self.star_width = text_width(self.font, EMPTY_STAR) + 2 * LABEL_INSET
-        # Each star was a label packed a pixel from its neighbours
-        self.setFixedSize(STAR_COUNT * (self.star_width + 2), line_height(self.font) + 2 * LABEL_INSET)
+        self.star_width = text_width(self.font, STAR) + 2 * LABEL_INSET
+        self.setFixedSize(STAR_COUNT * (self.star_width + STAR_GAP), line_height(self.font) + 2 * LABEL_INSET)
 
     def _star_left(self, value: int) -> int:
-        return 1 + (value - 1) * (self.star_width + 2)
+        return 1 + (value - 1) * (self.star_width + STAR_GAP)
 
     def _star_at(self, point: QPoint) -> int | None:
         for value in range(1, STAR_COUNT + 1):
@@ -101,9 +105,9 @@ class StarRow(QWidget):
         painter = QPainter(self)
         painter.fillRect(self.rect(), color("background"))
         for value in range(1, STAR_COUNT + 1):
-            filled = value <= self.rating
+            filled = value <= (self.hovered_star or self.rating)
             left = self._star_left(value)
-            draw_text(painter, left + LABEL_INSET, LABEL_INSET, FULL_STAR if filled else EMPTY_STAR, color("gold" if filled else "muted"), self.font)
+            draw_outline_text(painter, left + LABEL_INSET, LABEL_INSET, STAR, color("gold") if filled else QColor(UNRATED_STAR), self.font)
             if self.hasFocus() and self.keyboard_focus and value == self.focused_star:
                 painter.setPen(color("muted"))
                 painter.drawRect(QRect(left, 0, self.star_width - 1, self.height() - 1))
@@ -120,8 +124,16 @@ class StarRow(QWidget):
         self.mousePressEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        over = self._star_at(event.position().toPoint()) is not None
-        self.setCursor(Qt.CursorShape.PointingHandCursor if over else Qt.CursorShape.ArrowCursor)
+        star = self._star_at(event.position().toPoint())
+        self.setCursor(Qt.CursorShape.PointingHandCursor if star is not None else Qt.CursorShape.ArrowCursor)
+        if star != self.hovered_star:
+            self.hovered_star = star
+            self.update()
+
+    def leaveEvent(self, _event) -> None:
+        if self.hovered_star is not None:
+            self.hovered_star = None
+            self.update()
 
     def keyPressEvent(self, event: QKeyEvent) -> None:
         key = event.key()

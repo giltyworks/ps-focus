@@ -144,6 +144,9 @@ class PSFocusQt:
         self.modules = {"graph": self.chart, "calendar": self.calendar, "stats": self.stats, "friends": self.friends}
         self.docking = Docking(self)
         self.window.on_moved = self.docking.main_moved
+        if dev:
+            # The developer menu stays beside the window as it moves
+            self.window.on_moved = lambda: (self.docking.main_moved(), self.dev_tools.window_moved())
         self.window.on_hover = self.update_glass
         self.window.on_state_changed = lambda: self.docking.sync_visibility()
         # The calendar and stats change slowly, so they are worked out again every so many seconds

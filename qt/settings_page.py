@@ -134,6 +134,8 @@ class SettingsPage(QWidget):
         self.member_since = ""
         # Shown once enough time has been tracked, see the app's feedback_unlocked
         self.feedback_button = button("Got feedback?")
+        # In white, so the invitation stands out from the grey buttons beside it
+        self.feedback_button.text_color = "text"
         self.feedback_shown = False
         self.texts: list[Text] = []
         self.boxes: list[tuple[int, int]] = []

@@ -1309,3 +1309,15 @@ class DevToolsTests(unittest.TestCase):
         self.assertTrue(self.tools.panel.isVisible())
         self.tools.open_menu(QPoint(0, 0))
         self.assertIsNone(self.tools.panel)
+
+    def test_the_dev_menu_moves_with_the_window(self):
+        from PySide6.QtCore import QPoint
+
+        self.app.window.on_moved = lambda: (self.app.docking.main_moved(), self.tools.window_moved())
+        self.app.window.show()
+        self.tools.open_menu(QPoint(0, 0))
+        before = self.tools.panel.pos()
+        self.app.window.move(self.app.window.pos() + QPoint(30, 20))
+        self.application.processEvents()
+        self.assertEqual(self.tools.panel.pos(), before + QPoint(30, 20))
+        self.tools.open_menu(QPoint(0, 0))

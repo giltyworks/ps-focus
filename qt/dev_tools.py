@@ -59,6 +59,12 @@ class DevTools:
             return
         self._show_panel(point)
 
+    def window_moved(self) -> None:
+        """The panel follows the main window, staying beside it"""
+        if self.panel is not None:
+            left, top, _right, _bottom = self.app.docking.main_bounds()
+            self.panel.move(QPoint(left, top) + self.panel.offset)
+
     def _show_panel(self, point: QPoint) -> None:
         friends = self.app.friends_sync
         choices = [
@@ -84,6 +90,8 @@ class DevTools:
         fits_right = room_right >= panel.width() + 4
         x = right + 4 if fits_right or (room_left < panel.width() + 4 and room_right >= room_left) else left - 4 - panel.width()
         panel.show_at(QPoint(x, top))
+        # Kept where it opened against the window, so it moves with it
+        panel.offset = panel.pos() - QPoint(left, top)
 
     def choose(self, key: str) -> None:
         getattr(self, key)()
@@ -166,10 +174,11 @@ class DevTools:
         friends.refresh_view()
         if self.panel is not None:
             # Its row says on or off, so the panel is made again where it stood
-            where = self.panel.pos()
+            where, offset = self.panel.pos(), self.panel.offset
             self.panel.close()
             self._show_panel(where)
             self.panel.move(where)
+            self.panel.offset = offset
 
     def request(self) -> None:
         self.requests_made += 1
