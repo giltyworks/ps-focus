@@ -15,11 +15,13 @@ from contextlib import ExitStack, closing
 from pathlib import Path
 
 PREVIEW_FOLDER_NAME = "PS Focus Qt Preview"
+# The developer version's, `PS Focus.exe --dev`: the installed app on a copy of the data, with the developer menu
+DEV_FOLDER_NAME = "PS Focus Dev"
 
 
-def use_preview_data() -> Path:
+def use_preview_data(folder_name: str = PREVIEW_FOLDER_NAME) -> Path:
     appdata = Path(os.environ.get("APPDATA", Path.home()))
-    real, preview = appdata / "PS Focus", appdata / PREVIEW_FOLDER_NAME
+    real, preview = appdata / "PS Focus", appdata / folder_name
     preview.mkdir(parents=True, exist_ok=True)
     database = real / "activity.sqlite3"
     if database.exists():

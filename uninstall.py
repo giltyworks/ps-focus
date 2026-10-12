@@ -51,6 +51,8 @@ def data_directories() -> list[Path]:
     ]
     if os.environ.get("OneDrive"):
         directories.append(Path(os.environ["OneDrive"]) / BACKUP_FOLDER_NAME)
+    # The developer version's copy of the data, on the developer's PC alone, see qt/dev_tools.py
+    directories.append(app_data_root / f"{APP_NAME} Dev")
     return list(dict.fromkeys(directories))
 
 

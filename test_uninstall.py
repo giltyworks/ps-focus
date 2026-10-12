@@ -41,6 +41,7 @@ class UninstallTests(unittest.TestCase):
                 self.root / "AppData" / "Roaming" / "FocusTrace",
                 self.root / "Documents" / "PS Focus Backups",
                 self.root / "OneDrive" / "PS Focus Backups",
+                self.root / "AppData" / "Roaming" / "PS Focus Dev",
             ],
         )
 

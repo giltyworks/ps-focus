@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QWidget
 from app_config import APP_NAME, EDGE_PADDING
 
 from .module import paint_hover_box
-from .theme import Fonts, color, draw_text, halo_strength, line_height
+from .theme import Fonts, color, draw_text, halo_strength, line_height, text_width
 
 TITLE_BAR_HEIGHT = 28
 BUTTON_WIDTH = 36
@@ -38,6 +38,8 @@ class TitleBar(QWidget):
         self.on_close: Callable[[], None] = lambda: None
         # Given where to open the menu, in screen coordinates
         self.on_menu: Callable[[QPoint], None] = lambda _point: None
+        # In the developer version, a DEV badge after the name opens its menu, given where to open it; see dev_tools
+        self.on_dev: Callable[[QPoint], None] | None = None
         self.setFixedHeight(TITLE_BAR_HEIGHT)
 
     def set_glass(self, alpha: int) -> None:
@@ -47,7 +49,11 @@ class TitleBar(QWidget):
 
     def button_rects(self) -> dict[str, QRect]:
         close = QRect(self.width() - BUTTON_WIDTH, 0, BUTTON_WIDTH, self.height())
-        return {"close": close, "minimize": close.translated(-BUTTON_WIDTH, 0)}
+        rects = {"close": close, "minimize": close.translated(-BUTTON_WIDTH, 0)}
+        if self.on_dev is not None:
+            left = EDGE_PADDING + ICON_SIZE + 8 + text_width(self.fonts.small, APP_NAME) + 6
+            rects["dev"] = QRect(left, 4, text_width(self.fonts.small, "DEV") + 12, self.height() - 8)
+        return rects
 
     def _button_at(self, point: QPoint) -> str | None:
         return next((name for name, rect in self.button_rects().items() if rect.contains(point)), None)
@@ -69,6 +75,10 @@ class TitleBar(QWidget):
         draw_text(painter, EDGE_PADDING + ICON_SIZE + 8, (self.height() - line_height(self.fonts.small)) // 2, APP_NAME, color("text"), self.fonts.small)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         for name, rect in self.button_rects().items():
+            if name == "dev":
+                paint_hover_box(painter, QRectF(rect), color("border").lighter(140 if self.hovered == name else 100))
+                draw_text(painter, rect.x() + 6, (self.height() - line_height(self.fonts.small)) // 2, "DEV", color("gold"), self.fonts.small)
+                continue
             if self.hovered == name:
                 if name == "close":
                     fill = QColor(CLOSE_HOVER)
@@ -100,13 +110,16 @@ class TitleBar(QWidget):
         self.update()
         # Letting go outside the button cancels the click, as for a standard button
         if event.button() == Qt.MouseButton.LeftButton and pressed is not None and pressed == self._button_at(event.position().toPoint()):
-            (self.on_close if pressed == "close" else self.on_minimize)()
+            if pressed == "dev":
+                self.on_dev(self.mapToGlobal(self.button_rects()["dev"].bottomLeft()) + QPoint(0, 4))
+            else:
+                (self.on_close if pressed == "close" else self.on_minimize)()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         button = self._button_at(event.position().toPoint())
         if button != self.hovered:
             self.hovered = button
-            self.setToolTip({"close": "Close to the tray", "minimize": "Minimise"}.get(button, ""))
+            self.setToolTip({"close": "Close to the tray", "minimize": "Minimise", "dev": "Developer tools"}.get(button, ""))
             self.update()
 
     def leaveEvent(self, _event) -> None:

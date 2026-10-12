@@ -42,7 +42,8 @@ STATUS_COLORS = {"online": "friend_away", "away": "friend_away", "invisible": "m
 STATUS_SENT = {"online": "online", "away": "away", "invisible": "offline", "offline": "offline"}
 
 
-# Made-up friends for trying the list out, shown when PSFOCUS_SAMPLE_FRIENDS is set: one of each state, with and
+# Made-up friends for trying the list out, shown when PSFOCUS_SAMPLE_FRIENDS is set or the developer menu turns them
+# on, see dev_tools: one of each state, with and
 # without time today; one has chosen a username, and one set no name, so goes by their Google email
 SAMPLE_FRIENDS = (
     ("Mia", {"two_weeks": 16.4, "today": 1.4, "total": 121.6, "level": 19, "since": "2025-03-14"}, "drawing", "Krita", "SAMPLE01"),
@@ -53,6 +54,13 @@ SAMPLE_FRIENDS = (
     ("Jonathan", {"two_weeks": 3.1, "today": 1.2, "total": 28.4, "level": 8, "since": "2026-02-15"}, "offline", None, "SAMPLE06"),
     ("Chloe", {"two_weeks": 2.4, "today": 0.0, "total": 19.7, "level": 6, "since": "2026-05-03", "last_online_ago": 11 * 3600}, "offline", None, "SAMPLE07"),
 )
+
+
+
+def friend_order(person: tuple) -> tuple:
+    """Favourites, then those drawing, the others online, then those offline; in each by hours over the past two weeks"""
+    sections = {"Favourites": 0, "In App": 1, "Online": 2, "Offline": 3}
+    return sections[friend_section(person)], -float(person[1].get("two_weeks", 0) or 0)
 
 
 class FriendsSync:
@@ -80,12 +88,17 @@ class FriendsSync:
         self.offline_announced = False
         # Answers to requests waiting for a check-in to finish
         self.pending_actions: list = []
+        # Made-up friends shown beside the real ones, never sent anywhere; and, from the developer menu, made-up
+        # requests to answer and the made-up friends they became. Signed out, they show on their own
+        self.sample_friends = bool(os.environ.get("PSFOCUS_SAMPLE_FRIENDS"))
+        self.sample_requests: list[tuple[str, str]] = []
+        self.sample_accepted: list[tuple] = []
         actions = module.actions
         actions.sign_in = app.google_sync.connect
         actions.delete_data = self.delete_data
         actions.add = lambda code: self._start("add", lambda: self.service.add(code))
-        actions.accept = lambda code: self._start("accept", lambda: self.service.accept(code))
-        actions.decline = lambda code: self._start("decline", lambda: self.service.decline(code))
+        actions.accept = lambda code: self._answer_sample(code, True) or self._start("accept", lambda: self.service.accept(code))
+        actions.decline = lambda code: self._answer_sample(code, False) or self._start("decline", lambda: self.service.decline(code))
         actions.cancel = lambda code: self._start("cancel", lambda: self.service.remove(code))
         actions.person_menu = self.person_menu
         actions.copy_code = lambda code: QGuiApplication.clipboard().setText(code)
@@ -355,7 +368,29 @@ class FriendsSync:
 
     # ----- Showing it -----
 
+    def _answer_sample(self, code: str, accept: bool) -> bool:
+        """Answer a made-up request here, where it was made; whether it was one"""
+        request = next((request for request in self.sample_requests if request[0] == code), None)
+        if request is None:
+            return False
+        self.sample_requests.remove(request)
+        if accept:
+            self.sample_accepted.append((request[1], {"two_weeks": 0.5, "today": 0.5, "total": 0.5, "level": 1, "since": date.today().isoformat()}, "online", None, code))
+        self.refresh_view()
+        return True
+
+    def _sample_people(self) -> list:
+        people = []
+        if self.sample_friends:
+            for name, stats, presence, program, code in (*SAMPLE_FRIENDS, *self.sample_accepted):
+                shown = (self._local("friends_nicknames").get(code) or name).split("@", 1)[0]
+                people.append((shown, stats, presence, program, code, code in self._local("friends_favourites")))
+        return people
+
     def view(self) -> FriendsView:
+        if (self.sample_friends or self.sample_requests) and not self.account():
+            # Trying the list out signed out: the made-up friends and requests alone, as if signed in
+            return FriendsView("on", "DEV00000", sorted(self._sample_people(), key=friend_order), list(self.sample_requests))
         if not self.service.configured:
             return FriendsView("unavailable")
         if not self.account():
@@ -386,16 +421,11 @@ class FriendsSync:
             name = name.split("@", 1)[0]
             people.append((name, stats, presence, program, code, code in self._local("friends_favourites")))
         # For trying the list out: made-up friends shown beside the real ones, never sent anywhere
-        if os.environ.get("PSFOCUS_SAMPLE_FRIENDS"):
-            for name, stats, presence, program, code in SAMPLE_FRIENDS:
-                shown = (self._local("friends_nicknames").get(code) or name).split("@", 1)[0]
-                people.append((shown, stats, presence, program, code, code in self._local("friends_favourites")))
-        # Favourites, then those drawing, the others online, then those offline; in each by hours over the past two weeks
-        sections = {"Favourites": 0, "In App": 1, "Online": 2, "Offline": 3}
-        people.sort(key=lambda person: (sections[friend_section(person)], -float(person[1].get("two_weeks", 0) or 0)))
+        people += self._sample_people()
+        people.sort(key=friend_order)
         return FriendsView(
             "on", me.get("code", ""), people,
-            [(request["code"], request["name"]) for request in state.get("incoming", [])],
+            [(request["code"], request["name"]) for request in state.get("incoming", [])] + self.sample_requests,
             [(request["code"], request["name"]) for request in state.get("outgoing", [])],
             self.message, self.busy,
         )

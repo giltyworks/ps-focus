@@ -1193,3 +1193,84 @@ class QtSettingsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(QApplication is None, "PySide6 is not installed")
+class DevToolsTests(unittest.TestCase):
+    """The developer version's menu, see qt/dev_tools.py; started as the settings tests start the app"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.application = QApplication.instance() or QApplication([])
+
+    def setUp(self):
+        QtSettingsTests.setUp(self)
+        from qt.dev_tools import DevTools
+
+        self.app.dev = True
+        self.tools = DevTools(self.app)
+
+    def test_level_up_adds_the_hours_for_the_next_level_and_celebrates(self):
+        from app_config import user_level
+
+        before = user_level(self.app.store.total_seconds())
+        with patch.object(self.app, "celebrate") as celebrate:
+            self.app._tick()
+            self.tools.level_up()
+        self.assertEqual(user_level(self.app.store.total_seconds()), before + 1)
+        celebrate.assert_called_once()
+
+    def test_added_hours_land_today_and_make_records(self):
+        today = date.today()
+        self.tools.hour()
+        self.assertAlmostEqual(self.app.store.total_for_day(today), 3600, delta=1)
+        self.app.store.record_activity([("2026-01-05", 10, 5 * 3600, "Krita", "10:00")])
+        self.tools.longest()
+        self.assertEqual(self.app.store.longest_session()[0], today)
+
+    def test_feedback_can_be_tried_again_and_is_never_sent(self):
+        from PySide6.QtWidgets import QApplication
+        from qt.feedback_dialog import FeedbackDialog
+
+        self.app.settings.update(feedback_submitted=True, feedback_count=2, feedback_cooldown_until="2999-01-01T00:00:00")
+        self.app.level_revealed = True
+        self.tools.feedback_reveal()
+        self.assertFalse(self.app.level_revealed)
+        self.assertNotIn("feedback_cooldown_until", self.app.settings)
+        dialogs = [widget for widget in QApplication.topLevelWidgets() if isinstance(widget, FeedbackDialog) and widget.isVisible()]
+        self.assertEqual(len(dialogs), 1)
+        dialogs[0].close()
+        with patch.object(self.app.feedback, "pending", return_value=True), patch("qt.app.threading.Thread") as thread:
+            self.app._send_pending_feedback()
+        thread.assert_not_called()
+
+    def test_sample_friends_and_requests_show_signed_out_and_are_answered_here(self):
+        friends = self.app.friends_sync
+        friends.sample_friends = False
+        self.assertNotEqual(friends.view().mode, "on")
+        self.tools.sample_friends()
+        view = friends.view()
+        self.assertEqual(view.mode, "on")
+        people = len(view.people)
+        self.assertGreater(people, 0)
+        self.tools.request()
+        (code, _name), = friends.view().incoming
+        with patch.object(friends.service, "accept") as accept:
+            self.app.friends.actions.accept(code)
+        accept.assert_not_called()
+        view = friends.view()
+        self.assertEqual(view.incoming, [])
+        self.assertEqual(len(view.people), people + 1)
+
+    def test_the_dev_badge_opens_the_menu(self):
+        from PySide6.QtCore import QEvent, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+
+        bar = self.app.window.title_bar
+        opened = []
+        bar.on_dev = opened.append
+        point = QPointF(bar.button_rects()["dev"].center())
+        for kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
+            QApplication.sendEvent(bar, QMouseEvent(kind, point, QPointF(bar.mapToGlobal(point)), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+        self.assertEqual(len(opened), 1)
+        self.assertTrue(bar.interactive_at(point.toPoint()))

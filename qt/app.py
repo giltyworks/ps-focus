@@ -75,8 +75,10 @@ EXIT_TIMEOUT_SECONDS = 10
 
 
 class PSFocusQt:
-    def __init__(self, application: QApplication, instance: SingleInstance | None = None) -> None:
+    def __init__(self, application: QApplication, instance: SingleInstance | None = None, dev: bool = False) -> None:
         self.application = application
+        # The developer version, on a copy of the data with a menu of things to try; see dev_tools
+        self.dev = dev
         self.instance = instance
         self.closing = False
         self.settings = load_settings()
@@ -115,6 +117,11 @@ class PSFocusQt:
         self.window.set_top(self.header, self.module_controls)
         # The title bar's right-click menu holds Always on top
         self.window.title_bar.on_menu = self._title_bar_menu
+        if dev:
+            from .dev_tools import DevTools
+
+            self.dev_tools = DevTools(self)
+            self.window.title_bar.on_dev = self.dev_tools.open_menu
         self.header.on_settings = self._toggle_settings
         self.header.on_level = self._level_clicked
         self.header.on_version = self._open_update_page
@@ -747,7 +754,8 @@ class PSFocusQt:
             self.header.set_level(self.header.badge_state[0], True)
 
     def _send_pending_feedback(self) -> None:
-        if self.feedback_send_in_progress or not self.feedback.configured or not self.feedback.pending():
+        # Feedback tried out in the developer version stays on this PC
+        if self.dev or self.feedback_send_in_progress or not self.feedback.configured or not self.feedback.pending():
             return
         self.feedback_send_in_progress = True
         threading.Thread(target=self._feedback_worker, daemon=True).start()
@@ -844,10 +852,13 @@ class PSFocusQt:
         self.application.quit()
 
 
-def main(preview: bool, smoke_test: bool = False) -> None:
+def main(preview: bool, smoke_test: bool = False, dev: bool = False) -> None:
     from windows_startup import set_app_user_model_id
 
-    if preview:
+    if dev:
+        # Its own taskbar button, beside PS Focus's
+        set_app_user_model_id("PSFocus.PSFocus.Dev")
+    elif preview:
         set_app_user_model_id("PSFocus.PSFocus.QtPreview")
     else:
         set_app_user_model_id()
@@ -879,8 +890,11 @@ def main(preview: bool, smoke_test: bool = False) -> None:
     application.setApplicationName(APP_NAME)
     # The small tooltips on buttons are dark like the app's own tips, see hover_tip
     application.setStyleSheet("QToolTip { background: #151515; color: #eef3f1; border: 1px solid #2c2c2c; padding: 4px 6px; }")
-    app = PSFocusQt(application, instance)
-    if preview:
+    app = PSFocusQt(application, instance, dev)
+    if dev:
+        app.window.setWindowTitle("PS Focus Dev")
+        app.tray_icon.setToolTip("PS Focus Dev")
+    elif preview:
         app.window.setWindowTitle("PS Focus Qt Preview")
         app.tray_icon.setToolTip("PS Focus Qt Preview")
     if smoke_test:
