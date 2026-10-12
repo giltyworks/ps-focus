@@ -52,6 +52,9 @@
 .psf-slider { display: inline-flex; align-items: center; gap: 10px; }
 .psf-slider input { width: 120px; accent-color: var(--psf-blue); }
 .psf-hint { flex: 1 1 260px; text-align: right; font-size: 13px; }
+/* The intro's last sentence: on a phone the window stays put, see `touch` in demo.js, so it asks for taps instead */
+.psf-touch-only { display: none; }
+@media (max-width: 760px), (pointer: coarse) { .psf-touch-only { display: inline; } .psf-pointer-only { display: none; } }
 
 /* The scene: an art app's plain workspace with the painting on its canvas */
 .psf-stage {
