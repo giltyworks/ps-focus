@@ -25,10 +25,10 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 
 ## What it does
 
-- **Tracks four art apps.** Photoshop, Krita, Clip Studio Paint and PhotoCraft. Time counts while your art app is in front, and pauses after five idle minutes.
+- **Tracks while you draw.** Time counts while your art app is in front, and pauses after five idle minutes.
 - **Shows your habits.** Charts by day, week, month, and year, a calendar of sessions, streaks, and averages.
 - **Levels 1 to 99.** Your total hours set your level, with a small celebration at each new one.
-- **Make it your own.** Drag panels by their title to rearrange them, or pull them out to float and snap beside the window, as in Photoshop. Tall beside your canvas, or a wide strip in landscape.
+- **Make it your own.** Drag panels to rearrange them, or float and snap them beside the window, as in Photoshop. Tall, or a wide landscape strip.
 - **Draw with friends.** Add friends by code to see each other's hours and who's drawing right now.
 - **Stays out of the way.** Starts with Windows, sits in the tray, needs no account, and can turn see-through while your mouse is elsewhere.
 - **Backs itself up.** Copies on your PC, plus an optional backup in your own Google Drive.
@@ -49,7 +49,7 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 
 <figure class="wide-shot">
   <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1495" height="228" alt="PS Focus in landscape: today's time in Photoshop, then friends and their hours, the hours graph and the October calendar side by side in one wide, short window">
-  <figcaption class="caption">Landscape, in the app: everything side by side in one short strip</figcaption>
+  <figcaption class="caption">Landscape: everything side by side in one short strip</figcaption>
 </figure>
 
 <section class="maker" aria-label="Who makes PS Focus">
@@ -78,7 +78,7 @@ Only the seconds you worked, per app and hour. No document names, window titles,
 
 ## Google sign-in
 
-Optional. If you connect, PS Focus asks for its own hidden folder in your Google Drive, for your settings and a backup, and your email address, shown in the app. It can't see your other Drive files, and your Drive data never reaches Giltyworks. Signing in also turns on Friends, which shares your name and hours with friends you accept; choose **Offline** to stop. See the [Privacy Policy]({{ '/privacy/' | relative_url }}).
+Optional. PS Focus gets its own hidden Google Drive folder for your settings and backup, plus your email address. It can't see your other files, and your Drive data never reaches Giltyworks. Signing in also turns on Friends, which shares your name and hours with friends you accept; choose **Offline** to stop. See the [Privacy Policy]({{ '/privacy/' | relative_url }}).
 
 </section>
 <section markdown="1">
