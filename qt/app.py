@@ -315,9 +315,7 @@ class PSFocusQt:
             return
         controls = self.module_controls
         popup = TransparencyPopup(self.window, self.fonts, self._transparency, self._transparency_chosen)
-        # Under the icon, its right edge no further out than the module icons'
-        left = min(area.left(), controls.width() - popup.width())
-        popup.show_at(controls.mapToGlobal(QPoint(left, area.bottom() + 4)))
+        popup.show_at(controls.mapToGlobal(QPoint(area.left(), area.bottom() + 4)))
 
     def _transparency(self) -> int:
         try:

@@ -11,14 +11,14 @@ from PySide6.QtGui import QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QApplication, QWidget
 
 from .status_menu import PopupMenu
-from .theme import Fonts, color, draw_text, line_height
+from .theme import Fonts, color
 
-# The slider: its length, the thickness of its track and the knob's size; and the space around it in the popup
-SLIDER_WIDTH = 120
+# The slider: its length, the thickness of its track and the knob's size; and the space around it in the popup, which
+# holds only the slider, the icon's tooltip naming it
+SLIDER_WIDTH = 80
 SLIDER_TRACK = 4
-SLIDER_KNOB = 14
-PADDING = 10
-LABEL_GAP = 8
+SLIDER_KNOB = 12
+PADDING = 6
 
 
 def paint_slider(painter: QPainter, left: float, top: float, transparency: int) -> None:
@@ -52,7 +52,7 @@ class TransparencyPopup(QWidget):
         self.on_change = on_change
         self.dragging = False
         self.slider_left = PADDING
-        self.slider_top = PADDING + line_height(fonts.small) + LABEL_GAP
+        self.slider_top = PADDING
         self.setFixedSize(SLIDER_WIDTH + 2 * PADDING, self.slider_top + SLIDER_KNOB + PADDING)
 
     def show_at(self, point: QPoint) -> None:
@@ -66,7 +66,6 @@ class TransparencyPopup(QWidget):
         painter = QPainter(self)
         painter.fillRect(self.rect(), color("border"))
         painter.fillRect(self.rect().adjusted(1, 1, -1, -1), color("panel"))
-        draw_text(painter, PADDING, PADDING, "Transparency", color("muted"), self.fonts.small)
         paint_slider(painter, self.slider_left, self.slider_top, self.transparency())
         painter.end()
 

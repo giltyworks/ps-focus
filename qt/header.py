@@ -42,8 +42,6 @@ MODULE_BUTTON_SIZE = 22
 MODULE_ICON_SIZE = 14
 MODULE_BUTTON_GAP = 2
 MODULE_ICON_OFF = "#4f5857"
-# The transparency icon stands this far left of the module icons, apart from them as it shows no module
-TRANSPARENCY_ICON_GAP = 8
 # The display name field is as wide as this many characters, as the Tk entry; a name may be this long
 NAME_ENTRY_CHARACTERS = 20
 NAME_MAX_LENGTH = 32
@@ -445,7 +443,7 @@ class Header(GlassMixin, QWidget):
 
 class ModuleControls(GlassMixin, QWidget):
     """The module buttons in a row at the right, one icon each; clicking one shows or hides its module. The mouse over
-    one shows its rounded box and its name. Left of them, the transparency icon opens its slider"""
+    one shows its rounded box and its name. At the left end, the transparency icon opens its slider"""
 
     def __init__(
         self, fonts: Fonts, ticked: dict[str, bool], on_toggle: Callable[[str], None],
@@ -465,8 +463,9 @@ class ModuleControls(GlassMixin, QWidget):
         for name, _label in reversed(MODULE_LABELS):
             self.areas[name] = QRect(right - MODULE_BUTTON_SIZE, 0, MODULE_BUTTON_SIZE, MODULE_BUTTON_SIZE)
             right -= MODULE_BUTTON_SIZE + MODULE_BUTTON_GAP
-        right += MODULE_BUTTON_GAP - TRANSPARENCY_ICON_GAP
-        self.transparency_area = QRect(right - MODULE_BUTTON_SIZE, 0, MODULE_BUTTON_SIZE, MODULE_BUTTON_SIZE)
+        # At the left end of the row, lined up with the level in the header above, as it shows no module
+        left = EDGE_PADDING - (MODULE_BUTTON_SIZE - MODULE_ICON_SIZE) // 2
+        self.transparency_area = QRect(left, 0, MODULE_BUTTON_SIZE, MODULE_BUTTON_SIZE)
         self.setFixedSize(TODAY_PANEL_WIDTH, MODULE_BUTTON_SIZE)
         # The module whose button the mouse is over, which then shows its box
         self.hovered: str | None = None
