@@ -390,7 +390,9 @@
   .psf-canvas { left: 0; top: 0; right: 0; bottom: 0; height: auto; box-shadow: none; }
   .psf-stage { min-height: 640px; }
   .psf-window { left: 50%; transform: translateX(-50%); }
-  /* Its title bar is tugged rather than the page scrolled, see TUG_REACH in demo.js */
+  /* The window is tugged sideways, its title bar every way, while up and down elsewhere scrolls the page; see TUG_REACH
+     in demo.js */
+  .psf-window { touch-action: pan-y; }
   .psf-window .psf-titlebar { touch-action: none; }
   .psf-strip { cursor: default; }
   .psf-grip { display: none; }

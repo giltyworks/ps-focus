@@ -1501,28 +1501,44 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     follow(move, () => { if (!touch.matches) settle(win, group); });
   });
 
-  // On a phone the window stays put, but its title bar can be tugged: the window gives a little, less the further it
-  // is pulled, and springs back once let go
+  // On a phone the window stays put, but it can be tugged: it gives a little, less the further it is pulled, and springs
+  // back once let go. Its title bar and the panels' titles give every way; elsewhere it gives sideways only, so
+  // swiping up and down still scrolls the page. What has a job of its own is left to it, and the graph to its readout
   const TUG_REACH = 36;
-  titlebar.addEventListener("pointerdown", (event) => {
-    if (!touch.matches || event.target.closest("button")) return;
+  const TUG_START = 6;
+  const UNTUGGED = "button, input, label, .psf-day, .psf-grip, .psf-account-name, .psf-request-row, .psf-chart-box, .psf-menu";
+  win.addEventListener("pointerdown", (event) => {
+    if (!touch.matches || !event.isPrimary || event.target.closest(UNTUGGED)) return;
     const start = { x: event.clientX, y: event.clientY };
+    const everyWay = !!event.target.closest(".psf-titlebar, .psf-strip");
     const give = (pulled) => Math.sign(pulled) * TUG_REACH * (1 - Math.exp(-Math.abs(pulled) / 100));
-    try { titlebar.setPointerCapture(event.pointerId); } catch (error) { /* moves still reach it */ }
-    win.style.transition = "none";
-    hideTip();
-    const move = (moveEvent) => { win.style.translate = `${give(moveEvent.clientX - start.x)}px ${give(moveEvent.clientY - start.y)}px`; };
-    const end = () => {
-      titlebar.removeEventListener("pointermove", move);
-      titlebar.removeEventListener("pointerup", end);
-      titlebar.removeEventListener("pointercancel", end);
+    let tugging = false;
+    const move = (moveEvent) => {
+      if (moveEvent.pointerId !== event.pointerId) return;
+      const dx = moveEvent.clientX - start.x, dy = everyWay ? moveEvent.clientY - start.y : 0;
+      if (!tugging) {
+        // A tap stays a tap: the tug begins only once the finger has moved
+        if (Math.hypot(dx, dy) < TUG_START) return;
+        tugging = true;
+        try { win.setPointerCapture(event.pointerId); } catch (error) { /* moves still reach it */ }
+        win.style.transition = "none";
+        hideTip();
+      }
+      win.style.translate = `${give(dx)}px ${give(dy)}px`;
+    };
+    const end = (endEvent) => {
+      if (endEvent.pointerId !== event.pointerId) return;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+      if (!tugging) return;
       // Back with a small overshoot, as if on a spring
       win.style.transition = "translate .45s cubic-bezier(.34, 1.56, .64, 1)";
       win.style.translate = "";
     };
-    titlebar.addEventListener("pointermove", move);
-    titlebar.addEventListener("pointerup", end);
-    titlebar.addEventListener("pointercancel", end);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
   });
 
   stage.addEventListener("dragstart", (event) => event.preventDefault());
