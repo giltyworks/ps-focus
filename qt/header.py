@@ -19,6 +19,8 @@ from .theme import Fonts, color, draw_text, halo_strength, line_height
 # level badge and the settings button each take, and the least height of the row; the space holding the progress
 # dot; from the edge of the account's area to its text; and the least space between the account and its neighbours
 HEADER_WIDTH = TODAY_PANEL_WIDTH
+# What the version becomes in Settings once a newer one is published; the version itself shows on hover
+UPDATE_LABEL = "Update"
 HEADER_ICON_SIZE = 26
 PROGRESS_DOT_SPACE = 18
 ACCOUNT_TEXT_INSET_X = 5
@@ -207,6 +209,7 @@ class Header(GlassMixin, QWidget):
         self.progress_reached = False
         self.settings_shown = False
         self.version_text, self.version_is_link = "", False
+        self.version_hovered = False
         self.level_clickable = False
         # Whether the mouse is over the settings button, which then shows its box
         self.settings_hovered = False
@@ -293,12 +296,15 @@ class Header(GlassMixin, QWidget):
         """What the Settings page shows in place of the level and account: the version, and the credit. When a newer
         version has been published the version becomes a link to the download page"""
         small, account = self.fonts.small, self.fonts.account
-        self._text(
-            painter, EDGE_PADDING, (height - line_height(small)) // 2, self.version_text,
-            color("accent" if self.version_is_link else "muted"), small,
-        )
         if self.version_is_link:
-            self.version_area = (0, 0, EDGE_PADDING + QFontMetrics(small).horizontalAdvance(self.version_text) + 4, height)
+            # An Update button, as the accent buttons in Settings; the version it gets shows on hover
+            box = QRectF(EDGE_PADDING - 2, (height - line_height(small)) / 2 - 3,
+                         QFontMetrics(small).horizontalAdvance(UPDATE_LABEL) + 16, line_height(small) + 6)
+            paint_hover_box(painter, box, color("accent_dark").lighter(130 if self.version_hovered else 100))
+            self._text(painter, int(box.x()) + 8, (height - line_height(small)) // 2, UPDATE_LABEL, color("accent"), small)
+            self.version_area = (int(box.left()), int(box.top()), int(box.right()), int(box.bottom()))
+        else:
+            self._text(painter, EDGE_PADDING, (height - line_height(small)) // 2, self.version_text, color("muted"), small)
         credit = "by giltyworks"
         self._text(
             painter, (HEADER_WIDTH - QFontMetrics(account).horizontalAdvance(credit)) // 2,
@@ -420,8 +426,9 @@ class Header(GlassMixin, QWidget):
             self.mousePressEvent(event)
 
     def leaveEvent(self, _event) -> None:
-        if self.settings_hovered or self.status_hovered:
-            self.settings_hovered = self.status_hovered = False
+        if self.settings_hovered or self.status_hovered or self.version_hovered:
+            self.settings_hovered = self.status_hovered = self.version_hovered = False
+            self.setToolTip("")
             self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
@@ -430,6 +437,11 @@ class Header(GlassMixin, QWidget):
         over_status = _inside(self.status_area, point)
         if (over_settings, over_status) != (self.settings_hovered, self.status_hovered):
             self.settings_hovered, self.status_hovered = over_settings, over_status
+            self.update()
+        over_version = self.version_is_link and _inside(self.version_area, point)
+        if over_version != self.version_hovered:
+            self.version_hovered = over_version
+            self.setToolTip(self.version_text if over_version else "")
             self.update()
         hand = (
             over_status

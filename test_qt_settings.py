@@ -1056,6 +1056,17 @@ class QtSettingsTests(unittest.TestCase):
         with patch("qt.app.webbrowser.open") as browser, patch("qt.app.is_safe_download_url", return_value=True):
             self.app.header.on_version()
         browser.assert_called_once_with(update[1])
+        # In Settings it is an Update button, the version it gets in its tooltip
+        from PySide6.QtCore import QEvent, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+
+        self.app._toggle_settings()
+        header = self.app.header
+        header.repaint()
+        left, top, right, bottom = header.version_area
+        point = QPointF((left + right) / 2, (top + bottom) / 2)
+        QApplication.sendEvent(header, QMouseEvent(QEvent.Type.MouseMove, point, QPointF(header.mapToGlobal(point)), Qt.MouseButton.NoButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+        self.assertEqual(header.toolTip(), "Get version 9.9.9")
 
     def test_offline_update_check_changes_nothing(self):
         with patch("qt.app.available_update", side_effect=RuntimeError("offline")):
