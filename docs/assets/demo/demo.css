@@ -432,3 +432,7 @@
 .psf-friend:hover { background: rgba(16, 16, 16, var(--a)); }
 .psf-tip { white-space: pre-line; }
 .psf-member-since { margin: 8px 0 0; font-size: 12px; color: var(--psf-muted); }
+/* A friend's figures, under their name, as the app's popup */
+.psf-details { display: flex; flex-direction: column; gap: 2px; padding: 7px 11px; cursor: default; }
+.psf-details b { font-size: 13.333px; font-weight: 600; color: var(--psf-text); }
+.psf-details span { font-size: 12px; color: var(--psf-muted); white-space: nowrap; }

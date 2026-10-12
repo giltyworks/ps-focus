@@ -298,7 +298,7 @@
   const settingsButton = el("button", { type: "button", class: "psf-icon-button psf-settings", title: "Settings", onclick: () => toggleSettings() }, "···");
   const level = el("div", { class: "psf-level" }, "Level", levelBadge);
   // In Settings the header shows the version and the credit in place of the level and account
-  const credit = el("div", { class: "psf-credit", hidden: true }, el("span", { class: "psf-version" }, "Version 1.1.22"), el("span", { class: "psf-by" }, "by giltyworks"));
+  const credit = el("div", { class: "psf-credit", hidden: true }, el("span", { class: "psf-version" }, "Version 1.1.23"), el("span", { class: "psf-by" }, "by giltyworks"));
   const header = el("div", { class: "psf-header" }, level, account, credit, settingsButton);
   const iconButtons = {};
   // At the left end of the row, as the app: the transparency icon, opening a small slider under it. While it is open
@@ -780,11 +780,9 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     name.addEventListener("dblclick", (event) => {
       if (event.target.closest("button, input")) return;
       event.stopPropagation(); hideTip();
-      const sheet = el("div", { class: "psf-sheet", role: "dialog", "aria-label": `${shown} details` });
-      const card = el("div", { class: "psf-sheet-card" }, el("b", {}, shown),
-        figures.split("\n").map((line) => el("span", {}, line)),
-        el("button", { type: "button", class: "psf-sheet-cancel", onclick: () => sheet.remove() }, "Close"));
-      sheet.append(card); stage.append(sheet);
+      // A small popup under the name, as the app's, closed by any click
+      openMenu(name, [el("div", { class: "psf-details", role: "dialog", "aria-label": `${shown} details`, onclick: () => closeMenu() },
+        el("b", {}, shown), figures.split("\n").map((line) => el("span", {}, line)))]);
     });
     friend.fresh = false;
     return row;
