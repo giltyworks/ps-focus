@@ -84,6 +84,39 @@ class QtSettingsTests(unittest.TestCase):
             self.app._track_and_refresh()
         self.assertEqual(panel.application, "Krita")
 
+    def test_settings_saved_by_an_older_version_survive_an_update(self):
+        # A settings file as 1.1.0 left it, with every choice changed from the default and a key from a later
+        # version unknown here; an update must keep every choice, carrying the old program panel settings over
+        import json
+        import app_config
+        from qt.app import PSFocusQt
+
+        chosen = {
+            "panel_transparency": 70, "always_on_top": True, "landscape": True, "period": "Month",
+            "show_graph": False, "show_calendar": True, "show_stats": False, "show_friends": True,
+            "launch_on_startup": False, "start_minimized": True, "disable_fanfare_sound": True, "tracking_paused": True,
+            "google_display_names": {"artist@example.com": "Inky"}, "friends_status": "away", "feedback_submitted": True,
+            "main_window_position": [40, 60], "some_future_setting": "kept",
+        }
+        legacy = {"tracking_enabled": True, "tracking_krita": True, "program_panels_chosen": ["Krita"],
+                  "block_order": ["graph", "Krita", "Photoshop", "stats"], "floating_modules": {"Photoshop": [10, 20]}}
+        app_config.SETTINGS_PATH.write_text(json.dumps({**chosen, **legacy}), encoding="utf-8")
+        with patch("qt.app.load_settings", app_config.load_settings):
+            updated = PSFocusQt(self.application)
+        try:
+            for timer in (updated.tick_timer, updated.focus_timer, updated.poll_timer, updated.backup_timer):
+                timer.stop()
+            updated._save_settings(upload=False)
+            saved = json.loads(app_config.SETTINGS_PATH.read_text(encoding="utf-8"))
+            for key, value in chosen.items():
+                self.assertEqual(saved.get(key), value, key)
+            # The one program panel takes the old panels' place, floating where Photoshop's floated
+            self.assertEqual(saved["block_order"][:2], ["graph", "today"])
+            self.assertEqual(saved["floating_modules"].get("today"), [10, 20])
+        finally:
+            updated.store.close()
+            updated.window.hide()
+
     def test_settings_from_one_panel_per_program_carry_over(self):
         self.app.settings.update({"tracking_krita": True, "program_panels_chosen": ["Krita"], "floating_modules": {"Krita": [10, 20], "stats": [5, 5]}})
         self.app._adopt_program_panels()

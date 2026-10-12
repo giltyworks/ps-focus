@@ -82,6 +82,8 @@ class PSFocusQt:
         self.settings = load_settings()
         self._adopt_program_panels()
         self.block_order = self._read_block_order()
+        # Kept in the order as read, so names an older version saved do not linger in the file
+        self.settings["block_order"] = self.block_order.copy()
         self.store = ActivityStore(app_config.DATABASE_PATH, app_config.BACKUP_DIRECTORIES)
         self.fonts = Fonts()
         self.active = False

@@ -429,6 +429,8 @@ class QtFriendsTests(unittest.TestCase):
         self.app.window.show()
         self.application.processEvents()
         self.assertTrue(self.app.friends.isVisible())
+        # Someone at the PC, whether or not anyone is at this one while the tests run
+        self.sync.present = True
         self.assertEqual(self.sync.sync_interval(), friends_sync.SEEN_SYNC_SECONDS)
         # Nobody at the PC, every ten minutes even with friends on screen
         self.sync.tick(None, present=False)
