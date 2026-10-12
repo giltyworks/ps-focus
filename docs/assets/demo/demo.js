@@ -265,8 +265,8 @@
   const win = el("div", { class: "psf-window", role: "application", "aria-label": "PS Focus demo" });
   const titlebar = el("div", { class: "psf-titlebar" },
     el("img", { src: LOGO, alt: "" }), "PS Focus", el("span", { class: "psf-spacer" }),
-    el("button", { type: "button", title: "Minimise", onclick: () => toast("In the app this minimises PS Focus") }, "–"),
-    el("button", { type: "button", class: "psf-close", title: "Close to the tray", onclick: () => toast("PS Focus keeps counting in the tray when closed") }, "✕"));
+    el("button", { type: "button", title: "Minimise to the tray", onclick: () => toast("In the app this hides PS Focus in the tray, where it keeps counting") }, "–"),
+    el("button", { type: "button", class: "psf-close", title: "Exit", onclick: () => toast("In the app this exits PS Focus. Minimise keeps it counting in the tray") }, "✕"));
   const progressDot = el("span", { class: "psf-dot" });
   const levelBadge = el("span", { class: "psf-badge" });
   const accountName = el("span", { class: "psf-account-name" }, "gilty");
@@ -968,7 +968,7 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
       el("p", { class: "psf-settings-text" }, "PS Focus counts time in Photoshop, Krita, CSP and PhotoCraft while they are in front and pauses when you're inactive"),
       boxedRow("Orientation", "Modules below or beside the program panel", orientation),
       boxedRow("Start with Windows", "Launch PS Focus when you sign in to Windows", toggle("startWithWindows")),
-      boxedRow("Start minimized", "Open PS Focus minimized when launched at sign-in", toggle("startMinimized")),
+      boxedRow("Start minimized", "Open PS Focus in the tray when launched at sign-in", toggle("startMinimized")),
       el("div", { class: "psf-check-row" },
         el("label", { class: "psf-check-label" }, "Pause tracking", checkbox(state.paused, "Pause tracking", () => setPaused(!state.paused))),
         el("label", { class: "psf-check-label" }, "Disable fanfare sound", toggle("fanfareOff"))),
