@@ -368,7 +368,13 @@
 .psf-sheet-cancel:hover { background: #222; }
 
 /* A day's overview, with its rating */
-.psf-day-overview { position: absolute; z-index: 32; width: 300px; background: #080808; outline: 1px solid #2b2b2b; text-shadow: none; box-shadow: 0 8px 30px rgba(0, 0, 0, .5); padding-bottom: 12px; }
+/* The app's small windows: a title bar over the body, outlined as a Windows window is */
+.psf-app-window { position: absolute; z-index: 32; background: #080808; outline: 1px solid #2b2b2b; text-shadow: none; box-shadow: 0 8px 30px rgba(0, 0, 0, .5); }
+.psf-app-window .psf-titlebar { background: #080808; }
+.psf-day-overview { width: 300px; padding-bottom: 12px; }
+/* A friend's details: at least 220 px, each line 26 px apart from the window's left 16 px in, as the app's */
+.psf-friend-details { min-width: 220px; }
+.psf-details-body { display: flex; flex-direction: column; padding: 12px 32px 12px 16px; background: #0c0c0c; font-size: 13.333px; line-height: 18px; gap: 8px; white-space: nowrap; }
 .psf-overview-rows { display: flex; justify-content: space-between; margin: 14px 16px 0; padding: 10px; background: #0c0c0c; border: 1px solid #222; font-size: 12px; }
 .psf-overview-empty { margin: 14px 19px 0; font-size: 12px; color: var(--psf-muted); }
 .psf-overview-ask { display: block; margin: 14px 19px 6px; font-size: 13.333px; font-weight: 600; }
@@ -432,5 +438,3 @@
 .psf-friend:hover { background: rgba(16, 16, 16, var(--a)); }
 .psf-tip { white-space: pre-line; }
 .psf-member-since { margin: 8px 0 0; font-size: 12px; color: var(--psf-muted); }
-/* When a friend joined, in grey under their figures, as the app's */
-.psf-sheet-card .psf-muted-line { color: var(--psf-muted); }

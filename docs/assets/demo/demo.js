@@ -169,7 +169,7 @@
     return picture(`<mask id="${id}"><rect width="14" height="14" fill="#fff"/><circle cx="9.24" cy="5.6" r="5.04" fill="#000"/></mask><circle cx="7" cy="7" r="6.16" fill="#3d5ce6" mask="url(#${id})"/>`, 14, "psf-streak-icon");
   };
   // The rating star: the emoji's outline in one colour, as the app draws it
-  const ratingStar = (size = 12) => picture('<path d="M7 1.3l1.62 3.5 3.83.42-2.86 2.6.8 3.77L7 9.66l-3.39 1.93.8-3.77-2.86-2.6 3.83-.42z" fill="currentColor" stroke="currentColor" stroke-width="1.1" stroke-linejoin="round"/>', size, "psf-star-icon");
+  const ratingStar = (size = 12) => picture('<path d="M7 1.3l1.62 3.5 3.83.42-2.86 2.6.8 3.77L7 9.66l-3.39 1.93.8-3.77-2.86-2.6 3.83-.42z" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>', size, "psf-star-icon");
   const PERSON = '<circle cx="7" cy="4.2" r="2.6" fill="currentColor" stroke="none"/><path d="M1.6 13C1.6 8 12.4 8 12.4 13Z" fill="currentColor" stroke="none"/>';
   const PERSON_PLUS = '<circle cx="6" cy="4.2" r="2.4" fill="currentColor" stroke="none"/><path d="M1 13C1 8.4 11 8.4 11 13Z" fill="currentColor" stroke="none"/><circle cx="11" cy="10.4" r="3.4" fill="#080808" stroke="none"/><circle cx="11" cy="10.4" r="2.4" stroke-width="1.1"/><path d="M9.8 10.4H12.2M11 9.2V11.6" stroke-width="1.1"/>';
 
@@ -230,7 +230,7 @@
   root.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
     const painting = canvas.contains(event.target);
-    const app = event.target.closest(".psf-window, .psf-floating, .psf-menu, .psf-sheet, .psf-controls");
+    const app = event.target.closest(".psf-window, .psf-floating, .psf-menu, .psf-sheet, .psf-app-window, .psf-controls");
     if (!painting && !app) return;
     if (state.drawing === painting) return;
     state.drawing = painting;
@@ -538,12 +538,24 @@
   // A day's overview: its time in each program, when it started, and the day's rating from 1 to 10, which a click on
   // the same star clears, as in the app
   const clockTime = (hour, minute) => `${hour % 12 || 12}:${String(minute).padStart(2, "0")} ${hour < 12 ? "AM" : "PM"}`;
+  // The app's small windows, the day's rating and a friend's details: a title bar with the logo, the title and a close
+  // button over the body, centred on PS Focus's window as the app opens them; one at a time
+  function appWindow(title, label, cls, ...body) {
+    document.querySelector(".psf-app-window")?.remove();
+    const box = el("div", { class: `psf-app-window ${cls}`, role: "dialog", "aria-label": label });
+    box.append(el("div", { class: "psf-titlebar" }, el("img", { src: LOGO, alt: "" }), title, el("span", { class: "psf-spacer" }),
+      el("button", { type: "button", class: "psf-close", title: "Close", onclick: () => box.remove() }, "\u2715")), ...body);
+    stage.append(box);
+    const w = rect(win);
+    box.style.left = `${Math.max(8, Math.min(w.left + (w.width - box.offsetWidth) / 2, stage.clientWidth - box.offsetWidth - 8))}px`;
+    box.style.top = `${Math.max(8, Math.min(w.top + (w.height - box.offsetHeight) / 2, stage.clientHeight - box.offsetHeight - 8))}px`;
+    return box;
+  }
+
   function dayOverview(date) {
-    document.querySelector(".psf-day-overview")?.remove();
     const hours = history.get(key(date)) || [];
     const seconds = hours.reduce((a, b) => a + b, 0);
     const first = hours.findIndex((value) => value > 0);
-    const dialog = el("div", { class: "psf-day-overview", role: "dialog", "aria-label": `${longDate(date)} overview` });
     const stars = el("div", { class: "psf-stars" });
     const paintStars = (shown) => [...stars.children].forEach((star, index) => {
       star.classList.toggle("psf-lit", index < shown);
@@ -561,17 +573,12 @@
     }
     stars.addEventListener("pointerleave", () => paintStars(ratings.get(key(date)) || 0));
     paintStars(ratings.get(key(date)) || 0);
-    dialog.append(
-      el("div", { class: "psf-titlebar" }, el("img", { src: LOGO, alt: "" }), `${WEEKDAYS[(date.getDay() + 6) % 7]}, ${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`,
-        el("span", { class: "psf-spacer" }), el("button", { type: "button", class: "psf-close", title: "Close", onclick: () => dialog.remove() }, "✕")),
+    appWindow(`${WEEKDAYS[(date.getDay() + 6) % 7]}, ${date.getDate()} ${MONTHS[date.getMonth()]} ${date.getFullYear()}`,
+      `${longDate(date)} overview`, "psf-day-overview",
       seconds
         ? el("div", { class: "psf-overview-rows" }, el("span", {}, "Photoshop"), el("span", { class: "psf-muted" }, `${clock(seconds)} · started ${clockTime(first, 10 + (date.getDate() * 7) % 40)}`))
         : el("div", { class: "psf-overview-empty" }, "No activity recorded"),
       el("b", { class: "psf-overview-ask" }, "How productive was this session?"), stars);
-    stage.append(dialog);
-    const w = rect(win);
-    dialog.style.left = `${Math.max(8, Math.min(w.left + (w.width - dialog.offsetWidth) / 2, stage.clientWidth - dialog.offsetWidth - 8))}px`;
-    dialog.style.top = `${Math.max(8, rect(calendarBlock).top + 40)}px`;
   }
 
   function renderCalendar() {
@@ -780,11 +787,10 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     row.addEventListener("dblclick", (event) => {
       if (event.target.closest("button, input")) return;
       event.stopPropagation(); hideTip();
-      const sheet = el("div", { class: "psf-sheet", role: "dialog", "aria-label": `${shown} details` });
-      const card = el("div", { class: "psf-sheet-card" }, el("b", {}, shown),
-        figures.split("\n").map((line) => el("span", line.startsWith("Member since") ? { class: "psf-muted-line" } : {}, line)),
-        el("button", { type: "button", class: "psf-sheet-cancel", onclick: () => sheet.remove() }, "Close"));
-      sheet.append(card); stage.append(sheet);
+      // A small window titled with their name, as the app's: the figures, and when they joined in grey
+      appWindow(shown, `${shown} details`, "psf-friend-details",
+        el("div", { class: "psf-details-body" },
+          figures.split("\n").map((line) => el("span", line.startsWith("Member since") ? { class: "psf-muted" } : {}, line))));
     });
     friend.fresh = false;
     return row;
@@ -1542,7 +1548,7 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
   // On a touch screen there is no pointer to move away: a tap on the painting fades PS Focus, a tap on it brings it back
   stage.addEventListener("click", (event) => {
     if (!touch.matches) return;
-    stageAway = !event.target.closest(".psf-window, .psf-floating, .psf-menu");
+    stageAway = !event.target.closest(".psf-window, .psf-floating, .psf-menu, .psf-app-window");
     updateGlass();
   });
 
