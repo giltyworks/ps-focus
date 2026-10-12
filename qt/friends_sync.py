@@ -138,6 +138,13 @@ class FriendsSync:
             "active": self.shown_program(),
         }
 
+    def header_name_color(self) -> str:
+        """The user's name in the header, coloured as friends see them: grey while invisible or offline, the lighter
+        green while drawing in an art app, otherwise the lighter blue, online or away"""
+        if self.status() in ("invisible", "offline"):
+            return "muted"
+        return "name_drawing" if self.active_program else "name_online"
+
     def status(self) -> str:
         status = self.app.settings.get("friends_status")
         return status if status in STATUSES else "online"
@@ -169,6 +176,13 @@ class FriendsSync:
             self.active_program = program
         elif self.active_program and now - self.last_active_time > ACTIVE_LINGER_SECONDS:
             self.active_program = None
+        if self.enabled():
+            # The name turns green while drawing, blue again after
+            header = self.app.header
+            name_color = self.header_name_color()
+            if header.account_color != name_color and not header.settings_shown:
+                header.account_color = name_color
+                header.update()
         if not self.enabled():
             return
         since = now - self.last_sync

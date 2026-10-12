@@ -96,7 +96,8 @@
 .psf-account { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 14.667px; color: var(--psf-green); }
 .psf-account.psf-hidden-name { color: var(--psf-muted); }
 /* Names a lighter shade than the line under them, so they read first */
-.psf-account-name { cursor: pointer; font-weight: 600; color: var(--psf-name-drawing); }
+.psf-account-name { cursor: pointer; font-weight: 600; color: var(--psf-name-online); }
+.psf-account.psf-in-app .psf-account-name { color: var(--psf-name-drawing); }
 .psf-account.psf-hidden-name .psf-account-name, .psf-account.psf-local .psf-account-name { color: inherit; }
 .psf-account-text { display: flex; flex-direction: column; }
 .psf-account-line { display: flex; align-items: center; gap: 2px; line-height: 18px; }

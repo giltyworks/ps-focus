@@ -317,6 +317,8 @@
     const active = state.drawing && !state.paused;
     today_.status.textContent = active ? "ACTIVE" : state.paused ? "PAUSED" : "NOT ACTIVE";
     today_.status.classList.toggle("psf-active", active);
+    // Your name turns the lighter green while drawing, as the app
+    account.classList.toggle("psf-in-app", active);
     today_.last.textContent = `last session on ${lastSession.getDate()} ${MONTHS[lastSession.getMonth()]}`;
     progressDot.classList.toggle("psf-reached", todaySeconds >= SESSION_MINIMUM);
     levelBadge.textContent = String(levelFor(lifetime / 3600));
