@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta
 
 from PySide6.QtCore import QPoint, QTimer
 from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
+from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QProxyStyle, QStyle, QSystemTrayIcon
 
 import app_config
 from app_config import (
@@ -855,6 +855,16 @@ class PSFocusQt:
         self.application.quit()
 
 
+
+class InstantTips(QProxyStyle):
+    """The app's look, with tooltips shown as soon as the mouse is over what they explain"""
+
+    def styleHint(self, hint, option=None, widget=None, return_data=None):
+        if hint == QStyle.StyleHint.SH_ToolTip_WakeUpDelay:
+            return 0
+        return super().styleHint(hint, option, widget, return_data)
+
+
 def main(preview: bool, smoke_test: bool = False, dev: bool = False) -> None:
     from windows_startup import set_app_user_model_id
 
@@ -893,6 +903,8 @@ def main(preview: bool, smoke_test: bool = False, dev: bool = False) -> None:
     application.setApplicationName(APP_NAME)
     # The small tooltips on buttons are dark like the app's own tips, see hover_tip
     application.setStyleSheet("QToolTip { background: #151515; color: #eef3f1; border: 1px solid #2c2c2c; padding: 4px 6px; }")
+    # And at once, as the calendar's and friends' own tips, rather than after Windows' usual wait
+    application.setStyle(InstantTips(application.style()))
     app = PSFocusQt(application, instance, dev)
     if dev:
         app.window.setWindowTitle("PS Focus Dev")

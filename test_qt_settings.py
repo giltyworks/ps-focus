@@ -1340,3 +1340,9 @@ class DevToolsTests(unittest.TestCase):
         self.tools.update()
         self.assertFalse(self.app.header.version_is_link)
         self.assertIsNone(self.app.available_update)
+
+    def test_tooltips_show_at_once(self):
+        from PySide6.QtWidgets import QStyle
+        from qt.app import InstantTips
+
+        self.assertEqual(InstantTips(self.application.style()).styleHint(QStyle.StyleHint.SH_ToolTip_WakeUpDelay), 0)
