@@ -357,6 +357,24 @@ class QtSettingsTests(unittest.TestCase):
         self.application.processEvents()
         self.assertFalse(panel.program_menu_open)
 
+    def test_transparency_icon_opens_its_slider(self):
+        from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+        from PySide6.QtWidgets import QApplication
+        from qt.transparency_popup import TransparencyPopup
+
+        controls = self.app.module_controls
+        point = controls.transparency_area.center()
+        self.assertTrue(controls.interactive_at(point))
+        QApplication.sendEvent(controls, QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(point), QPointF(controls.mapToGlobal(point)), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+        popup = next(widget for widget in QApplication.topLevelWidgets() if isinstance(widget, TransparencyPopup) and widget.isVisible())
+        # Fully left on the slider is fully see-through
+        left = QPoint(popup.slider_left, popup.slider_top + 5)
+        for kind, buttons in ((QEvent.Type.MouseButtonPress, Qt.MouseButton.LeftButton), (QEvent.Type.MouseButtonRelease, Qt.MouseButton.NoButton)):
+            QApplication.sendEvent(popup, QMouseEvent(kind, QPointF(left), QPointF(popup.mapToGlobal(left)), Qt.MouseButton.LeftButton, buttons, Qt.KeyboardModifier.NoModifier))
+        self.assertEqual(self.app.settings["panel_transparency"], 100)
+        popup.close()
+
     def test_startup_controls_do_not_change_settings(self):
         before = self.app.settings.copy()
         self.app._setting_toggled("launch_on_startup")

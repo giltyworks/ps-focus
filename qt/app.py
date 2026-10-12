@@ -11,7 +11,7 @@ import time
 import webbrowser
 from datetime import date, datetime, timedelta
 
-from PySide6.QtCore import QTimer
+from PySide6.QtCore import QPoint, QTimer
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
@@ -106,7 +106,7 @@ class PSFocusQt:
         self.window = MainWindow(on_close=self.window_hidden, on_resized_by_user=self._window_width_chosen, fonts=self.fonts)
         self.header = Header(self.fonts)
         self.module_ticked = {name: bool(self.settings.get(f"show_{name}", True)) for name in MODULE_NAMES}
-        self.module_controls = ModuleControls(self.fonts, self.module_ticked, self._module_toggled)
+        self.module_controls = ModuleControls(self.fonts, self.module_ticked, self._module_toggled, self._open_transparency)
         self.window.set_top(self.header, self.module_controls)
         # The title bar's right-click menu holds Always on top
         self.window.title_bar.on_menu = self._title_bar_menu
@@ -146,7 +146,6 @@ class PSFocusQt:
         self.settings_page = SettingsPage(self.fonts, self.settings, self._setting_toggled, self._set_orientation, self._settings_resized)
         self.settings_page.exit_button.command = self.close
         self.settings_page.feedback_button.command = self._open_feedback_dialog
-        self.settings_page.on_transparency = self._transparency_chosen
         preview = bool(app_config.DATA_DIRECTORY_OVERRIDE)
         # Starting with Windows is the installed app's alone: a preview, or a copy run from source, would point the
         # Windows entry at itself
@@ -307,6 +306,24 @@ class PSFocusQt:
         for panel in self.docking.floating.values():
             if panel is not None:
                 set_topmost(panel, on)
+
+    def _open_transparency(self, area) -> None:
+        """The transparency slider, under its icon; a click on the icon while it is open closes it"""
+        from .transparency_popup import TransparencyPopup
+
+        if not PopupMenu.opens(TransparencyPopup.OPENER):
+            return
+        controls = self.module_controls
+        popup = TransparencyPopup(self.window, self.fonts, self._transparency, self._transparency_chosen)
+        # Under the icon, its right edge no further out than the module icons'
+        left = min(area.left(), controls.width() - popup.width())
+        popup.show_at(controls.mapToGlobal(QPoint(left, area.bottom() + 4)))
+
+    def _transparency(self) -> int:
+        try:
+            return max(0, min(100, int(self.settings.get("panel_transparency", 0))))
+        except (TypeError, ValueError):
+            return 0
 
     def _transparency_chosen(self, value: int, done: bool) -> None:
         """The panels follow the slider as it moves; the setting is saved once it is let go"""

@@ -42,6 +42,8 @@ MODULE_BUTTON_SIZE = 22
 MODULE_ICON_SIZE = 14
 MODULE_BUTTON_GAP = 2
 MODULE_ICON_OFF = "#4f5857"
+# The transparency icon stands this far left of the module icons, apart from them as it shows no module
+TRANSPARENCY_ICON_GAP = 8
 # The display name field is as wide as this many characters, as the Tk entry; a name may be this long
 NAME_ENTRY_CHARACTERS = 20
 NAME_MAX_LENGTH = 32
@@ -114,6 +116,12 @@ def paint_module_icon(painter: QPainter, kind: str, rect: QRectF, icon_color: QC
         for fy, length in ((0.2, 0.92), (0.5, 0.92), (0.8, 0.92)):
             painter.drawLine(at(0.08, fy), at(0.4, fy))
             painter.drawLine(at(0.6, fy), at(length, fy))
+    elif kind == "transparency":
+        # A circle half filled, half see-through
+        painter.drawEllipse(QRectF(at(0.06, 0.06), at(0.94, 0.94)))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.setBrush(icon_color)
+        painter.drawPie(QRectF(at(0.06, 0.06), at(0.94, 0.94)), 90 * 16, 180 * 16)
     else:
         # The friend behind, then the one in front
         painter.drawEllipse(at(0.68, 0.28), 0.13 * size, 0.13 * size)
@@ -437,13 +445,18 @@ class Header(GlassMixin, QWidget):
 
 class ModuleControls(GlassMixin, QWidget):
     """The module buttons in a row at the right, one icon each; clicking one shows or hides its module. The mouse over
-    one shows its rounded box and its name"""
+    one shows its rounded box and its name. Left of them, the transparency icon opens its slider"""
 
-    def __init__(self, fonts: Fonts, ticked: dict[str, bool], on_toggle: Callable[[str], None]) -> None:
+    def __init__(
+        self, fonts: Fonts, ticked: dict[str, bool], on_toggle: Callable[[str], None],
+        on_transparency: Callable[[QRect], None] = lambda _area: None,
+    ) -> None:
         super().__init__()
         self.fonts = fonts
         self.ticked = ticked
         self.on_toggle = on_toggle
+        # Told the icon's square, to open the slider under it
+        self.on_transparency = on_transparency
         self.setMouseTracking(True)
         self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         # Each module's square, laid out from the right edge
@@ -452,6 +465,8 @@ class ModuleControls(GlassMixin, QWidget):
         for name, _label in reversed(MODULE_LABELS):
             self.areas[name] = QRect(right - MODULE_BUTTON_SIZE, 0, MODULE_BUTTON_SIZE, MODULE_BUTTON_SIZE)
             right -= MODULE_BUTTON_SIZE + MODULE_BUTTON_GAP
+        right += MODULE_BUTTON_GAP - TRANSPARENCY_ICON_GAP
+        self.transparency_area = QRect(right - MODULE_BUTTON_SIZE, 0, MODULE_BUTTON_SIZE, MODULE_BUTTON_SIZE)
         self.setFixedSize(TODAY_PANEL_WIDTH, MODULE_BUTTON_SIZE)
         # The module whose button the mouse is over, which then shows its box
         self.hovered: str | None = None
@@ -467,17 +482,25 @@ class ModuleControls(GlassMixin, QWidget):
                 paint_hover_box(painter, area.adjusted(1, 1, -1, -1), color("border"))
             icon_color = color("text") if self.ticked[name] else QColor(MODULE_ICON_OFF)
             paint_module_icon(painter, name, area.adjusted(inset, inset, -inset, -inset), icon_color)
+        area = QRectF(self.transparency_area)
+        if self.hovered == "transparency":
+            paint_hover_box(painter, area.adjusted(1, 1, -1, -1), color("border"))
+        paint_module_icon(painter, "transparency", area.adjusted(inset, inset, -inset, -inset), color("text"))
         painter.end()
 
     def interactive_at(self, point: QPoint) -> bool:
         return self._control_at(point) is not None
 
     def _control_at(self, point: QPoint) -> str | None:
+        if self.transparency_area.contains(point):
+            return "transparency"
         return next((name for name, area in self.areas.items() if area.contains(point)), None)
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         name = self._control_at(event.position().toPoint())
-        if event.button() == Qt.MouseButton.LeftButton and name is not None:
+        if event.button() == Qt.MouseButton.LeftButton and name == "transparency":
+            self.on_transparency(self.transparency_area)
+        elif event.button() == Qt.MouseButton.LeftButton and name is not None:
             self.ticked[name] = not self.ticked[name]
             # Its name now offers the opposite
             self.hovered = None
@@ -485,14 +508,18 @@ class ModuleControls(GlassMixin, QWidget):
             self.on_toggle(name)
 
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
-        # A quick second click toggles again
-        self.mousePressEvent(event)
+        # A quick second click toggles again; on the transparency icon it closes the slider, as the popup does
+        if self._control_at(event.position().toPoint()) != "transparency":
+            self.mousePressEvent(event)
 
     def _hover(self, name: str | None) -> None:
         if name != self.hovered:
             self.hovered = name
             labels = dict(MODULE_LABELS)
-            self.setToolTip(f"{'Hide' if name and self.ticked[name] else 'Show'} {labels[name]}" if name else "")
+            if name == "transparency":
+                self.setToolTip("Transparency")
+            else:
+                self.setToolTip(f"{'Hide' if name and self.ticked[name] else 'Show'} {labels[name]}" if name else "")
             self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
