@@ -132,7 +132,7 @@
 .psf-icons .psf-icon-button.psf-on { color: var(--psf-text); }
 /* The transparency icon at the row's left end, always lit, dimmed by the setting; its compact slider popup */
 .psf-icons .psf-icon-button.psf-transparency { color: var(--psf-text); margin: 0 auto 0 4px; }
-.psf-menu.psf-compact { min-width: 0; padding: 0; }
+.psf-menu.psf-compact { min-width: 0; padding: 0; background: none; border: 0; }
 .psf-transparency-popup { display: flex; align-items: center; height: 22px; padding: 0 6px; }
 .psf-transparency-popup input { width: 80px; margin: 0; accent-color: var(--psf-blue); }
 

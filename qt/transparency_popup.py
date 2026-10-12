@@ -7,7 +7,7 @@ import time
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
-from PySide6.QtGui import QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QApplication, QWidget
 
 from .status_menu import PopupMenu
@@ -47,6 +47,8 @@ class TransparencyPopup(QWidget):
         super().__init__(parent, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setMouseTracking(True)
+        # No box: the slider stands on the row beside its icon, over the window's own background
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.fonts = fonts
         self.transparency = transparency
         self.on_change = on_change
@@ -64,8 +66,9 @@ class TransparencyPopup(QWidget):
 
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
-        painter.fillRect(self.rect(), color("border"))
-        painter.fillRect(self.rect().adjusted(1, 1, -1, -1), color("panel"))
+        # All but invisible, yet enough for Windows to give the popup the clicks on it: a fully clear pixel lets
+        # them through to what is behind
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 1))
         paint_slider(painter, self.slider_left, self.slider_top, self.transparency())
         painter.end()
 
