@@ -11,7 +11,7 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication
 
-from app_config import APP_NAME, LEVEL_HOURS, user_level
+from app_config import APP_NAME, APP_VERSION, LEVEL_HOURS, user_level
 from tracker import activity_slices
 
 from .status_menu import PopupMenu
@@ -73,7 +73,7 @@ class DevTools:
             ("feedback_reveal", "Feedback: reveal-your-level form", "Hides the level again first"),
             ("feedback", "Feedback: regular form", ""),
             ("feedback_reset", "Reset feedback", "Clears the wait and hides the level"),
-            ("update", "Show the update notice", ""),
+            ("update", f"Update notice: {'on' if self.app.available_update else 'off'}", "As if a newer version were out"),
             ("hour", "Add an hour today", ""),
             ("longest", "Make today the longest session", ""),
             ("best_week", "Make this week a gold-medal week", ""),
@@ -127,8 +127,16 @@ class DevTools:
             app.header.set_level(app.header.badge_state[0], False)
 
     def update(self) -> None:
-        self.app.update_announced = False
-        self.app._show_available_update(("9.9.9", "https://github.com/giltyworks/ps-focus/releases/latest"))
+        """The update notice on, as if a newer version had been published, or off again"""
+        app = self.app
+        if app.available_update is None:
+            app.update_announced = False
+            app._show_available_update(("9.9.9", "https://github.com/giltyworks/ps-focus/releases/latest"))
+        else:
+            app.available_update = None
+            app.header.version_text, app.header.version_is_link = f"Version {APP_VERSION}", False
+            app.header.update()
+        self._redraw_panel()
 
     # ----- Hours and records -----
 
@@ -172,8 +180,11 @@ class DevTools:
         friends = self.app.friends_sync
         friends.sample_friends = not friends.sample_friends
         friends.refresh_view()
+        self._redraw_panel()
+
+    def _redraw_panel(self) -> None:
+        """A row that says on or off has changed: the panel is made again where it stood"""
         if self.panel is not None:
-            # Its row says on or off, so the panel is made again where it stood
             where, offset = self.panel.pos(), self.panel.offset
             self.panel.close()
             self._show_panel(where)

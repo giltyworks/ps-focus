@@ -1332,3 +1332,11 @@ class DevToolsTests(unittest.TestCase):
         self.application.processEvents()
         self.assertEqual(self.tools.panel.pos(), before + QPoint(30, 20))
         self.tools.open_menu(QPoint(0, 0))
+
+    def test_the_update_notice_toggles(self):
+        self.app.tray_icon = Mock()
+        self.tools.update()
+        self.assertTrue(self.app.header.version_is_link)
+        self.tools.update()
+        self.assertFalse(self.app.header.version_is_link)
+        self.assertIsNone(self.app.available_update)
