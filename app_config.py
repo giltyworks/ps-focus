@@ -1,4 +1,4 @@
-﻿"""Paths, constants, colours, and default settings shared across PS Focus"""
+"""Paths, constants, colours, and default settings shared across PS Focus"""
 
 from __future__ import annotations
 
