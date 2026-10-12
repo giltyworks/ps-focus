@@ -549,7 +549,7 @@
       star.classList.toggle("psf-lit", index < shown);
     });
     for (let value = 1; value <= 10; value++) {
-      const star = el("button", { type: "button", class: "psf-star", "aria-label": `Rate ${value} out of 10` }, ratingStar(20));
+      const star = el("button", { type: "button", class: "psf-star", "aria-label": `Rate ${value} out of 10` }, ratingStar(16));
       star.addEventListener("pointerenter", () => paintStars(value));
       star.addEventListener("click", () => {
         if (ratings.get(key(date)) === value) ratings.delete(key(date));

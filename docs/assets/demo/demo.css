@@ -372,7 +372,7 @@
 .psf-overview-rows { display: flex; justify-content: space-between; margin: 14px 16px 0; padding: 10px; background: #0c0c0c; border: 1px solid #222; font-size: 12px; }
 .psf-overview-empty { margin: 14px 19px 0; font-size: 12px; color: var(--psf-muted); }
 .psf-overview-ask { display: block; margin: 14px 19px 6px; font-size: 13.333px; font-weight: 600; }
-.psf-stars { display: flex; gap: 2px; padding: 0 15px; }
+.psf-stars { display: flex; justify-content: space-between; padding: 0 13px; }
 .psf-star { border: 0; background: none; color: #5c5c5c; font-size: 20px; line-height: 1; padding: 2px 1px; cursor: pointer; font-family: "Segoe UI Symbol", "Segoe UI", sans-serif; }
 .psf-star.psf-lit { color: var(--psf-gold); }
 

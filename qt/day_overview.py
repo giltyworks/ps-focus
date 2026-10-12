@@ -14,6 +14,7 @@ from stat_lines import DAY_ABBREVIATIONS, format_clock
 from tracker import ActivityStore
 from windows_startup import set_title_bar_colors_for_handle
 
+from .header import fit_text
 from .icons import icon
 from .theme import Fonts, color, draw_outline_text, draw_text, line_height, text_width
 
@@ -103,18 +104,21 @@ class DayOverview(QDialog):
                 detail += f" · started {format_clock(started_at)}"
             rows.append((application, detail))
             widths.append(2 * 16 + 2 + 2 * 10 + text_width(fonts.small, application) + text_width(fonts.small, detail) + 4 * LABEL_INSET)
-        stars_width = 14 + STAR_COUNT * (text_width(fonts.rating_star, STAR) + 4 + 2) + 14
-        widths.append(stars_width)
-        width = max(widths)
+        # As wide as PS Focus's window, which it opens over
+        width = self.parentWidget().window().width() if self.parentWidget() is not None else max(widths)
         if rows:
             top += 0 if summary else 14
             panel_top = top
             top += 1
             for application, detail in rows:
                 top += 6
-                self.pieces.append(("text", 16 + 1 + 10 + LABEL_INSET, top + LABEL_INSET, application, "text", fonts.small))
+                left = 16 + 1 + 10 + LABEL_INSET
                 right = width - 16 - 1 - 10 - LABEL_INSET
-                self.pieces.append(("text", right - text_width(fonts.small, detail), top + LABEL_INSET, detail, "muted", fonts.small))
+                detail_left = right - text_width(fonts.small, detail)
+                # In a window as narrow as PS Focus's, a long program name gives way to its time
+                name = fit_text(application, fonts.small, detail_left - 8 - left)
+                self.pieces.append(("text", left, top + LABEL_INSET, name, "text", fonts.small))
+                self.pieces.append(("text", detail_left, top + LABEL_INSET, detail, "muted", fonts.small))
                 top += label_height + 6
             top += 1
             self.panel = (16, panel_top, width - 32, top - panel_top)
@@ -125,8 +129,9 @@ class DayOverview(QDialog):
         top += bold + 2 * LABEL_INSET + 6
         star_width = text_width(fonts.rating_star, STAR) + 4
         star_height = line_height(fonts.rating_star) + 2 * LABEL_INSET
-        # Ten stars for the ratings 1 to 10, each in its own area that a click rates by
-        self.star_areas = [(14 + 1 + index * (star_width + 2), top, star_width, star_height) for index in range(STAR_COUNT)]
+        # Ten stars for the ratings 1 to 10, spread evenly across the window, each in its own area that a click rates by
+        step = (width - 2 * 15 - star_width) / (STAR_COUNT - 1)
+        self.star_areas = [(round(15 + index * step), top, star_width, star_height) for index in range(STAR_COUNT)]
         top += star_height + 12
         self.setFixedSize(width, top)
 

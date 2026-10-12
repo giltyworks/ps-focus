@@ -46,7 +46,7 @@ class Fonts:
         self.tiny = font(7)
         # A day's rating, on the calendar and in Stats, and the day overview's stars, bold for a thicker outline
         self.rating = font(8, family="Segoe UI Emoji")
-        self.rating_star = font(16, family="Segoe UI Symbol", bold=True)
+        self.rating_star = font(12, family="Segoe UI Symbol", bold=True)
 
 
 @lru_cache(maxsize=None)
