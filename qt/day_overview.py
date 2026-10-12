@@ -9,7 +9,7 @@ from PySide6.QtCore import QPoint, Qt
 from PySide6.QtGui import QColor, QKeyEvent, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QWidget
 
-from app_config import format_duration
+from app_config import TODAY_PANEL_WIDTH, WINDOW_MARGIN, format_duration
 from stat_lines import DAY_ABBREVIATIONS, format_clock
 from tracker import ActivityStore
 
@@ -95,8 +95,10 @@ class DayOverview(AppDialog):
                 detail += f" · started {format_clock(started_at)}"
             rows.append((application, detail))
             widths.append(2 * 16 + 2 + 2 * 10 + text_width(fonts.small, application) + text_width(fonts.small, detail) + 4 * LABEL_INSET)
-        # As wide as PS Focus's window, which it opens over
-        width = self.parentWidget().window().width() if self.parentWidget() is not None else max(widths)
+        # As wide as PS Focus's window, which it opens over; in landscape, the long strip, as wide as it is upright
+        width = max(widths)
+        if self.parentWidget() is not None:
+            width = min(self.parentWidget().window().width(), TODAY_PANEL_WIDTH + 2 * WINDOW_MARGIN)
         if rows:
             top += 0 if summary else 14
             panel_top = top

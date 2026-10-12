@@ -407,6 +407,12 @@ class QtSettingsTests(unittest.TestCase):
         # As wide as the main window
         self.assertEqual(overview.width(), self.app.window.width())
         overview.deleteLater()
+        # In landscape the window is a long strip; the rating window stays as wide as it is upright
+        portrait = self.app.window.width()
+        self.app.window.resize(3 * portrait, self.app.window.height())
+        overview = DayOverview(self.app.window, self.app.fonts, self.app.store, date.today(), lambda _day, _rating: None)
+        self.assertEqual(overview.width(), portrait)
+        overview.deleteLater()
 
     def test_a_calendar_day_opens_when_the_button_is_let_go(self):
         from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
