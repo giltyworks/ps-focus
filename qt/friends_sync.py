@@ -51,6 +51,7 @@ SAMPLE_FRIENDS = (
     ("Isabella", {"two_weeks": 8.9, "today": 0.0, "total": 60.2, "level": 13}, "online", None, "SAMPLE04"),
     ("Priya", {"two_weeks": 6.8, "today": 0.0, "total": 47.9, "level": 11}, "away", None, "SAMPLE05"),
     ("Jonathan", {"two_weeks": 3.1, "today": 1.2, "total": 28.4, "level": 8}, "offline", None, "SAMPLE06"),
+    ("Chloe", {"two_weeks": 2.4, "today": 0.0, "total": 19.7, "level": 6, "last_online_ago": 11 * 3600}, "offline", None, "SAMPLE07"),
 )
 
 
@@ -355,6 +356,10 @@ class FriendsSync:
             status = stats.get("status", "online") if fresh else "offline"
             program = stats.get("active") if status == "online" else None
             presence = "drawing" if program else status
+            if not fresh:
+                # Gone quiet, their PC off or PS Focus closed: when they were last heard from, for "Last online 11
+                # hours ago". Someone invisible still checks in, so is never shown with a time that would give them away
+                stats = {**stats, "last_online_ago": max(0, now - friend.get("updated_at", 0))}
             code = friend.get("code", "")
             # A nickname the user gave them shows in place of their name
             name = self._local("friends_nicknames").get(code) or friend.get("name", "")

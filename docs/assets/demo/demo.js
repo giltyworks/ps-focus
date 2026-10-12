@@ -105,7 +105,7 @@
       { code: "MIAA", name: "Mia", level: 19, presence: "drawing", program: "Krita", two: 16.4, total: 121.6, today: 1.4 },
       { code: "LEOO", name: "Leo", level: 14, presence: "online", two: 10.2, total: 71.3, today: 0.6 },
       { code: "ISAB", name: "Isabella", level: 11, presence: "away", two: 6.8, total: 47.9, today: 0.0 },
-      { code: "JONA", name: "Jonathan", level: 8, presence: "offline", two: 3.1, total: 28.4, today: 0.0 },
+      { code: "JONA", name: "Jonathan", level: 8, presence: "offline", two: 3.1, total: 28.4, today: 0.0, lastOnline: 11 },
     ],
     request: null,
     requestShown: false,
@@ -704,7 +704,10 @@
           ? el("span", { class: "psf-sub psf-online-today" }, friend.today > 0 ? `${todayAmount(friend.today)} today` : "Online")
           : friend.presence === "away"
             ? el("span", { class: "psf-sub psf-away" }, "Away")
-            : el("span", { class: "psf-sub" }, `${todayAmount(friend.today)} today`), el("span", { class: "psf-sub-right" }, `${friend.total.toFixed(1)} hrs total`));
+            : friend.presence === "offline" && friend.today <= 0
+              // Nothing today: when they were last online, as the app
+              ? el("span", { class: "psf-sub" }, friend.lastOnline ? `Last online ${friend.lastOnline} hours ago` : "Offline")
+              : el("span", { class: "psf-sub" }, `${todayAmount(friend.today)} today`), el("span", { class: "psf-sub-right" }, `${friend.total.toFixed(1)} hrs total`));
     friend.fresh = false;
     return row;
   }

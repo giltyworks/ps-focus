@@ -47,6 +47,15 @@ PROGRAM_SHORT_NAMES = {"Clip Studio Paint": "Clip Studio"}
 PORTRAIT_LIST_ROWS = 4
 
 
+def time_ago(seconds: float) -> str:
+    """How long ago, in the largest whole unit: '5 minutes ago', '11 hours ago', '3 days ago', or 'just now'"""
+    for size, unit in ((86400, "day"), (3600, "hour"), (60, "minute")):
+        count = int(seconds // size)
+        if count:
+            return f"{count} {unit}{'' if count == 1 else 's'} ago"
+    return "just now"
+
+
 def friend_lines(fonts: Fonts) -> tuple[int, int]:
     """The heights of a friend's name line and the line of details under it, snug together"""
     return line_height(fonts.account) - 2, line_height(fonts.small) + LINE_PADDING
@@ -446,6 +455,10 @@ class FriendsModule(ModuleBlock):
                 details, details_color = (f"{amount} today" if today > 0 else "Online"), "friend_online"
             elif presence == "away":
                 details, details_color = "Away", "friend_away"
+            elif presence == "offline" and today <= 0:
+                # Nothing today: when they were last online, if known, or just Offline
+                ago = stats.get("last_online_ago")
+                details, details_color = (f"Last online {time_ago(ago)}" if ago is not None else "Offline"), "muted"
             else:
                 details, details_color = f"{amount} today", "muted"
             details_room = right - text_width(fonts.small, total) - 8 - name_left

@@ -193,3 +193,13 @@ class PopupMenuToggleTests(unittest.TestCase):
         self.assertTrue(PopupMenu.opens("status"))
         PopupMenu.dismissed = (("person", "A"), time.monotonic())
         self.assertTrue(PopupMenu.opens(("person", "B")))
+
+
+class TimeAgoTests(unittest.TestCase):
+    def test_largest_whole_unit(self):
+        from qt.friends_module import time_ago
+
+        self.assertEqual(time_ago(30), "just now")
+        self.assertEqual(time_ago(60), "1 minute ago")
+        self.assertEqual(time_ago(11 * 3600 + 59 * 60), "11 hours ago")
+        self.assertEqual(time_ago(3 * 86400), "3 days ago")
