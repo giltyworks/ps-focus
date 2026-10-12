@@ -1501,21 +1501,19 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     follow(move, () => { if (!touch.matches) settle(win, group); });
   });
 
-  // On a phone the window stays put, but it can be tugged: it gives a little, less the further it is pulled, and springs
-  // back once let go. Its title bar and the panels' titles give every way; elsewhere it gives sideways only, so
-  // swiping up and down still scrolls the page. What has a job of its own is left to it, and the graph to its readout
+  // On a phone the window stays put, but it can be tugged from anywhere free: it gives a little, less the further it is
+  // pulled, and springs back once let go. What has a job of its own is left to it, and the graph to its readout
   const TUG_REACH = 36;
   const TUG_START = 6;
-  const UNTUGGED = "button, input, label, .psf-day, .psf-grip, .psf-account-name, .psf-request-row, .psf-chart-box, .psf-menu";
+  const UNTUGGED = "button, input, label, .psf-day, .psf-grip, .psf-account-name, .psf-request-row, .psf-chart-box, .psf-menu, .psf-scroll-edge";
   win.addEventListener("pointerdown", (event) => {
     if (!touch.matches || !event.isPrimary || event.target.closest(UNTUGGED)) return;
     const start = { x: event.clientX, y: event.clientY };
-    const everyWay = !!event.target.closest(".psf-titlebar, .psf-strip");
     const give = (pulled) => Math.sign(pulled) * TUG_REACH * (1 - Math.exp(-Math.abs(pulled) / 100));
     let tugging = false;
     const move = (moveEvent) => {
       if (moveEvent.pointerId !== event.pointerId) return;
-      const dx = moveEvent.clientX - start.x, dy = everyWay ? moveEvent.clientY - start.y : 0;
+      const dx = moveEvent.clientX - start.x, dy = moveEvent.clientY - start.y;
       if (!tugging) {
         // A tap stays a tap: the tug begins only once the finger has moved
         if (Math.hypot(dx, dy) < TUG_START) return;
@@ -1540,6 +1538,21 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     window.addEventListener("pointerup", end);
     window.addEventListener("pointercancel", end);
   });
+
+  // A band down each side of the window is left to scrolling the page, widening the painting's strips beside it. A tap
+  // on a band reaches what is under it, such as a calendar day at the window's edge
+  for (const side of ["left", "right"]) {
+    const edge = el("div", { class: `psf-scroll-edge psf-scroll-edge-${side}`, "aria-hidden": "true" });
+    const pass = (event) => {
+      edge.style.pointerEvents = "none";
+      const under = document.elementFromPoint(event.clientX, event.clientY);
+      edge.style.pointerEvents = "";
+      if (under) under.dispatchEvent(new MouseEvent(event.type, { bubbles: true, cancelable: true, clientX: event.clientX, clientY: event.clientY }));
+    };
+    edge.addEventListener("click", pass);
+    edge.addEventListener("dblclick", pass);
+    win.append(edge);
+  }
 
   stage.addEventListener("dragstart", (event) => event.preventDefault());
   stage.addEventListener("pointerdown", (event) => {

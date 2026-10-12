@@ -52,6 +52,8 @@
 .psf-slider { display: inline-flex; align-items: center; gap: 10px; }
 .psf-slider input { width: 120px; accent-color: var(--psf-blue); }
 .psf-hint { flex: 1 1 260px; text-align: right; font-size: 13px; }
+/* Only on a phone, see the bands in demo.js */
+.psf-scroll-edge { display: none; }
 /* The demo's intro: on a phone the window stays put, see `touch` in demo.js, so it asks for taps instead of drags */
 .psf-touch-only { display: none; }
 @media (max-width: 760px), (pointer: coarse) { .psf-touch-only { display: inline; } .psf-pointer-only { display: none; } }
@@ -390,10 +392,11 @@
   .psf-canvas { left: 0; top: 0; right: 0; bottom: 0; height: auto; box-shadow: none; }
   .psf-stage { min-height: 640px; }
   .psf-window { left: 50%; transform: translateX(-50%); }
-  /* The window is tugged sideways, its title bar every way, while up and down elsewhere scrolls the page; see TUG_REACH
-     in demo.js */
-  .psf-window { touch-action: pan-y; }
-  .psf-window .psf-titlebar { touch-action: none; }
+  /* The window is tugged rather than the page scrolled, but for a band down each side; see TUG_REACH in demo.js */
+  .psf-window { touch-action: none; }
+  .psf-scroll-edge { display: block; position: absolute; top: 28px; bottom: 0; width: 22px; z-index: 5; touch-action: pan-y; }
+  .psf-scroll-edge-left { left: 0; }
+  .psf-scroll-edge-right { right: 0; }
   .psf-strip { cursor: default; }
   .psf-grip { display: none; }
   .psf-hint { text-align: left; flex-basis: 100%; }
