@@ -25,7 +25,7 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
 
 ## What it does
 
-- **Counts real work only.** Time counts while your art app is in front, and pauses after five idle minutes.
+- **Tracks four art apps.** Photoshop, Krita, Clip Studio Paint and PhotoCraft. Time counts while your art app is in front, and pauses after five idle minutes.
 - **Shows your habits.** Charts by day, week, month, and year, a calendar of sessions, streaks, and averages.
 - **Levels 1 to 99.** Your total hours set your level, with a small celebration at each new one.
 - **Make it your own.** Drag panels by their title to rearrange them, or pull them out to float and snap beside the window, as in Photoshop. Tall beside your canvas, or a wide strip in landscape.

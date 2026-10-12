@@ -19,7 +19,7 @@ Third-party components included with PS Focus are provided under their own licen
 Your activity history, settings, and backups belong to you. How PS Focus handles them is described in the Privacy Policy ("Privacy Policy.txt" in the installation folder).
 
 5. GOOGLE AND OTHER SERVICES
-Google sign-in and Drive backup are optional and are also subject to Google's own terms. PS Focus is not affiliated with or endorsed by Google, Adobe (Photoshop), Krita, Celsys (Clip Studio Paint), or Microsoft. Their names are trademarks of their respective owners.
+Google sign-in and Drive backup are optional and are also subject to Google's own terms. PS Focus is not affiliated with or endorsed by Google, Adobe (Photoshop), Krita, Celsys (Clip Studio Paint), the PhotoCraft project, or Microsoft. Their names are trademarks of their respective owners.
 
 6. UPDATES
 PS Focus may tell you when a new version is available. Updates are optional, and these terms (as updated) apply to them.

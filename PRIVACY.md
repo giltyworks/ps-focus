@@ -2,11 +2,11 @@
 
 Effective 10 October 2026
 
-PS Focus is a free Windows app made by Giltyworks that records how long you spend working in Photoshop, Krita, and Clip Studio Paint. This policy explains what the app stores, where it goes, and how to remove it. Contact: giltyworks@gmail.com
+PS Focus is a free Windows app made by Giltyworks that records how long you spend working in Photoshop, Krita, Clip Studio Paint, and PhotoCraft. This policy explains what the app stores, where it goes, and how to remove it. Contact: giltyworks@gmail.com
 
 ## What PS Focus records on your PC
 
-- **Activity time.** Once a second, PS Focus checks which program owns the window in front. If it is Photoshop, Krita, or Clip Studio Paint, PS Focus adds the elapsed seconds to a total for that application, date, and hour. It does not record document names, window titles, keystrokes, screenshots, or file contents.
+- **Activity time.** PS Focus regularly checks which program owns the window in front. If it is Photoshop, Krita, Clip Studio Paint, or PhotoCraft, PS Focus adds the elapsed seconds to a total for that application, date, and hour. It does not record document names, window titles, keystrokes, screenshots, or file contents.
 - **Ratings and session starts.** These are the daily productivity ratings you enter, and the time of day each day's tracking began.
 - **Settings.** These include your preferences, the optional display name you type for your Google account, and a random identifier that tells your installations apart when merging backups.
 - **Feedback waiting to be sent.** This holds feedback you submit, until it is delivered.
