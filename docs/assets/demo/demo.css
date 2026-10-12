@@ -406,8 +406,3 @@
 .psf-friend:hover { background: rgba(16, 16, 16, var(--a)); }
 .psf-tip { white-space: pre-line; }
 .psf-member-since { margin: 8px 0 0; font-size: 12px; color: var(--psf-muted); }
-.psf-experience { display: flex; align-items: center; gap: 10px; margin-top: 10px; }
-.psf-experience-badge { width: 36px; height: 36px; border-radius: 6px; border: 2px solid var(--psf-blue); background: rgba(61, 92, 230, .27); display: grid; place-items: center; font-size: 21.333px; font-weight: 600; }
-.psf-experience-badge.psf-locked { border-color: rgb(var(--psf-border)); background: rgba(61, 92, 230, .1); color: var(--psf-muted); }
-.psf-experience b { display: block; font-size: 13.333px; font-weight: 600; color: var(--psf-muted); }
-.psf-experience small { display: block; font-size: 12px; color: var(--psf-muted); }

@@ -914,10 +914,6 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
             el("button", { type: "button", onclick: logOut }, "Log out"),
           ] : [el("button", { type: "button", class: "psf-connect", onclick: () => signIn() }, "Connect Google")]))),
       el("button", { type: "button", class: "psf-exit", onclick: () => toast("Exit closes PS Focus; it counts nothing until you open it again") }, "Exit"),
-      // Years of Experience, as the app: the count in a square, and when it unlocks; the sample artist is in their first year
-      el("div", { class: "psf-experience" }, el("span", { class: "psf-experience-badge psf-locked" }, "0"),
-        el("span", {}, el("b", {}, "Years of Experience"),
-          el("small", {}, `Unlocks ${firstDay.getDate()} ${MONTH_NAMES[firstDay.getMonth()]} ${firstDay.getFullYear() + 1}`))),
       // Since when the user has been a member, from the first day tracked, as the app
       el("p", { class: "psf-member-since" }, `Member since ${firstDay.getDate()} ${MONTH_NAMES[firstDay.getMonth()]} ${firstDay.getFullYear()}`));
   }

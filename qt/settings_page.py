@@ -4,11 +4,11 @@ buttons. Painted as one widget, with areas that respond to clicks, laid out as t
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import date
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPaintEvent, QPen
+from PySide6.QtGui import QColor, QFont, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QWidget
 
 from app_config import COMPACT_BOTTOM_SPACE, EDGE_PADDING, PANEL_GAP, TODAY_PANEL_WIDTH
@@ -89,37 +89,8 @@ class Text:
 MEMBER_SINCE_GAP = 8
 
 
-# The years-of-experience badge: its square, and the gap between it and its words
-EXPERIENCE_BADGE_SIZE = 36
-EXPERIENCE_BADGE_GAP = 10
-
-
 def member_since_text(first: date | None) -> str:
     return f"Member since {first.day} {first.strftime('%B %Y')}" if first else ""
-
-
-def experience(first_start: datetime | None, now: datetime) -> tuple[int, datetime] | None:
-    """Whole years since the first session, and when the last of them was reached, or in the first year when the first
-    will be; None before anything is tracked"""
-    if first_start is None:
-        return None
-
-    def anniversary(years: int) -> datetime:
-        try:
-            return first_start.replace(year=first_start.year + years)
-        except ValueError:
-            # A first session on 29 February comes round on 1 March in other years
-            return first_start.replace(year=first_start.year + years, month=3, day=1)
-
-    years = 0
-    while anniversary(years + 1) <= now:
-        years += 1
-    return years, anniversary(max(years, 1))
-
-
-def experience_text(when: datetime, unlocked: bool) -> str:
-    stamp = f"{when.day} {when.strftime('%B %Y')}, {when.strftime('%I:%M %p').lstrip('0')}"
-    return f"Unlocked {stamp}" if unlocked else f"Unlocks {when.day} {when.strftime('%B %Y')}"
 
 
 class SettingsPage(QWidget):
@@ -170,9 +141,6 @@ class SettingsPage(QWidget):
         # At the foot of the page, as Steam shows it on a profile: "Member since 29 September 2026", from the first day
         # tracked; empty before anything is
         self.member_since = ""
-        # Whole years since the first session and when they were reached, see experience; None before any
-        self.experience: tuple[int, datetime] | None = None
-        self.experience_badge: tuple[int, int, int] | None = None
         # Shown once enough time has been tracked, see the app's feedback_unlocked
         self.feedback_button = button("Got feedback?")
         self.feedback_shown = False
@@ -289,19 +257,6 @@ class SettingsPage(QWidget):
             self.feedback_button.place(TODAY_PANEL_WIDTH - EDGE_PADDING - self.feedback_button.width, y)
             self.buttons.append(self.feedback_button)
         y += self.exit_button.height
-        self.experience_badge = None
-        if self.experience is not None:
-            # The years of experience badge, as Steam's Years of Service: the count in a square, its name and when it
-            # was unlocked beside it
-            years, when = self.experience
-            y += MEMBER_SINCE_GAP + 2
-            words_left = EDGE_PADDING + EXPERIENCE_BADGE_SIZE + EXPERIENCE_BADGE_GAP
-            words_height = line_height(fonts.bold) + line_height(fonts.small)
-            words_top = y + (EXPERIENCE_BADGE_SIZE - words_height) // 2
-            self._text(words_left, words_top, "Years of Experience", "text" if years else "muted", fonts.bold)
-            self._text(words_left, words_top + line_height(fonts.bold), experience_text(when, years > 0), "muted", fonts.small)
-            self.experience_badge = (EDGE_PADDING, y, years)
-            y += EXPERIENCE_BADGE_SIZE
         if self.member_since:
             y += MEMBER_SINCE_GAP
             y += self._text(EDGE_PADDING, y, self.member_since, "muted", fonts.small).height()
@@ -342,27 +297,6 @@ class SettingsPage(QWidget):
         self.boxes.append((top, y - top))
         return y
 
-    def _paint_experience_badge(self, painter: QPainter) -> None:
-        """A rounded square in the app's blue holding the number of years; dim in the first year, before the first"""
-        if self.experience_badge is None:
-            return
-        left, top, years = self.experience_badge
-        blue = color("calendar_blue")
-        fill = QColor(blue)
-        fill.setAlpha(70 if years else 25)
-        painter.save()
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setPen(QPen(blue if years else color("border"), 2))
-        painter.setBrush(fill)
-        painter.drawRoundedRect(QRectF(left + 1, top + 1, EXPERIENCE_BADGE_SIZE - 2, EXPERIENCE_BADGE_SIZE - 2), 6, 6)
-        painter.restore()
-        number = str(years)
-        draw_text(
-            painter, left + (EXPERIENCE_BADGE_SIZE - text_width(self.fonts.headline, number)) // 2,
-            top + (EXPERIENCE_BADGE_SIZE - line_height(self.fonts.headline)) // 2, number,
-            color("text" if years else "muted"), self.fonts.headline,
-        )
-
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.fillRect(self.rect(), color("background"))
@@ -376,7 +310,6 @@ class SettingsPage(QWidget):
             draw_checkbox(painter, center, bool(self.settings.get(key)), key == self.hovered_checkbox)
         self._paint_orientation(painter)
         self._paint_slider(painter)
-        self._paint_experience_badge(painter)
         for button in self.buttons:
             button.paint(painter)
         painter.end()

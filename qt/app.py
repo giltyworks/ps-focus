@@ -229,12 +229,11 @@ class PSFocusQt:
         self.header.settings_shown = self.settings_shown
         self.header.update()
         if self.settings_shown:
-            from .settings_page import experience, member_since_text
+            from .settings_page import member_since_text
 
             since = member_since_text(self.store.first_day())
-            years = experience(self.store.first_start(), datetime.now())
-            if (since, years) != (self.settings_page.member_since, self.settings_page.experience):
-                self.settings_page.member_since, self.settings_page.experience = since, years
+            if since != self.settings_page.member_since:
+                self.settings_page.member_since = since
                 self.settings_page._lay_out()
             self.window.show_settings(self.settings_page)
         else:

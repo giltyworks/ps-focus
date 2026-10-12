@@ -391,18 +391,6 @@ class ActivityStore:
         first = self.connection.execute("SELECT MIN(day) FROM activity WHERE seconds > 0").fetchone()[0]
         return date.fromisoformat(first) if first else None
 
-    def first_start(self) -> datetime | None:
-        """When the first session began, on the first day tracked: its recorded start, or the start of its first hour"""
-        first = self.first_day()
-        if first is None:
-            return None
-        day = first.isoformat()
-        started = self.connection.execute("SELECT MIN(started_at) FROM session_starts WHERE day = ?", (day,)).fetchone()[0]
-        if not started:
-            slot = self.connection.execute("SELECT MIN(slot) FROM activity WHERE day = ? AND seconds > 0", (day,)).fetchone()[0]
-            started = f"{int(slot or 0):02d}:00"
-        return datetime.combine(first, datetime.strptime(started[:5], "%H:%M").time())
-
     def total_seconds(self, application: str | None = None) -> int:
         query = "SELECT COALESCE(SUM(seconds), 0) FROM activity"
         parameters: tuple = ()

@@ -203,17 +203,3 @@ class TimeAgoTests(unittest.TestCase):
         self.assertEqual(time_ago(60), "1 minute ago")
         self.assertEqual(time_ago(11 * 3600 + 59 * 60), "11 hours ago")
         self.assertEqual(time_ago(3 * 86400), "3 days ago")
-
-
-class ExperienceTests(unittest.TestCase):
-    def test_whole_years_and_when_reached(self):
-        from datetime import datetime
-
-        from qt.settings_page import experience, experience_text
-
-        first = datetime(2024, 7, 31, 14, 5)
-        self.assertEqual(experience(None, datetime(2026, 1, 1)), None)
-        self.assertEqual(experience(first, datetime(2025, 7, 31, 14, 4)), (0, datetime(2025, 7, 31, 14, 5)))
-        self.assertEqual(experience(first, datetime(2026, 10, 12)), (2, datetime(2026, 7, 31, 14, 5)))
-        self.assertEqual(experience_text(datetime(2026, 7, 31, 14, 5), True), "Unlocked 31 July 2026, 2:05 PM")
-        self.assertEqual(experience_text(datetime(2025, 7, 31, 14, 5), False), "Unlocks 31 July 2025")
