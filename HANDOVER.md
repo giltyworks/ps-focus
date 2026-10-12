@@ -2,9 +2,16 @@
 
 Updated 12 October 2026. Read this before resuming work.
 
-## Publication in progress: 1.1.21
+## Publication completed: 1.1.21
 
-User explicitly authorized server deployments, installer release and website publication. Cloudflare friends server deployed successfully at https://ps-focus-friends.ps-focus-friends.workers.dev, version 89002927-eb25-41b6-91fa-420ce2639472. Local end-to-end suite passed, including PhotoCraft presence reaching a friend. Production deployment does not contain DEV_AUTH; no schema changes or production test accounts created. GitHub Pages serves main/docs; 71 existing local commits are ahead of remote and fast-forward compatible. Outgoing history scan passed for all 204 new blobs. Website now names PhotoCraft, demo version matches 1.1.21, and demo asset URLs include cache version. Apps Script source latest version updated to 1.1.21; existing clasp config had no tokens. User requested opening login; clasp login is awaiting browser authentication. Production updater is not yet redeployed. Earlier approval-review usage-limit interruption was retried after explicit resume; deployments now permitted. Git publication/release final verification pending below.
+User explicitly authorized all necessary deployments and website publication, then resumed after an approval-review usage-limit interruption. Published application/source commit f4c03c53a39edb4160f15ae1c0b9bf4dc87477ed; all 71 prior local commits were fast-forward compatible with remote. Outgoing history credential scan passed for 204 new blobs, staged source scan passed, and GitHub credential workflow passed.
+
+- Friends server: deployed https://ps-focus-friends.ps-focus-friends.workers.dev, version 89002927-eb25-41b6-91fa-420ce2639472. Local end-to-end tests passed including PhotoCraft status reaching a friend. No schema migration or production test accounts. Verified production returns 401 for development-auth tokens using the app's WinHTTP transport. Python urllib received an edge 403, so that transport was not used to infer application behaviour.
+- Website: published https://giltyworks.github.io/ps-focus/ from main/docs. GitHub Pages build succeeded; live HTML contains PhotoCraft and versioned demo asset URLs. Demo credit now matches 1.1.21. Privacy/terms synced and site tests passed.
+- Installer: latest public release https://github.com/giltyworks/ps-focus/releases/tag/v1.1.21 contains installer and checksum. Downloaded the public installer and verified SHA-256 `a7eed0ef567d26c927586c8b5564f4d5bd49866a6f489b60a92f3593624316db` matches the tested build. Tag targets f4c03c5; release is neither draft nor prerelease. Published local build passed 269 tests and credential/packaged smoke checks.
+- Update notifications: user authenticated clasp through opened browser. Existing Apps Script project cloned to ignored build/publication/apps-script; remote source matched repository after changing only LATEST_VERSION. Pushed source and preserved manifest, created version 11, redeployed existing URL (deployment ending RMO7ag). Live GET confirms latest_version 1.1.21 and the correct GitHub latest-release URL. No feedback submissions or digest emails triggered.
+
+Tag-triggered clean Windows build succeeded (GitHub Actions run 38195596313). Website and source are now public; earlier sections below describe historical states. Current installed app remains 1.1.21 with sample friends enabled. Core accuracy limitations remain documented in TRACKING_REVIEW.md.
 
 ## PhotoCraft tracking: 1.1.21
 
