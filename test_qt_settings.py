@@ -1355,3 +1355,13 @@ class DevToolsTests(unittest.TestCase):
         for timer in (app.tick_timer, app.focus_timer, app.poll_timer, app.backup_timer):
             timer.stop()
         self.assertTrue(app.friends_sync.sample_friends)
+
+    def test_got_feedback_toggles_whatever_has_been_tracked(self):
+        self.app._tick()
+        self.assertFalse(self.app.feedback_unlocked)
+        self.tools.feedback_unlock()
+        self.app._tick()
+        self.assertTrue(self.app.settings_page.feedback_shown)
+        self.tools.feedback_unlock()
+        self.app._tick()
+        self.assertFalse(self.app.settings_page.feedback_shown)

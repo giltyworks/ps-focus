@@ -73,6 +73,7 @@ class DevTools:
             ("feedback_reveal", "Feedback: reveal-your-level form", "Hides the level again first"),
             ("feedback", "Feedback: regular form", ""),
             ("feedback_reset", "Reset feedback", "Clears the wait and hides the level"),
+            ("feedback_unlock", f"Got feedback?: {'shown' if self.app.feedback_unlocked else 'hidden'}", "Whatever has been tracked"),
             ("update", f"Update notice: {'on' if self.app.available_update else 'off'}", "As if a newer version were out"),
             ("hour", "Add an hour today", ""),
             ("longest", "Make today the longest session", ""),
@@ -125,6 +126,13 @@ class DevTools:
         app._set_feedback_unlocked(app.feedback_unlocked)
         if app.header.badge_state is not None:
             app.header.set_level(app.header.badge_state[0], False)
+
+    def feedback_unlock(self) -> None:
+        """Got feedback? in Settings, and the level opening the form, shown or hidden whatever has been tracked"""
+        app = self.app
+        app.feedback_unlock_override = not app.feedback_unlocked
+        app._set_feedback_unlocked(app.feedback_unlock_override)
+        self._redraw_panel()
 
     def update(self) -> None:
         """The update notice on, as if a newer version had been published, or off again"""

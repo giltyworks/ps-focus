@@ -91,6 +91,8 @@ class PSFocusQt:
         self.active = False
         self.level_revealed = bool(self.settings.get("feedback_submitted"))
         self.feedback_unlocked = False
+        # Set by the developer menu to show or hide Got feedback? whatever has been tracked; None follows the hours
+        self.feedback_unlock_override: bool | None = None
         self.feedback = FeedbackOutbox(app_config.APP_DATA / "feedback-outbox.json")
         self.feedback_send_in_progress = False
         self.fireworks: Fireworks | None = None
@@ -690,7 +692,8 @@ class PSFocusQt:
         self.header.set_level(level, self.level_revealed)
         self.update_glass()
         self._celebrate_level_up(level)
-        self._set_feedback_unlocked(lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS)
+        override = self.feedback_unlock_override
+        self._set_feedback_unlocked(lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS if override is None else override)
         self.friends_sync.tick(foreground_app if self.active else None, idle_active)
         # Tracking continues in the tray and Settings; drawing the modules out of sight waits for them to show.
         # Floating ones stay in view with Settings open, so they keep up
