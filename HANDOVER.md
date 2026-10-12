@@ -4,7 +4,7 @@ Updated 12 October 2026. Read this before resuming work.
 
 ## Release formatting and PhotoCraft website coverage
 
-Reformatted published v1.1.21 notes to match v1.1.0: What's new heading, bold feature lead-ins, Install heading, preservation/SmartScreen instructions and inline SHA-256. Kept the sampled-tracking/UI-stall limitation. Installer assets unchanged. Website hero already named PhotoCraft; now the feature list, shared footer, privacy and terms pages also include it. Source PRIVACY.md/TERMS.md synced to site, and privacy sampling language now says regularly rather than once per second. These policy text updates are website/source-only; existing published installer still embeds its original policy text until a future rebuild. Site tests/diff checks passed. Publishing and live verification follow.
+Reformatted published v1.1.21 notes to match v1.1.0: What's new heading, bold feature lead-ins, Install heading, preservation/SmartScreen instructions and inline SHA-256. Kept the sampled-tracking/UI-stall limitation. Installer assets unchanged. Website hero already named PhotoCraft; now the feature list, shared footer, privacy and terms pages also include it. Source PRIVACY.md/TERMS.md synced to site, and privacy sampling language now says regularly rather than once per second. These policy text updates are website/source-only; existing published installer still embeds its original policy text until a future rebuild. Site tests/diff checks passed. Published website commit 694e8d4882f513fb54059c65b1bd7b99471ee78c; live homepage/footer, privacy and terms content verified. Published release notes verified through GitHub API.
 
 ## Publication completed: 1.1.21
 
