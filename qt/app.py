@@ -229,6 +229,12 @@ class PSFocusQt:
         self.header.settings_shown = self.settings_shown
         self.header.update()
         if self.settings_shown:
+            from .settings_page import member_since_text
+
+            since = member_since_text(self.store.first_day())
+            if since != self.settings_page.member_since:
+                self.settings_page.member_since = since
+                self.settings_page._lay_out()
             self.window.show_settings(self.settings_page)
         else:
             self._arrange_blocks()

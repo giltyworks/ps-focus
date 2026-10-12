@@ -386,6 +386,11 @@ class ActivityStore:
         ).fetchone()
         return int(row[0])
 
+    def first_day(self) -> date | None:
+        """The first day anything was tracked, which is when the user became a member, or None before then"""
+        first = self.connection.execute("SELECT MIN(day) FROM activity WHERE seconds > 0").fetchone()[0]
+        return date.fromisoformat(first) if first else None
+
     def total_seconds(self, application: str | None = None) -> int:
         query = "SELECT COALESCE(SUM(seconds), 0) FROM activity"
         parameters: tuple = ()

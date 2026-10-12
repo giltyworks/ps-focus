@@ -102,8 +102,8 @@
     nicknames: new Map(),
     nicknaming: null,
     friends: [
-      { code: "MIAA", name: "Mia", level: 19, presence: "drawing", program: "Krita", two: 16.4, total: 121.6, today: 1.4 },
-      { code: "LEOO", name: "Leo", level: 14, presence: "online", two: 10.2, total: 71.3, today: 0.6 },
+      { code: "MIAA", name: "Mia", level: 19, presence: "drawing", program: "Krita", two: 16.4, total: 121.6, today: 1.4, since: new Date(2025, 2, 14) },
+      { code: "LEOO", name: "Leo", level: 14, presence: "online", two: 10.2, total: 71.3, today: 0.6, since: new Date(2025, 10, 2) },
       { code: "ISAB", name: "Isabella", level: 11, presence: "away", two: 6.8, total: 47.9, today: 0.0 },
       { code: "JONA", name: "Jonathan", level: 8, presence: "offline", two: 3.1, total: 28.4, today: 0.0, lastOnline: 11 },
     ],
@@ -711,7 +711,9 @@
               : el("span", { class: "psf-sub" }, `${todayAmount(friend.today)} today`));
     // Their hours over two weeks and in all, in a tip while the mouse is on their rows, as the app
     const figures = `${friend.two.toFixed(1)} hrs past 2 weeks
-${friend.total.toFixed(1)} hrs total`;
+${friend.total.toFixed(1)} hrs total`
+      + (friend.since ? `
+Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${friend.since.getFullYear()}` : "");
     row.addEventListener("pointerenter", () => showTip(row, figures, true));
     row.addEventListener("pointerleave", hideTip);
     friend.fresh = false;
@@ -911,7 +913,9 @@ ${friend.total.toFixed(1)} hrs total`;
             el("button", { type: "button", onclick: () => signIn(true) }, "Switch account"),
             el("button", { type: "button", onclick: logOut }, "Log out"),
           ] : [el("button", { type: "button", class: "psf-connect", onclick: () => signIn() }, "Connect Google")]))),
-      el("button", { type: "button", class: "psf-exit", onclick: () => toast("Exit closes PS Focus; it counts nothing until you open it again") }, "Exit"));
+      el("button", { type: "button", class: "psf-exit", onclick: () => toast("Exit closes PS Focus; it counts nothing until you open it again") }, "Exit"),
+      // Since when the user has been a member, from the first day tracked, as the app
+      el("p", { class: "psf-member-since" }, `Member since ${firstDay.getDate()} ${MONTH_NAMES[firstDay.getMonth()]} ${firstDay.getFullYear()}`));
   }
 
   function toggleSettings(open = !state.settingsOpen) {

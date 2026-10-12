@@ -4,6 +4,7 @@ buttons. Painted as one widget, with areas that respond to clicks, laid out as t
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import date
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QPointF, QRectF, Qt
@@ -84,6 +85,14 @@ class Text:
         return self.x <= point.x() < self.x + self.width() and self.y <= point.y() < self.y + self.height()
 
 
+# The space between the Exit row and the line saying since when the user has been a member
+MEMBER_SINCE_GAP = 8
+
+
+def member_since_text(first: date | None) -> str:
+    return f"Member since {first.day} {first.strftime('%B %Y')}" if first else ""
+
+
 class SettingsPage(QWidget):
     """The app passes in the settings it reads, and what each control does. Clicking a checkbox calls on_toggle with
     its setting's name; the app changes the setting, or refuses to, then calls update()"""
@@ -129,6 +138,9 @@ class SettingsPage(QWidget):
         self.switch_button = button("Switch account")
         self.logout_button = button("Log out")
         self.exit_button = button("Exit")
+        # At the foot of the page, as Steam shows it on a profile: "Member since 29 September 2026", from the first day
+        # tracked; empty before anything is
+        self.member_since = ""
         # Shown once enough time has been tracked, see the app's feedback_unlocked
         self.feedback_button = button("Got feedback?")
         self.feedback_shown = False
@@ -244,7 +256,11 @@ class SettingsPage(QWidget):
         if self.feedback_shown:
             self.feedback_button.place(TODAY_PANEL_WIDTH - EDGE_PADDING - self.feedback_button.width, y)
             self.buttons.append(self.feedback_button)
-        y += self.exit_button.height + COMPACT_BOTTOM_SPACE
+        y += self.exit_button.height
+        if self.member_since:
+            y += MEMBER_SINCE_GAP
+            y += self._text(EDGE_PADDING, y, self.member_since, "muted", fonts.small).height()
+        y += COMPACT_BOTTOM_SPACE
         old_height = self.height()
         self.setFixedSize(TODAY_PANEL_WIDTH, y)
         self.update()

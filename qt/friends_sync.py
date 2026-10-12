@@ -45,7 +45,7 @@ STATUS_SENT = {"online": "online", "away": "away", "invisible": "offline", "offl
 # Made-up friends for trying the list out, shown when PSFOCUS_SAMPLE_FRIENDS is set: one of each state, with and
 # without time today
 SAMPLE_FRIENDS = (
-    ("Mia", {"two_weeks": 16.4, "today": 1.4, "total": 121.6, "level": 19}, "drawing", "Krita", "SAMPLE01"),
+    ("Mia", {"two_weeks": 16.4, "today": 1.4, "total": 121.6, "level": 19, "since": "2025-03-14"}, "drawing", "Krita", "SAMPLE01"),
     ("Samuel", {"two_weeks": 12.7, "today": 0.4, "total": 92.4, "level": 16}, "drawing", "Photoshop", "SAMPLE02"),
     ("Leo", {"two_weeks": 10.2, "today": 0.6, "total": 71.3, "level": 14}, "online", None, "SAMPLE03"),
     ("Isabella", {"two_weeks": 8.9, "today": 0.0, "total": 60.2, "level": 13}, "online", None, "SAMPLE04"),
@@ -136,6 +136,8 @@ class FriendsSync:
             "streak": store.calendar_streaks(today)[0],
             "status": STATUS_SENT[self.status()],
             "active": self.shown_program(),
+            # Since when they have been a member, the first day they tracked, for friends' tips
+            "since": first.isoformat() if (first := store.first_day()) else None,
         }
 
     def header_name_color(self) -> str:

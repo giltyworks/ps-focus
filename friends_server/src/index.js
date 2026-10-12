@@ -159,6 +159,8 @@ function cleanStats(stats) {
   result.status = STATUSES.includes(stats.status) ? stats.status : 'online';
   // Someone showing as offline is not shown drawing either
   result.active = PROGRAMS.includes(stats.active) && result.status !== 'offline' ? stats.active : null;
+  // Since when they have been a member, the first day they tracked, as a date
+  result.since = typeof stats.since === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(stats.since) ? stats.since : null;
   return result;
 }
 

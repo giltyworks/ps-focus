@@ -4,6 +4,7 @@ waiting for an answer, and the user's own code. What it shows is handed to it as
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, QTimer
@@ -426,6 +427,13 @@ class FriendsModule(ModuleBlock):
             # Their hours over two weeks and in all show in a tip while the mouse is on their rows, see mouseMoveEvent
             two_weeks, total = float(stats.get("two_weeks", 0) or 0), float(stats.get("total", 0) or 0)
             self.person_tips[code] = f"{two_weeks:.1f} hrs past 2 weeks" + chr(10) + f"{total:.1f} hrs total"
+            since = stats.get("since")
+            if isinstance(since, str) and len(since) == 10:
+                try:
+                    day = date.fromisoformat(since)
+                    self.person_tips[code] += chr(10) + f"Member since {day.day} {day.strftime('%b %Y')}"
+                except ValueError:
+                    pass
             hours_left = right
             middle = y + name_line // 2
             self.items.append(("level", left + LEVEL_RING_SIZE / 2, middle, str(stats.get("level", 0))))

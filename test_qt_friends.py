@@ -148,7 +148,7 @@ class QtFriendsTests(unittest.TestCase):
         self._turn_on()
         (kind, name, stats), = self.service.calls
         self.assertEqual((kind, name), ("sync", "amy"))
-        self.assertEqual(set(stats), {"two_weeks", "total", "today", "week", "level", "streak", "status", "active"})
+        self.assertEqual(set(stats), {"two_weeks", "total", "today", "week", "level", "streak", "status", "active", "since"})
         self.assertAlmostEqual(stats["total"], 1 / 3600)
         self.assertEqual(self.sync.view().mode, "on")
         self.assertEqual(self.app.friends.view.code, "ABCD2345")
