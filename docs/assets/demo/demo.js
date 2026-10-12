@@ -298,7 +298,7 @@
   const settingsButton = el("button", { type: "button", class: "psf-icon-button psf-settings", title: "Settings", onclick: () => toggleSettings() }, "···");
   const level = el("div", { class: "psf-level" }, "Level", levelBadge);
   // In Settings the header shows the version and the credit in place of the level and account
-  const credit = el("div", { class: "psf-credit", hidden: true }, el("span", { class: "psf-version" }, "Version 1.1.24"), el("span", { class: "psf-by" }, "by giltyworks"));
+  const credit = el("div", { class: "psf-credit", hidden: true }, el("span", { class: "psf-version" }, "Version 1.1.25"), el("span", { class: "psf-by" }, "by giltyworks"));
   const header = el("div", { class: "psf-header" }, level, account, credit, settingsButton);
   const iconButtons = {};
   // At the left end of the row, as the app: the transparency icon, opening a small slider under it. While it is open
