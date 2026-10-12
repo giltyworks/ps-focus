@@ -51,6 +51,8 @@ class DayOverview(QDialog):
         self.rating = store.productivity_rating(session_day) or 0
         # The star that Tab has moved to, which Enter or Space chooses, as with the Tk dialog's stars
         self.focused_star: int | None = None
+        # The star under the mouse: the stars light up to it, showing the rating a click would give, as on the website
+        self.hovered_star: int | None = None
         self._lay_out()
 
     def showEvent(self, event) -> None:
@@ -151,7 +153,7 @@ class DayOverview(QDialog):
                 _kind, left, top, text, color_name, font = piece
                 draw_text(painter, left, top, text, color(color_name), font)
         for value, (left, top, _width, _height) in enumerate(self.star_areas, start=1):
-            filled = value <= self.rating
+            filled = value <= (self.hovered_star or self.rating)
             draw_outline_text(
                 painter, left + 2, top + LABEL_INSET, STAR, color("gold") if filled else QColor(UNRATED_STAR), self.fonts.rating_star,
             )
@@ -175,8 +177,17 @@ class DayOverview(QDialog):
             self._rate(value)
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
-        over = self._star_at(event.position().toPoint()) is not None
-        self.setCursor(Qt.CursorShape.PointingHandCursor if over else Qt.CursorShape.ArrowCursor)
+        star = self._star_at(event.position().toPoint())
+        self.setCursor(Qt.CursorShape.PointingHandCursor if star is not None else Qt.CursorShape.ArrowCursor)
+        self._hover_star(star)
+
+    def leaveEvent(self, _event) -> None:
+        self._hover_star(None)
+
+    def _hover_star(self, star: int | None) -> None:
+        if star != self.hovered_star:
+            self.hovered_star = star
+            self.update()
 
     def focusNextPrevChild(self, forward: bool) -> bool:
         # Tab and Shift+Tab move between the stars rather than out of the dialog

@@ -432,3 +432,5 @@
 .psf-friend:hover { background: rgba(16, 16, 16, var(--a)); }
 .psf-tip { white-space: pre-line; }
 .psf-member-since { margin: 8px 0 0; font-size: 12px; color: var(--psf-muted); }
+/* When a friend joined, in grey under their figures, as the app's */
+.psf-sheet-card .psf-muted-line { color: var(--psf-muted); }

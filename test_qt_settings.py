@@ -357,6 +357,24 @@ class QtSettingsTests(unittest.TestCase):
         self.application.processEvents()
         self.assertFalse(panel.program_menu_open)
 
+    def test_rating_stars_light_up_to_the_one_under_the_mouse(self):
+        from datetime import date
+        from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+        from PySide6.QtWidgets import QApplication
+        from qt.day_overview import DayOverview
+
+        overview = DayOverview(self.app.window, self.app.fonts, self.app.store, date.today(), lambda _day, _rating: None)
+        left, top, width, height = overview.star_areas[3]
+        point = QPoint(left + width // 2, top + height // 2)
+        QApplication.sendEvent(overview, QMouseEvent(QEvent.Type.MouseMove, QPointF(point), QPointF(overview.mapToGlobal(point)), Qt.MouseButton.NoButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+        self.assertEqual(overview.hovered_star, 4)
+        QApplication.sendEvent(overview, QEvent(QEvent.Type.Leave))
+        self.assertIsNone(overview.hovered_star)
+        # As wide as the main window
+        self.assertEqual(overview.width(), self.app.window.width())
+        overview.deleteLater()
+
     def test_a_calendar_day_opens_when_the_button_is_let_go(self):
         from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
         from PySide6.QtGui import QMouseEvent

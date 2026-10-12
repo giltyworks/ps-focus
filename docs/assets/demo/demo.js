@@ -782,7 +782,7 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
       event.stopPropagation(); hideTip();
       const sheet = el("div", { class: "psf-sheet", role: "dialog", "aria-label": `${shown} details` });
       const card = el("div", { class: "psf-sheet-card" }, el("b", {}, shown),
-        figures.split("\n").map((line) => el("span", {}, line)),
+        figures.split("\n").map((line) => el("span", line.startsWith("Member since") ? { class: "psf-muted-line" } : {}, line)),
         el("button", { type: "button", class: "psf-sheet-cancel", onclick: () => sheet.remove() }, "Close"));
       sheet.append(card); stage.append(sheet);
     });

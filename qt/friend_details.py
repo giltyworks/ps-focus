@@ -42,5 +42,7 @@ class FriendDetails(QDialog):
         painter = QPainter(self)
         painter.fillRect(self.rect(), color("panel"))
         for index, line in enumerate(self.lines):
-            draw_text(painter, 16, 12 + index * (line_height(self.fonts.normal) + 8), line, color("text"), self.fonts.normal)
+            # The figures stand out; when they joined is in grey beneath them
+            tone = "muted" if line.startswith("Member since") else "text"
+            draw_text(painter, 16, 12 + index * (line_height(self.fonts.normal) + 8), line, color(tone), self.fonts.normal)
         painter.end()
