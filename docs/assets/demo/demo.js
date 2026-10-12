@@ -251,6 +251,8 @@
     state.transparency = amount;
     slider.value = 100 - amount;
     popupSlider.value = 100 - amount;
+    // The track is blue up to the knob's middle, which travels the track less the knob's width
+    popupSlider.style.setProperty("--fill", `${6 + (80 - 12) * (100 - amount) / 100}px`);
     // The icon dims as the setting rises, as the app's: as bright as a shown module's when solid, about as dim as a
     // hidden one's fully see-through
     transparencyButton.style.opacity = String(1 - 0.75 * amount / 100);
@@ -318,6 +320,7 @@
       updateGlass();
     } }, svg(ICONS.transparency));
   transparencyButton.style.opacity = String(1 - 0.75 * state.transparency / 100);
+  popupSlider.style.setProperty("--fill", `${6 + (80 - 12) * (100 - state.transparency) / 100}px`);
   const icons = el("div", { class: "psf-icons" }, transparencyButton, ["graph", "calendar", "stats", "friends"].map((name) => {
     iconButtons[name] = el("button", { type: "button", class: "psf-icon-button", title: `Show or hide ${name}`, onclick: () => { markUsed("icons"); toggleModule(name); } }, svg(ICONS[name]));
     return iconButtons[name];

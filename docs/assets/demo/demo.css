@@ -134,7 +134,15 @@
 .psf-icons .psf-icon-button.psf-transparency { color: var(--psf-text); margin: 0 auto 0 4px; }
 .psf-menu.psf-compact { min-width: 0; padding: 0; background: none; border: 0; }
 .psf-transparency-popup { display: flex; align-items: center; height: 22px; padding: 0 6px; }
-.psf-transparency-popup input { width: 80px; margin: 0; accent-color: var(--psf-blue); }
+/* Drawn as the app's: a thin track, blue up to the knob and grey after it, and a small white knob */
+.psf-transparency-popup input { -webkit-appearance: none; appearance: none; width: 80px; height: 12px; margin: 0; background: none; cursor: pointer; }
+.psf-transparency-popup input::-webkit-slider-runnable-track { height: 4px; border-radius: 2px;
+  background: linear-gradient(to right, var(--psf-blue) var(--fill, 50%), #222 var(--fill, 50%)); }
+.psf-transparency-popup input::-moz-range-track { height: 4px; border-radius: 2px;
+  background: linear-gradient(to right, var(--psf-blue) var(--fill, 50%), #222 var(--fill, 50%)); }
+.psf-transparency-popup input::-webkit-slider-thumb { -webkit-appearance: none; width: 12px; height: 12px; margin-top: -4px; border: 0; border-radius: 50%; background: var(--psf-text); }
+.psf-transparency-popup input::-moz-range-thumb { width: 12px; height: 12px; border: 0; border-radius: 50%; background: var(--psf-text); }
+.psf-icons .psf-icon-button.psf-transparency.psf-open:not(:hover) { background: none; }
 
 /* Blocks: the program panel and the modules */
 .psf-blocks { padding-bottom: 4px; }
