@@ -1607,7 +1607,8 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
   stage.addEventListener("pointerleave", () => { pointer = null; updateGlass(); });
   // On a touch screen there is no pointer to move away: a tap on the painting fades PS Focus, a tap on it brings it back
   stage.addEventListener("click", (event) => {
-    if (!touch.matches) return;
+    // An arrow and its tip lie over the painting but are not it
+    if (!touch.matches || event.target.closest(".psf-hotspot, .psf-tip")) return;
     stageAway = !event.target.closest(".psf-window, .psf-floating, .psf-menu, .psf-app-window");
     updateGlass();
   });
@@ -1631,6 +1632,13 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
   const used = new Set();
   const hotspots = el("div", { class: "psf-hotspots" });
   stage.append(hotspots);
+
+  // Which arrow's tip is showing, so a second tap on it is told from a first
+  let explained = null;
+  function explain(spot, dot) {
+    showTip(dot, spot.text, true);
+    explained = spot.id;
+  }
 
   function markUsed(id) {
     if (used.has(id)) return;
@@ -1658,14 +1666,23 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
       let [x, y, direction] = spot.at(rect(spot.target()));
       if (win.contains(spot.target())) { x -= tugX; y -= tugY; }
       // An arrow in the app's blue, its tip at the point, nudging towards the feature
-      const dot = el("button", { type: "button", class: `psf-hotspot psf-point-${direction}`, "aria-label": spot.text },
+      const dot = el("button", { type: "button", class: `psf-hotspot psf-point-${direction}`, "aria-label": spot.text, "data-spot": spot.id },
         svg('<path d="M1 7H10M6 2.5L10.5 7L6 11.5" stroke-width="2.4"/>', 18));
       dot.style.left = `${x}px`;
       dot.style.top = `${y}px`;
-      dot.addEventListener("pointerenter", () => showTip(dot, spot.text, true));
-      dot.addEventListener("pointerleave", hideTip);
-      // A click once the tip has been read puts the arrow away for good; on a phone the first tap shows the tip
-      dot.addEventListener("click", () => (tip ? markUsed(spot.id) : showTip(dot, spot.text, true)));
+      // The mouse shows the tip by pointing; a finger, which arrives and leaves with each tap, by tapping
+      dot.addEventListener("pointerenter", (event) => { if (event.pointerType === "mouse") explain(spot, dot); });
+      dot.addEventListener("pointerleave", (event) => { if (event.pointerType === "mouse") hideTip(); });
+      // A click once the tip has been read puts the arrow away for good; on a phone the first tap shows the tip, the
+      // second puts it away and explains the next arrow, so the tips can be read through one after another
+      dot.addEventListener("click", () => {
+        if (!tip || explained !== spot.id) return explain(spot, dot);
+        markUsed(spot.id);
+        if (touch.matches) {
+          const next = HOTSPOTS.find((other) => !used.has(other.id) && hotspots.querySelector(`[data-spot="${other.id}"]`));
+          if (next) explain(next, hotspots.querySelector(`[data-spot="${next.id}"]`));
+        }
+      });
       hotspots.append(dot);
       // Room for its nudge, so two arrows never touch as they move
       const box = rect(dot);
