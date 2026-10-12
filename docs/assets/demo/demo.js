@@ -1501,6 +1501,30 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     follow(move, () => { if (!touch.matches) settle(win, group); });
   });
 
+  // On a phone the window stays put, but its title bar can be tugged: the window gives a little, less the further it
+  // is pulled, and springs back once let go
+  const TUG_REACH = 36;
+  titlebar.addEventListener("pointerdown", (event) => {
+    if (!touch.matches || event.target.closest("button")) return;
+    const start = { x: event.clientX, y: event.clientY };
+    const give = (pulled) => Math.sign(pulled) * TUG_REACH * (1 - Math.exp(-Math.abs(pulled) / 100));
+    try { titlebar.setPointerCapture(event.pointerId); } catch (error) { /* moves still reach it */ }
+    win.style.transition = "none";
+    hideTip();
+    const move = (moveEvent) => { win.style.translate = `${give(moveEvent.clientX - start.x)}px ${give(moveEvent.clientY - start.y)}px`; };
+    const end = () => {
+      titlebar.removeEventListener("pointermove", move);
+      titlebar.removeEventListener("pointerup", end);
+      titlebar.removeEventListener("pointercancel", end);
+      // Back with a small overshoot, as if on a spring
+      win.style.transition = "translate .45s cubic-bezier(.34, 1.56, .64, 1)";
+      win.style.translate = "";
+    };
+    titlebar.addEventListener("pointermove", move);
+    titlebar.addEventListener("pointerup", end);
+    titlebar.addEventListener("pointercancel", end);
+  });
+
   stage.addEventListener("dragstart", (event) => event.preventDefault());
   stage.addEventListener("pointerdown", (event) => {
     const dock = event.target.closest("[data-dock]");

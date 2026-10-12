@@ -390,6 +390,8 @@
   .psf-canvas { left: 0; top: 0; right: 0; bottom: 0; height: auto; box-shadow: none; }
   .psf-stage { min-height: 640px; }
   .psf-window { left: 50%; transform: translateX(-50%); }
+  /* Its title bar is tugged rather than the page scrolled, see TUG_REACH in demo.js */
+  .psf-window .psf-titlebar { touch-action: none; }
   .psf-strip { cursor: default; }
   .psf-grip { display: none; }
   .psf-hint { text-align: left; flex-basis: 100%; }
