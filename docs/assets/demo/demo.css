@@ -393,8 +393,9 @@
   .psf-stage { min-height: 640px; }
   .psf-window { left: 50%; transform: translateX(-50%); }
   /* The window is tugged rather than the page scrolled, but for a band down each side; see TUG_REACH in demo.js */
-  .psf-window { touch-action: none; }
-  .psf-friend-list { touch-action: pan-y; }
+  /* Pinching still zooms the page, so a page zoomed in by mistake can be pinched back out on the window too */
+  .psf-window, .psf-window .psf-strip { touch-action: pinch-zoom; }
+  .psf-friend-list { touch-action: pan-y pinch-zoom; }
   /* The arrows and their tips a size up, for a finger and a small screen */
   .psf-hotspot, .psf-hotspot svg { width: 30px; height: 30px; }
   .psf-point-right { margin: -15px 0 0 -30px; --nudge-x: 5px; }
@@ -405,7 +406,7 @@
   .psf-tip-wrap { max-width: 260px; }
   /* At 16 pixels, an iPhone types into a field without zooming the page in */
   .psf-demo input[type="text"] { font-size: 16px; }
-  .psf-scroll-edge { display: block; position: absolute; top: 28px; bottom: 0; width: 22px; z-index: 5; touch-action: pan-y; }
+  .psf-scroll-edge { display: block; position: absolute; top: 28px; bottom: 0; width: 22px; z-index: 5; touch-action: pan-y pinch-zoom; }
   .psf-scroll-edge-left { left: 0; }
   .psf-scroll-edge-right { right: 0; }
   .psf-strip { cursor: default; }

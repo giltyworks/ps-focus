@@ -1543,13 +1543,17 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
+      window.removeEventListener("pointerdown", pinch);
       if (!tugging) return;
       // Back with a small overshoot, as if on a spring
       tug("translate .45s cubic-bezier(.34, 1.56, .64, 1)");
     };
+    // A second finger means a pinch, which zooms the page: the tug lets go
+    const pinch = (other) => { if (other.pointerId !== event.pointerId) end({ pointerId: event.pointerId }); };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", end);
     window.addEventListener("pointercancel", end);
+    window.addEventListener("pointerdown", pinch);
   });
 
   // A band down each side of the window is left to scrolling the page, widening the painting's strips beside it. A tap
