@@ -111,7 +111,7 @@ COLORS = {
     "accent": "#79d6bd",
     "accent_dark": "#284e45",
     "active_green": "#22c55e",
-    # Session days, checkboxes, the graph, and the progress dot. A royal blue (hue 229Â°) rather than the
+    # Session days, checkboxes, the graph, and the progress dot. A royal blue (hue 229°) rather than the
     # earlier #3478c9, which leaned towards green; white day numbers on it read at 4.8:1
     "calendar_blue": "#3d5ce6",
     "calendar_cell": "#151515",

@@ -674,7 +674,7 @@ class FriendsModule(ModuleBlock):
         point = event.position().toPoint()
         if event.button() == Qt.MouseButton.LeftButton and self._arrow_at(point) is None and self._scroll_part(point) is None:
             for area, code, name in self.person_areas:
-                if area.intersected(self.list_rect).contains(point):
+                if area.contains(point):
                     self.details_pending = (code, name)
                     event.accept()
                     return

@@ -6,13 +6,13 @@ import math
 from typing import Callable
 
 from PySide6.QtCore import QPoint, QRect, Qt, QTimer
-from PySide6.QtGui import QFocusEvent, QIcon, QKeyEvent, QMouseEvent, QPainter, QPaintEvent
-from PySide6.QtWidgets import QDialog, QPlainTextEdit, QWidget
+from PySide6.QtGui import QFocusEvent, QKeyEvent, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtWidgets import QPlainTextEdit, QWidget
 
-from app_config import FEEDBACK_PLACEHOLDER, FEEDBACK_PLACEHOLDER_PROMPT, resource_path
+from app_config import FEEDBACK_PLACEHOLDER, FEEDBACK_PLACEHOLDER_PROMPT
 from feedback import FeedbackOutbox
-from windows_startup import set_title_bar_colors_for_handle
 
+from .app_dialog import AppDialog
 from .module import PaintedButton
 from .theme import Fonts, color, draw_text, font, line_height, text_width
 
@@ -49,12 +49,6 @@ class MessageBox(QPlainTextEdit):
         )
         width = text_width(fonts.small, "0" * MESSAGE_CHARACTERS) + 2 * MESSAGE_PADX + 2
         self.setFixedSize(width, MESSAGE_LINES * line_height(fonts.small) + 2 * MESSAGE_PADY + 2)
-
-    def showEvent(self, event) -> None:
-        super().showEvent(event)
-        # Coloured as it shows, not before: asking for the window's handle before it is shown made Windows stop
-        # passing PS Focus's small redraws to the screen, so hover and scrolling seemed frozen until a full redraw
-        set_title_bar_colors_for_handle(int(self.winId()))
 
     def paintEvent(self, event: QPaintEvent) -> None:
         super().paintEvent(event)
@@ -151,7 +145,7 @@ class StarRow(QWidget):
         self.update()
 
 
-class FeedbackDialog(QDialog):
+class FeedbackDialog(AppDialog):
     """The app passes in the outbox to keep the feedback in, how long until more may be sent (None when it may be sent
     now), and what to do once it has been kept: counting it, sending it and revealing the level"""
 
@@ -164,16 +158,11 @@ class FeedbackDialog(QDialog):
         on_submitted: Callable[[], None],
         reveal_prompt: bool = False,
     ) -> None:
-        super().__init__(parent, Qt.WindowType.Dialog | Qt.WindowType.WindowTitleHint | Qt.WindowType.WindowCloseButtonHint)
+        super().__init__(parent, "Feedback")
         self.fonts = fonts
         self.outbox = outbox
         self.cooldown_remaining = cooldown_remaining
         self.on_submitted = on_submitted
-        self.setWindowTitle("Feedback")
-        self.setWindowIcon(QIcon(str(resource_path("assets/icons/PSFocus.ico"))))
-        self.setWindowModality(Qt.WindowModality.ApplicationModal)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         self.setMouseTracking(True)
         self.title = "Rate us to reveal your level" if reveal_prompt else "Rate your experience"
         self.status = ("", "muted")
@@ -276,10 +265,5 @@ class FeedbackDialog(QDialog):
         self.setCursor(Qt.CursorShape.PointingHandCursor if over else Qt.CursorShape.ArrowCursor)
 
     def show_centred_on(self, window: QWidget) -> None:
-        frame = window.frameGeometry()
-        x = window.x() + (frame.width() - self.frameGeometry().width()) // 2
-        y = window.y() + (frame.height() - self.frameGeometry().height()) // 2
-        self.move(max(0, x), max(0, y))
-        self.show()
-        self.activateWindow()
+        super().show_centred_on(window)
         self.message.setFocus()

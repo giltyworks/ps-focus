@@ -450,6 +450,34 @@ class QtSettingsTests(unittest.TestCase):
             self.assertFalse(window.testAttribute(created), type(window).__name__)
             window.deleteLater()
 
+    def test_small_windows_open_over_ps_focus_on_its_screen_with_their_own_title_bar_coloured(self):
+        from datetime import date
+        from unittest import mock
+        from PySide6.QtCore import Qt
+        from qt.day_overview import DayOverview
+        from qt.feedback_dialog import FeedbackDialog
+        from PySide6.QtWidgets import QWidget
+        from qt.friend_details import FriendDetails
+
+        window = self.app.window
+        screen = window.screen().availableGeometry()
+        # Hanging off its screen's left edge, the window's middle is too: the windows open inside the screen still
+        window.move(screen.left() - window.width() + 40, screen.top() + 40)
+        for make in (
+            lambda: DayOverview(window, self.app.fonts, self.app.store, date.today(), lambda _day, _rating: None),
+            lambda: FriendDetails(window, self.app.fonts, "Friend", "3.0 hrs past 2 weeks"),
+            lambda: FeedbackDialog(window, self.app.fonts, self.app.feedback, lambda: None, lambda: None),
+        ):
+            dialog = make()
+            with mock.patch("qt.app_dialog.set_title_bar_colors_for_handle") as colour:
+                dialog.show_centred_on(window)
+            name = type(dialog).__name__
+            self.assertTrue(screen.contains(dialog.frameGeometry().topLeft()), name)
+            colour.assert_called_once_with(int(dialog.winId()))
+            # Only the window itself is a Windows window: a part of it given its own handle draws apart from it
+            self.assertFalse(any(child.testAttribute(Qt.WidgetAttribute.WA_NativeWindow) for child in dialog.findChildren(QWidget)), name)
+            dialog.close()
+
     def test_transparency_icon_opens_its_slider(self):
         from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
         from PySide6.QtGui import QMouseEvent

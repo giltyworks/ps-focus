@@ -6,14 +6,14 @@ from datetime import date
 from typing import Callable
 
 from PySide6.QtCore import QPoint, Qt
-from PySide6.QtGui import QColor, QIcon, QKeyEvent, QMouseEvent, QPainter, QPaintEvent
-from PySide6.QtWidgets import QDialog, QWidget
+from PySide6.QtGui import QColor, QKeyEvent, QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtWidgets import QWidget
 
-from app_config import format_duration, resource_path
+from app_config import format_duration
 from stat_lines import DAY_ABBREVIATIONS, format_clock
 from tracker import ActivityStore
-from windows_startup import set_title_bar_colors_for_handle
 
+from .app_dialog import AppDialog
 from .header import fit_text
 from .icons import icon
 from .theme import Fonts, color, draw_outline_text, draw_text, line_height, text_width
@@ -31,21 +31,16 @@ STAR = "\U00002b50"
 UNRATED_STAR = "#5c5c5c"
 
 
-class DayOverview(QDialog):
+class DayOverview(AppDialog):
     def __init__(
         self, parent: QWidget, fonts: Fonts, store: ActivityStore, session_day: date, on_rated: Callable[[date, int], None]
     ) -> None:
-        super().__init__(parent, Qt.WindowType.Dialog | Qt.WindowType.WindowTitleHint | Qt.WindowType.WindowCloseButtonHint)
+        # The date is carried by the title bar alone, such as "Thu, 1 Oct 2026", to keep the window compact
+        super().__init__(parent, f"{DAY_ABBREVIATIONS[session_day.weekday()]}, {session_day.day} {session_day.strftime('%b %Y')}")
         self.fonts = fonts
         self.store = store
         self.session_day = session_day
         self.on_rated = on_rated
-        # The date is carried by the title bar alone, such as "Thu, 1 Oct 2026", to keep the window compact
-        self.setWindowTitle(f"{DAY_ABBREVIATIONS[session_day.weekday()]}, {session_day.day} {session_day.strftime('%b %Y')}")
-        self.setWindowIcon(QIcon(str(resource_path("assets/icons/PSFocus.ico"))))
-        self.setWindowModality(Qt.WindowModality.ApplicationModal)
-        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
-        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.rating = store.productivity_rating(session_day) or 0
@@ -54,12 +49,6 @@ class DayOverview(QDialog):
         # The star under the mouse: the stars light up to it, showing the rating a click would give, as on the website
         self.hovered_star: int | None = None
         self._lay_out()
-
-    def showEvent(self, event) -> None:
-        super().showEvent(event)
-        # Coloured as it shows, not before: asking for the window's handle before it is shown made Windows stop
-        # passing PS Focus's small redraws to the screen, so hover and scrolling seemed frozen until a full redraw
-        set_title_bar_colors_for_handle(int(self.winId()))
 
     def _lay_out(self) -> None:
         fonts = self.fonts
@@ -201,12 +190,3 @@ class DayOverview(QDialog):
             return
         # Escape closes the overview, as the title bar's X does; there is no Close button
         super().keyPressEvent(event)
-
-    def show_centred_on(self, window: QWidget) -> None:
-        frame = window.frameGeometry()
-        self.adjustSize()
-        x = window.x() + (frame.width() - self.frameGeometry().width()) // 2
-        y = window.y() + (frame.height() - self.frameGeometry().height()) // 2
-        self.move(max(0, x), max(0, y))
-        self.show()
-        self.activateWindow()

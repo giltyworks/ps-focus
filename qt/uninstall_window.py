@@ -7,13 +7,12 @@ import sys
 from typing import Callable
 
 from PySide6.QtCore import QPointF, Qt
-from PySide6.QtGui import QIcon, QMouseEvent, QPainter, QPaintEvent
-from PySide6.QtWidgets import QApplication, QDialog, QMessageBox, QWidget
+from PySide6.QtGui import QMouseEvent, QPainter, QPaintEvent
+from PySide6.QtWidgets import QApplication, QMessageBox, QWidget
 
-from app_config import resource_path
 from uninstall import DONE_MESSAGE_DELETED, DONE_MESSAGE_KEPT, WARNING_MESSAGE, WINDOW_TITLE, APP_NAME, uninstall
-from windows_startup import set_title_bar_colors_for_handle
 
+from .app_dialog import AppDialog
 from .header import draw_checkbox
 from .module import PaintedButton
 from .settings_page import wrap
@@ -27,16 +26,13 @@ CHECKBOX_LABEL_GAP = 6
 BUTTON_PADX, BUTTON_PADY = 17, 6
 
 
-class UninstallWindow(QDialog):
+class UninstallWindow(AppDialog):
     def __init__(self, fonts: Fonts, run: Callable[[bool], list] = uninstall, parent: QWidget | None = None) -> None:
-        super().__init__(parent, Qt.WindowType.Dialog | Qt.WindowType.WindowTitleHint | Qt.WindowType.WindowCloseButtonHint)
+        super().__init__(parent, WINDOW_TITLE, modal=False)
         self.fonts = fonts
         self.run = run
         self.delete_data = False
         self.option_hovered = False
-        self.setWindowTitle(WINDOW_TITLE)
-        self.setWindowIcon(QIcon(str(resource_path("assets/icons/PSFocus.ico"))))
-        self.setAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
         self.setMouseTracking(True)
         self.title = f"Remove {APP_NAME} from this PC?"
         self.note = wrap(
@@ -48,12 +44,6 @@ class UninstallWindow(QDialog):
         )
         self.buttons = [self.cancel_button, self.uninstall_button]
         self._lay_out()
-
-    def showEvent(self, event) -> None:
-        super().showEvent(event)
-        # Coloured as it shows, not before: asking for the window's handle before it is shown made Windows stop
-        # passing PS Focus's small redraws to the screen, so hover and scrolling seemed frozen until a full redraw
-        set_title_bar_colors_for_handle(int(self.winId()))
 
     def _lay_out(self) -> None:
         small = line_height(self.fonts.small)
