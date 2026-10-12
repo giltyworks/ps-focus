@@ -164,12 +164,13 @@ class QtFriendsTests(unittest.TestCase):
         people = self.app.friends.view.people
         # The user is not among them
         # Those offline last
-        self.assertEqual([person[0] for person in people], ["Dee", "Bo", "Ev", "Cy"])
-        self.assertEqual([person[2] for person in people], ["away", "drawing", "online", "offline"])
+        # Those drawing first, in a section of their own, then the others online, those offline last
+        self.assertEqual([person[0] for person in people], ["Bo", "Dee", "Ev", "Cy"])
+        self.assertEqual([person[2] for person in people], ["drawing", "away", "online", "offline"])
         texts = [item[3] for item in self.app.friends.items if item[0] == "text"]
         # Three or fewer in a section: its name alone; four or more are counted, as "Online (4)"
         self.assertIn("Offline", texts)
-        self.assertEqual([person[3] for person in people], [None, "Krita", None, None])
+        self.assertEqual([person[3] for person in people], ["Krita", None, None, None])
 
     def test_status_menu_sets_what_friends_see(self):
         from qt import friends_sync

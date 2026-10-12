@@ -697,7 +697,6 @@
     name.append(el("button", { type: "button", class: "psf-icon-button psf-chevron", title: `${friend.name}'s menu`, onclick: (event) => friendMenu(event.currentTarget, friend) }, svg(ICONS.chevron)));
     const row = el("div", { class: `psf-friend${friend.fresh ? " psf-new" : ""}`, oncontextmenu: (event) => { event.preventDefault(); friendMenu(name, friend); } },
       el("span", { class: "psf-lv" }, String(friend.level)), name,
-      el("span", { class: "psf-right" }, `${friend.two.toFixed(1)} hrs past 2 weeks`),
       el("span", {}), friend.presence === "drawing"
         // Today's time with the program they are drawing in, as the app shows it
         ? el("span", { class: "psf-sub psf-program" }, `${PROGRAM_SHORT[friend.program] || friend.program} (${todayAmount(friend.today)})`)
@@ -709,7 +708,12 @@
             : friend.presence === "offline" && friend.today <= 0
               // Nothing today: when they were last online, as the app
               ? el("span", { class: "psf-sub" }, friend.lastOnline ? `Last online ${friend.lastOnline} hours ago` : "Offline")
-              : el("span", { class: "psf-sub" }, `${todayAmount(friend.today)} today`), el("span", { class: "psf-sub-right" }, `${friend.total.toFixed(1)} hrs total`));
+              : el("span", { class: "psf-sub" }, `${todayAmount(friend.today)} today`));
+    // Their hours over two weeks and in all, in a tip while the mouse is on their rows, as the app
+    const figures = `${friend.two.toFixed(1)} hrs past 2 weeks
+${friend.total.toFixed(1)} hrs total`;
+    row.addEventListener("pointerenter", () => showTip(row, figures, true));
+    row.addEventListener("pointerleave", hideTip);
     friend.fresh = false;
     return row;
   }
@@ -736,16 +740,17 @@
         el("button", { type: "button", class: "psf-accept", onclick: acceptRequest }, "Accept"),
         el("button", { type: "button", class: "psf-decline", onclick: declineRequest }, "Decline")));
     }
-    const section = (friend) => (state.favourites.has(friend.code) ? "Favourites" : friend.presence === "offline" ? "Offline" : "Online");
-    const order = { Favourites: 0, Online: 1, Offline: 2 };
+    // Favourites, then those drawing, the others online, and those offline, as the app
+    const section = (friend) => (state.favourites.has(friend.code) ? "Favourites" : friend.presence === "drawing" ? "In App" : friend.presence === "offline" ? "Offline" : "Online");
+    const order = { Favourites: 0, "In App": 1, Online: 2, Offline: 3 };
     const sorted = [...state.friends].sort((a, b) => order[section(a)] - order[section(b)] || b.two - a.two);
-    const hasFavourites = sorted.some((f) => section(f) === "Favourites");
+    const onlyOnline = sorted.every((f) => section(f) === "Online");
     let current = null;
     for (const friend of sorted) {
       const name = section(friend);
       if (name !== current) {
         current = name;
-        if (name !== "Online" || hasFavourites) {
+        if (!onlyOnline) {
           // A count only from four up, such as "Online (4)", as the app
           const count = sorted.filter((f) => section(f) === name).length;
           parts.push(el("div", { class: "psf-section" }, count > 3 ? `${name} (${count})` : name));

@@ -385,8 +385,8 @@ class FriendsSync:
             for name, stats, presence, program, code in SAMPLE_FRIENDS:
                 shown = self._local("friends_nicknames").get(code) or name
                 people.append((shown, stats, presence, program, code, code in self._local("friends_favourites")))
-        # Favourites, then the others online, then those offline; in each by hours over the past two weeks
-        sections = {"Favourites": 0, "Online": 1, "Offline": 2}
+        # Favourites, then those drawing, the others online, then those offline; in each by hours over the past two weeks
+        sections = {"Favourites": 0, "In App": 1, "Online": 2, "Offline": 3}
         people.sort(key=lambda person: (sections[friend_section(person)], -float(person[1].get("two_weeks", 0) or 0)))
         return FriendsView(
             "on", me.get("code", ""), people,

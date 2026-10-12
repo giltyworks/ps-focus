@@ -212,7 +212,7 @@
 .psf-friend-list { padding: 4px 8px 6px; max-height: 210px; overflow: auto; scrollbar-width: thin; scrollbar-color: #333 transparent; }
 .psf-section { font-size: 12px; color: var(--psf-muted); margin: 6px 0 2px; }
 /* A friend's two lines snug together, as the app: the name's line 18 tall, the details' 17, 4 between friends */
-.psf-friend { display: grid; grid-template-columns: 27px 1fr auto; grid-template-rows: 18px 17px; align-items: center; padding: 2px 0; }
+.psf-friend { display: grid; grid-template-columns: 27px 1fr; grid-template-rows: 18px 17px; align-items: center; padding: 2px 0; }
 .psf-friend .psf-lv { width: 17px; height: 17px; border: 1.5px solid var(--psf-red); border-radius: 50%; font-size: 10px; display: grid; place-items: center; margin-top: 1px; }
 .psf-friend .psf-name { font-weight: 600; font-size: 14.667px; line-height: 18px; display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; }
 .psf-friend .psf-name.psf-drawing { color: var(--psf-name-drawing); }
@@ -401,3 +401,7 @@
 .psf-calendar > .psf-strip { background: rgba(var(--psf-background), var(--a)); }
 .psf-days { position: relative; }
 .psf-days::before { content: ""; position: absolute; left: 0; top: 0; width: 298px; bottom: 0; background: rgba(var(--psf-panel), var(--a)); -webkit-mask: var(--days-mask) top left / 298px auto no-repeat; mask: var(--days-mask) top left / 298px auto no-repeat; }
+/* A friend's rows under the mouse, a faint box behind them, as the app */
+.psf-friend { margin: 0 -4px; padding-left: 4px; padding-right: 4px; border-radius: 4px; }
+.psf-friend:hover { background: rgba(16, 16, 16, var(--a)); }
+.psf-tip { white-space: pre-line; }

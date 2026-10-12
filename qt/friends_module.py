@@ -15,6 +15,7 @@ from friends import format_code
 
 from .header import NAME_MAX_LENGTH, fit_text
 from .module import DOCK_CONTROL_SIZE, MODULE_TITLE_PADDING, ModuleBlock, PaintedButton, paint_hover_box
+from .hover_tip import hover_tip
 from .theme import Fonts, color, draw_anchored, draw_text, line_height, text_width
 
 # Space between the module's border and its text, as the stats keep
@@ -135,10 +136,11 @@ def paint_person_icon(painter: QPainter, rect: QRect, icon_color: QColor, backgr
 
 
 def friend_section(person: tuple) -> str:
-    """The part of the list a friend is in: Favourites, whether online or not, Online or Offline"""
+    """The part of the list a friend is in: Favourites, whether online or not; In App while drawing; Online, or away;
+    or Offline"""
     if person[5]:
         return "Favourites"
-    return "Offline" if person[2] == "offline" else "Online"
+    return {"drawing": "In App", "offline": "Offline"}.get(person[2], "Online")
 
 
 def wrap(text: str, font, width: int) -> list[str]:
@@ -326,6 +328,7 @@ class FriendsModule(ModuleBlock):
         left, right = SIDE, width - SIDE
         small_line = line_height(fonts.small) + 2 * LINE_PADDING
         self.buttons, self.items, self.person_areas = [], [], []
+        self.person_tips: dict[str, str] = {}
         self.clipped_buttons, self.list_rect, self.list_items, self.max_scroll = [], QRect(), range(0), 0
         # Where each away friend's zzz is, and each friend's menu arrow, as laid out before the list is scrolled
         self.away_areas: list[QRect] = []
@@ -404,13 +407,14 @@ class FriendsModule(ModuleBlock):
         # A friend's two lines sit snug together: the name's line trimmed, the details' line with a little under it
         name_line, detail_line = friend_lines(fonts)
         self.name_rects = {}
-        # Favourites first under a heading of their own, then the others online, then those offline or invisible; the
-        # others online have a heading only when there are favourites above them
+        # Favourites first, then those drawing, the others online, and those offline or invisible, each under a heading;
+        # a list of only friends online needs none
         sections = [friend_section(person) for person in view.people]
+        only_online = set(sections) == {"Online"}
         for index, (name, stats, presence, active, code, favourite) in enumerate(view.people):
             section = sections[index]
             if index == 0 or sections[index - 1] != section:
-                if section != "Online" or "Favourites" in sections:
+                if not only_online:
                     if index:
                         y += GROUP_GAP - ROW_GAP
                     # A count only once a section holds more than a glance takes in, such as "Online (4)"
@@ -419,11 +423,12 @@ class FriendsModule(ModuleBlock):
                     self.items.append(("text", left, y, heading, "muted", fonts.small))
                     y += small_line
             top = y
-            hours = f"{stats.get('two_weeks', 0):.1f} hrs past 2 weeks"
-            hours_left = right - text_width(fonts.small, hours)
+            # Their hours over two weeks and in all show in a tip while the mouse is on their rows, see mouseMoveEvent
+            two_weeks, total = float(stats.get("two_weeks", 0) or 0), float(stats.get("total", 0) or 0)
+            self.person_tips[code] = f"{two_weeks:.1f} hrs past 2 weeks" + chr(10) + f"{total:.1f} hrs total"
+            hours_left = right
             middle = y + name_line // 2
             self.items.append(("level", left + LEVEL_RING_SIZE / 2, middle, str(stats.get("level", 0))))
-            self.items.append(("anchored", right, middle, "e", hours, "muted", fonts.small))
             name_left = left + level_width
             # Beside the name, a zzz while they are away; what they are drawing in goes with today's time, below
             label = PROGRAM_SHORT_NAMES.get(active, active) if active else ""
@@ -443,7 +448,6 @@ class FriendsModule(ModuleBlock):
             # Last, the arrow that opens their menu, as a click anywhere on their rows does
             self.arrow_rects.append((QRect(after_name + 2, middle - NAME_ARROW_SIZE // 2, NAME_ARROW_SIZE, NAME_ARROW_SIZE), code))
             y += name_line
-            total = f"{stats.get('total', 0):.1f} hrs total"
             # Today's time, with the program while they are drawing in it, such as "Photoshop (1.1 hrs)", in its colour
             # Under an hour, in minutes, such as "23 min"
             today = float(stats.get("today", 0) or 0)
@@ -461,10 +465,9 @@ class FriendsModule(ModuleBlock):
                 details, details_color = (f"Last online {time_ago(ago)}" if ago is not None else "Offline"), "muted"
             else:
                 details, details_color = f"{amount} today", "muted"
-            details_room = right - text_width(fonts.small, total) - 8 - name_left
+            details_room = right - name_left
             middle = y + detail_line // 2
             self.items.append(("anchored", name_left, middle, "w", fit_text(details, fonts.small, details_room), details_color, fonts.small))
-            self.items.append(("anchored", right, middle, "e", total, "muted", fonts.small))
             y += detail_line
             self.person_areas.append((QRect(left - 4, top - 2, right - left + 8, y - top + 4), code, name))
             y += ROW_GAP
@@ -638,8 +641,16 @@ class FriendsModule(ModuleBlock):
             self.actions.add(code.strip())
 
     def _area_at(self, point: QPoint) -> QRect | None:
-        """Nothing in the list is clicked as a whole any more; kept for the hover box, which no row now shows"""
-        return None
+        """The friend's rows under the mouse, which a faint box shows behind"""
+        return next((area for area, _code, _name in self.person_areas if area.contains(point)), None)
+
+    def _show_person_tip(self, area: QRect | None) -> None:
+        """Their hours over the past two weeks and in all, in a tip over their rows; none off them"""
+        code = next((code for shown, code, _name in self.person_areas if shown == area), None) if area is not None else None
+        if code is None or code not in self.person_tips:
+            hover_tip(self).hide_for(self)
+        else:
+            hover_tip(self).show_for(self, area, self.person_tips[code], wrap=True)
 
     def _arrow_at(self, point: QPoint) -> str | None:
         """The friend whose menu arrow is here, if any"""
@@ -676,6 +687,8 @@ class FriendsModule(ModuleBlock):
         area = self._area_at(point)
         icon = self._icon_at(point)
         arrow = self._arrow_at(point)
+        if area != self.hovered_area:
+            self._show_person_tip(area)
         if area != self.hovered_area or icon != self.hovered_icon or arrow != self.hovered_arrow:
             self.hovered_area, self.hovered_icon, self.hovered_arrow = area, icon, arrow
             self.update()
@@ -694,6 +707,7 @@ class FriendsModule(ModuleBlock):
         steps = event.angleDelta().y() / 120
         self.scroll = max(0, min(self.max_scroll, round(self.scroll - steps * SCROLL_STEP)))
         self.hovered_area = None
+        self._show_person_tip(None)
         self._layout()
         event.accept()
 
@@ -703,6 +717,7 @@ class FriendsModule(ModuleBlock):
 
     def leaveEvent(self, event) -> None:
         super().leaveEvent(event)
+        self._show_person_tip(None)
         if self.hovered_area is not None or self.hovered_icon is not None or self.hovered_arrow is not None:
             self.hovered_area = self.hovered_icon = self.hovered_arrow = None
             self.update()
