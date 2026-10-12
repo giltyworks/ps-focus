@@ -55,7 +55,6 @@ class GoogleSync:
         else:
             # A name set by the user stands out in bold; an email address, shown when there is none, stays plain
             app.header.account_font = app.fonts.account_bold if self.display_name() else app.fonts.account
-        app.header.account_disabled = self.busy
         app.header.update()
         app.settings_page.set_google((status, tone), self.client.connected and not self.busy, buttons)
         app.settings_page.set_google_buttons_enabled(not self.busy)

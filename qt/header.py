@@ -199,7 +199,6 @@ class Header(GlassMixin, QWidget):
         self.status_text = ""
         self.status_color = "muted"
         self.account_font = fonts.small
-        self.account_disabled = False
         self.progress_reached = False
         self.settings_shown = False
         self.version_text, self.version_is_link = "", False
@@ -336,7 +335,8 @@ class Header(GlassMixin, QWidget):
         painter.restore()
         if editing:
             return
-        text_color = self.palette().color(self.palette().ColorGroup.Disabled, self.palette().ColorRole.Text) if self.account_disabled else color(self.account_color)
+        # Always in its own colour: a backup or upload going on in the background does not grey it
+        text_color = color(self.account_color)
         if self.status_text:
             # The name with its status under it, the two centred on the row together
             name_top = (height - self._account_block_height()) // 2
