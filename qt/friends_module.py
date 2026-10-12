@@ -718,8 +718,11 @@ class FriendsModule(ModuleBlock):
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
         if self.scroll_drag is not None:
-            self._scroll_dragged(point)
-            return
+            if event.buttons() & Qt.MouseButton.LeftButton:
+                self._scroll_dragged(point)
+                return
+            # The button is up but its release never came: the drag is over
+            self.scroll_drag = None
         scroll_part = self._scroll_part(point)
         if scroll_part != self.hovered_scroll:
             self.hovered_scroll = scroll_part

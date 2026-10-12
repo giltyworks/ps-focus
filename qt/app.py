@@ -102,6 +102,8 @@ class PSFocusQt:
         self.landscape_width: int | None = None
         self.arranging = False
         self.settings_shown = False
+        # While the transparency slider is open, everything shows the transparency being chosen, see update_glass
+        self.transparency_previewing = False
         self.modules_were_hidden = True
         self.window = MainWindow(on_close=self.window_hidden, on_resized_by_user=self._window_width_chosen, fonts=self.fonts)
         self.header = Header(self.fonts)
@@ -319,7 +321,8 @@ class PSFocusQt:
         self.transparency_previewing = True
         popup.destroyed.connect(self._transparency_closed)
         self.update_glass()
-        popup.show_at(controls.mapToGlobal(QPoint(area.left(), area.bottom() + 4)))
+        # Beside the icon, to its right, over the empty end of the row rather than the panel under it
+        popup.show_at(controls.mapToGlobal(QPoint(area.right() + 3, area.top() + (area.height() - popup.height()) // 2)))
 
     def _transparency_closed(self) -> None:
         self.transparency_previewing = False

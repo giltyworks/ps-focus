@@ -206,7 +206,7 @@ class SettingsPage(QWidget):
         self._text(EDGE_PADDING, TITLE_PADDING - (title_ascent - capital_height), "Settings", "text", fonts.title)
         y = TITLE_PADDING + capital_height + descent + 2 + TITLE_GAP
         description = self._text(
-            EDGE_PADDING, y, "PS Focus counts time in Photoshop, Krita and CSP while they are in front and pauses when you're inactive",
+            EDGE_PADDING, y, "PS Focus counts time in Photoshop, Krita, CSP and PhotoCraft while they are in front and pauses when you're inactive",
             "muted", fonts.normal, PAGE_TEXT_WIDTH,
         )
         y += description.height() + DESCRIPTION_GAP

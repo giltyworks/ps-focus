@@ -134,6 +134,8 @@
   const ICONS = {
     graph: '<path d="M1 13H13"/><path d="M1.5 10.5L5 6.5L8 8.5L12.5 2.5"/>',
     calendar: '<rect x="1" y="2.5" width="12" height="10.5" rx="2"/><path d="M1 5.5H13M4.2 0.8V3.4M9.8 0.8V3.4"/><circle cx="4" cy="8" r=".5" fill="currentColor"/><circle cx="7" cy="8" r=".5" fill="currentColor"/><circle cx="10" cy="8" r=".5" fill="currentColor"/><circle cx="4" cy="10.8" r=".5" fill="currentColor"/><circle cx="7" cy="10.8" r=".5" fill="currentColor"/><circle cx="10" cy="10.8" r=".5" fill="currentColor"/>',
+    // A circle half filled, half see-through, as the app's transparency icon
+    transparency: '<circle cx="7" cy="7" r="6.1"/><path d="M7 0.9A6.1 6.1 0 0 0 7 13.1Z" fill="currentColor" stroke="none"/>',
     friends: '<circle cx="9.5" cy="4" r="1.8"/><path d="M7.4 9.6C8 8 11.6 8 13.3 10.2"/><circle cx="5" cy="4.8" r="2.2"/><path d="M0.8 12.8C1.4 9.4 8.4 9.4 9.2 12.8"/>',
     stats: '<path d="M1.1 2.8H5.6M8.4 2.8H12.9M1.1 7H5.6M8.4 7H12.9M1.1 11.2H5.6M8.4 11.2H12.9"/>',
     chevron: '<path d="M4 5.5L7 8.5L10 5.5"/>',
@@ -181,7 +183,10 @@
   };
 
   let menu = null, menuAnchor = null, closedFrom = null;
-  const closeMenu = () => { menuAnchor?.classList.remove("psf-open"); menu?.remove(); menu = null; menuAnchor = null; };
+  const closeMenu = () => {
+    menuAnchor?.classList.remove("psf-open"); menu?.remove(); menu = null; menuAnchor = null;
+    if (transparencyOpen) { transparencyOpen = false; updateGlass(); }
+  };
   // Clicking what opened a menu while it is open closes it, rather than closing and opening it again
   const openMenu = (anchor, items) => {
     const reopening = closedFrom === anchor;
@@ -245,7 +250,10 @@
   const setTransparency = (amount) => {
     state.transparency = amount;
     slider.value = 100 - amount;
-    settingsSlider.value = 100 - amount;
+    popupSlider.value = 100 - amount;
+    // The icon dims as the setting rises, as the app's: as bright as a shown module's when solid, about as dim as a
+    // hidden one's fully see-through
+    transparencyButton.style.opacity = String(1 - 0.75 * amount / 100);
     updateGlass();
   };
   slider.addEventListener("input", () => setTransparency(100 - Number(slider.value)));
@@ -288,10 +296,29 @@
   const settingsButton = el("button", { type: "button", class: "psf-icon-button psf-settings", title: "Settings", onclick: () => toggleSettings() }, "···");
   const level = el("div", { class: "psf-level" }, "Level", levelBadge);
   // In Settings the header shows the version and the credit in place of the level and account
-  const credit = el("div", { class: "psf-credit", hidden: true }, el("span", { class: "psf-version" }, "Version 1.1.21"), el("span", { class: "psf-by" }, "by giltyworks"));
+  const credit = el("div", { class: "psf-credit", hidden: true }, el("span", { class: "psf-version" }, "Version 1.1.22"), el("span", { class: "psf-by" }, "by giltyworks"));
   const header = el("div", { class: "psf-header" }, level, account, credit, settingsButton);
   const iconButtons = {};
-  const icons = el("div", { class: "psf-icons" }, ["graph", "calendar", "stats", "friends"].map((name) => {
+  // At the left end of the row, as the app: the transparency icon, opening a small slider under it. While it is open
+  // PS Focus shows the transparency being chosen, the pointer over it or not
+  const popupSlider = el("input", { type: "range", min: 0, max: 100, value: 100 - state.transparency, "aria-label": "Transparency, solid at the right" });
+  popupSlider.addEventListener("input", () => setTransparency(100 - Number(popupSlider.value)));
+  let transparencyOpen = false;
+  const transparencyButton = el("button", { type: "button", class: "psf-icon-button psf-transparency", title: "Transparency",
+    onclick: () => {
+      openMenu(transparencyButton, [el("div", { class: "psf-transparency-popup" }, popupSlider)]);
+      transparencyOpen = !!menu && menuAnchor === transparencyButton;
+      if (menu && transparencyOpen) {
+        // Beside the icon, to its right, over the empty end of the row rather than the panel under it
+        menu.classList.add("psf-compact");
+        const a = transparencyButton.getBoundingClientRect(), st = stage.getBoundingClientRect();
+        menu.style.left = `${a.right - st.left + 3}px`;
+        menu.style.top = `${a.top - st.top + (a.height - menu.offsetHeight) / 2}px`;
+      }
+      updateGlass();
+    } }, svg(ICONS.transparency));
+  transparencyButton.style.opacity = String(1 - 0.75 * state.transparency / 100);
+  const icons = el("div", { class: "psf-icons" }, transparencyButton, ["graph", "calendar", "stats", "friends"].map((name) => {
     iconButtons[name] = el("button", { type: "button", class: "psf-icon-button", title: `Show or hide ${name}`, onclick: () => { markUsed("icons"); toggleModule(name); } }, svg(ICONS[name]));
     return iconButtons[name];
   }));
@@ -851,8 +878,6 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     box.addEventListener("click", () => { onToggle(); });
     return box;
   };
-  const settingsSlider = el("input", { type: "range", min: 0, max: 100, value: 100 - state.transparency, "aria-label": "Transparency, solid at the right" });
-  settingsSlider.addEventListener("input", () => setTransparency(100 - Number(settingsSlider.value)));
   const backupStatus = el("div", { class: "psf-backup-line psf-green" }, "Activity backup saved to Google Drive");
 
   // ----- Google sign-in, simulated: in the app Google's own page opens in the browser, which the demo says rather
@@ -925,9 +950,8 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     const toggle = (key) => checkbox(state[key], key, () => { state[key] = !state[key]; renderSettings(); });
     settingsPage.replaceChildren(
       el("h3", {}, "Settings"),
-      el("p", { class: "psf-settings-text" }, "PS Focus counts time in Photoshop, Krita and CSP while they are in front and pauses when you're inactive"),
+      el("p", { class: "psf-settings-text" }, "PS Focus counts time in Photoshop, Krita, CSP and PhotoCraft while they are in front and pauses when you're inactive"),
       boxedRow("Orientation", "Modules below or beside the program panel", orientation),
-      boxedRow("Transparency", "PS Focus turns see-through while the mouse is elsewhere", settingsSlider),
       boxedRow("Start with Windows", "Launch PS Focus when you sign in to Windows", toggle("startWithWindows")),
       boxedRow("Start minimized", "Open PS Focus minimized when launched at sign-in", toggle("startMinimized")),
       el("div", { class: "psf-check-row" },
@@ -1499,7 +1523,7 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
       const group = groupOf(start);
       group.forEach((node) => done.add(node));
       const withMain = group.has(win);
-      const solid = touch.matches ? !stageAway : [...group].some(inside) || (withMain && !!menu);
+      const solid = transparencyOpen ? false : touch.matches ? !stageAway : [...group].some(inside) || (withMain && !!menu);
       if (withMain) mainSolid = solid;
       group.forEach((node) => set(node, solid));
     }

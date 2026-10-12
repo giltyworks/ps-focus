@@ -28,7 +28,7 @@ os.environ["QT_QPA_PLATFORM"] = "windows"
     encoding="utf-8",
 )
 
-from PySide6.QtCore import QPoint, QRect, Qt  # noqa: E402
+from PySide6.QtCore import QRect, Qt  # noqa: E402
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QWidget  # noqa: E402
 
 import qt.app as qt_app  # noqa: E402
@@ -47,7 +47,7 @@ screen = application.primaryScreen().availableGeometry()
 backdrop.setGeometry(screen)
 backdrop.show()
 app = PSFocusQt(application)
-app._save_settings = lambda: None
+app._save_settings = lambda upload=True: None
 app.tick_timer.stop()
 app.focus_timer.stop()
 

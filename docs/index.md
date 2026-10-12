@@ -44,11 +44,11 @@ Windows may say "Windows protected your PC" because the app isn't code-signed ye
   <p class="caption">Sample data and made-up friends; nothing you do here is sent anywhere. Painting: Joaquín Sorolla, <em>Strolling along the Seashore</em> (1909), public domain.</p>
   <noscript><p class="caption">The demo needs JavaScript.</p></noscript>
 </section>
-<link rel="stylesheet" href="{{ '/assets/demo/demo.css' | relative_url }}?v=1.1.21">
-<script src="{{ '/assets/demo/demo.js' | relative_url }}?v=1.1.21" defer></script>
+<link rel="stylesheet" href="{{ '/assets/demo/demo.css' | relative_url }}?v=1.1.22">
+<script src="{{ '/assets/demo/demo.js' | relative_url }}?v=1.1.22" defer></script>
 
 <figure class="wide-shot">
-  <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1495" height="229" alt="PS Focus in landscape: today's time in Photoshop, then friends and their hours, the hours graph and the October calendar side by side in one wide, short window">
+  <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1495" height="228" alt="PS Focus in landscape: today's time in Photoshop, then friends and their hours, the hours graph and the October calendar side by side in one wide, short window">
   <figcaption class="caption">Landscape, in the app: everything side by side in one short strip</figcaption>
 </figure>
 
@@ -78,7 +78,7 @@ Only the seconds you worked, per app and hour. No document names, window titles,
 
 ## Google sign-in
 
-Optional. If you connect, PS Focus asks for its own hidden folder in your Google Drive, for your settings and a backup, and your email address, shown in the app. It can't see your other Drive files, and nothing is sent to Giltyworks.
+Optional. If you connect, PS Focus asks for its own hidden folder in your Google Drive, for your settings and a backup, and your email address, shown in the app. It can't see your other Drive files, and your Drive data never reaches Giltyworks. Signing in also turns on Friends, which shares your name and hours with friends you accept; choose **Offline** to stop. See the [Privacy Policy]({{ '/privacy/' | relative_url }}).
 
 </section>
 <section markdown="1">

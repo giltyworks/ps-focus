@@ -130,6 +130,11 @@
 .psf-icons { height: 24px; display: flex; justify-content: flex-end; gap: 2px; padding: 2px 4px 0 0; background: rgba(var(--psf-background), var(--a)); }
 .psf-icons .psf-icon-button { width: 22px; height: 22px; color: #4f5857; }
 .psf-icons .psf-icon-button.psf-on { color: var(--psf-text); }
+/* The transparency icon at the row's left end, always lit, dimmed by the setting; its compact slider popup */
+.psf-icons .psf-icon-button.psf-transparency { color: var(--psf-text); margin: 0 auto 0 4px; }
+.psf-menu.psf-compact { min-width: 0; padding: 0; }
+.psf-transparency-popup { display: flex; align-items: center; height: 22px; padding: 0 6px; }
+.psf-transparency-popup input { width: 80px; margin: 0; accent-color: var(--psf-blue); }
 
 /* Blocks: the program panel and the modules */
 .psf-blocks { padding-bottom: 4px; }
