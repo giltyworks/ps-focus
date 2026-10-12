@@ -1507,6 +1507,13 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
   const TUG_REACH = 36;
   const TUG_START = 6;
   const UNTUGGED = "button, input, label, .psf-day, .psf-grip, .psf-account-name, .psf-request-row, .psf-chart-box, .psf-menu, .psf-scroll-edge, .psf-friend-list";
+  // The window and its arrows move together; on a phone the arrows all point at the window
+  function tug(transition, offset = "") {
+    for (const node of [win, hotspots]) {
+      node.style.transition = transition;
+      node.style.translate = offset;
+    }
+  }
   win.addEventListener("pointerdown", (event) => {
     if (!touch.matches || !event.isPrimary || event.target.closest(UNTUGGED)) return;
     const start = { x: event.clientX, y: event.clientY };
@@ -1520,10 +1527,10 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
         if (Math.hypot(dx, dy) < TUG_START) return;
         tugging = true;
         try { win.setPointerCapture(event.pointerId); } catch (error) { /* moves still reach it */ }
-        win.style.transition = "none";
+        tug("none");
         hideTip();
       }
-      win.style.translate = `${give(dx)}px ${give(dy)}px`;
+      tug("none", `${give(dx)}px ${give(dy)}px`);
     };
     const end = (endEvent) => {
       if (endEvent.pointerId !== event.pointerId) return;
@@ -1532,8 +1539,7 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
       window.removeEventListener("pointercancel", end);
       if (!tugging) return;
       // Back with a small overshoot, as if on a spring
-      win.style.transition = "translate .45s cubic-bezier(.34, 1.56, .64, 1)";
-      win.style.translate = "";
+      tug("translate .45s cubic-bezier(.34, 1.56, .64, 1)");
     };
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", end);
