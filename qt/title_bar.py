@@ -131,4 +131,6 @@ class EdgeGrip(QWidget):
     def mousePressEvent(self, event: QMouseEvent) -> None:
         handle = self.window().windowHandle()
         if event.button() == Qt.MouseButton.LeftButton and handle is not None:
+            # The window keeps the width the user drags it to, see MainWindow.resizeEvent
+            self.window().user_resizing = True
             handle.startSystemResize(self.edge)

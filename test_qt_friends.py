@@ -172,6 +172,56 @@ class QtFriendsTests(unittest.TestCase):
         self.assertIn("Offline", texts)
         self.assertEqual([person[3] for person in people], ["Krita", None, None, None])
 
+    def test_scroll_paints_immediately_without_mouse_leaving(self):
+        from PySide6.QtCore import QEvent, QObject, QPoint, QPointF, Qt
+        from PySide6.QtGui import QWheelEvent
+        self.service.answer = server_state(friends=[
+            {"code": f"TEST{i:04d}", "name": f"Friend {i}", "stats": {"two_weeks": 3}, "updated_at": 1000} for i in range(12)
+        ])
+        self._turn_on()
+        module = self.app.friends
+        class PaintCounter(QObject):
+            paints = 0
+            def eventFilter(self, watched, event):
+                if event.type() == QEvent.Type.Paint:
+                    self.paints += 1
+                return False
+        counter = PaintCounter(module)
+        module.installEventFilter(counter)
+        for alpha in (255, 2):
+            module.set_glass(alpha)
+            self.application.processEvents()
+            for pixel in (False, True):
+                before_scroll, before_paints = module.scroll, counter.paints
+                point = module.list_rect.center()
+                event = QWheelEvent(QPointF(point), QPointF(module.mapToGlobal(point)), QPoint(0, -15) if pixel else QPoint(), QPoint() if pixel else QPoint(0, -120), Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier, Qt.ScrollPhase.NoScrollPhase, False)
+                self.application.sendEvent(module, event)
+                self.assertGreater(module.scroll, before_scroll)
+                self.assertGreater(counter.paints, before_paints)
+        module.removeEventFilter(counter)
+
+    def test_transparency_friend_dialog_and_settings_keep_full_page(self):
+        from PySide6.QtCore import QEvent, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+        self.service.answer = server_state(friends=[{"code": "TEST0000", "name": "Friend", "stats": {"total": 40}, "updated_at": 1000}])
+        self._turn_on()
+        for transparency in (100, 0, 100, 50):
+            self.app._transparency_chosen(transparency, True)
+            module = self.app.friends
+            point = module._shown(module.name_rects["TEST0000"]).center()
+            self.application.sendEvent(module, QMouseEvent(QEvent.Type.MouseButtonDblClick, QPointF(point), QPointF(module.mapToGlobal(point)), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+            self.application.processEvents()
+            module.details_dialog.close()
+            self.application.processEvents()
+            self.app._toggle_settings()
+            self.application.processEvents()
+            self.assertTrue(self.app.settings_page.isVisible())
+            self.assertGreater(self.app.settings_page.height(), 400)
+            self.assertGreater(self.app.window.height(), self.app.settings_page.height())
+            self.assertIsNone(self.app.block_drag.mode)
+            self.app._toggle_settings()
+            self.application.processEvents()
+
     def test_friend_details_open_on_double_click_including_scrolled_names(self):
         from PySide6.QtCore import QEvent, QPointF, Qt
         from PySide6.QtGui import QMouseEvent

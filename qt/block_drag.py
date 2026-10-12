@@ -47,6 +47,7 @@ class BlockDrag(QObject):
         self.order_changed = False
         # The widget holding the mouse while a drag lasts, see _moved
         self.grabber: QWidget | None = None
+        self.grabber_tracked = False
         for block in blocks.values():
             block.installEventFilter(self)
 
@@ -62,7 +63,11 @@ class BlockDrag(QObject):
     def eventFilter(self, watched: QObject, event: QEvent) -> bool:
         kind = event.type()
         if kind == QEvent.Type.MouseButtonPress:
-            if self.mode is None and isinstance(watched, QWidget) and event.button() == Qt.MouseButton.LeftButton:
+            if self.mode is not None:
+                # A new press means the last drag's release never came, as when Windows gave it to a window opening
+                # mid-press; the drag ends where it was, so the mouse is not held for good
+                self._released(None)
+            if isinstance(watched, QWidget) and event.button() == Qt.MouseButton.LeftButton:
                 return self._pressed(watched, event)
             return False
         if kind == QEvent.Type.Hide:
@@ -82,7 +87,8 @@ class BlockDrag(QObject):
         if kind == QEvent.Type.MouseMove:
             if event.buttons() & Qt.MouseButton.LeftButton:
                 return self._moved(event.globalPosition().toPoint())
-            return False
+            # The button is up but its release never reached us: end the drag where the pointer is
+            return self._released(event.globalPosition().toPoint())
         if event.button() == Qt.MouseButton.LeftButton:
             return self._released(event.globalPosition().toPoint())
         return False
@@ -135,6 +141,10 @@ class BlockDrag(QObject):
             if self.docking is not None and self.docking.window.isVisible():
                 self.grabber = self.docking.window
                 self.grabber.grabMouse()
+                # Qt passes moves with the button up only to a widget tracking the mouse; the window tracks it while
+                # it holds the mouse, so a release Windows never delivered still ends the drag, see eventFilter
+                self.grabber_tracked = self.grabber.hasMouseTracking()
+                self.grabber.setMouseTracking(True)
             if self.candidate is not None:
                 self._mark(True)
                 QApplication.setOverrideCursor(Qt.CursorShape.ClosedHandCursor)
@@ -183,6 +193,7 @@ class BlockDrag(QObject):
         was_dragged = self.dragged
         if self.grabber is not None:
             self.grabber.releaseMouse()
+            self.grabber.setMouseTracking(self.grabber_tracked)
             self.grabber = None
         marked = was_dragged and self.candidate is not None and self.blocks[self.candidate].border_color != "border"
         if marked:

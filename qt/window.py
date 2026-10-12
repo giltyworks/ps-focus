@@ -26,6 +26,8 @@ WINDOW_STYLES = 0x00C00000 | 0x00040000 | 0x00020000 | 0x00080000
 # windows alone, so it is taken off
 WS_POPUP = 0x80000000
 WM_NCCALCSIZE = 0x0083
+# Windows' resizing by the edge strip has ended
+WM_EXITSIZEMOVE = 0x0232
 
 
 def _keep_window_behaviour(window: QWidget) -> None:
@@ -137,6 +139,8 @@ class MainWindow(QWidget):
         self.requested_width = 0
         # Set while the window resizes itself, so that a size Qt passes through then is not taken for the user's
         self.refitting = False
+        # While the edge strip is being dragged, the only time a new width is the user's own, see resizeEvent
+        self.user_resizing = False
         # Laid over the bottom of a window too short for its blocks, so they disappear behind a margin rather than
         # running right up to the edge, see the Tk ModulesMixin._update_clip_margin
         self.clip_margin = ClipMargin(self)
@@ -151,6 +155,8 @@ class MainWindow(QWidget):
             msg = wintypes.MSG.from_address(int(message))
             if msg.message == WM_NCCALCSIZE and msg.wParam:
                 return True, 0
+            if msg.message == WM_EXITSIZEMOVE:
+                self.user_resizing = False
         return super().nativeEvent(event_type, message)
 
     def show_always_on_top(self, on: bool) -> None:
@@ -386,9 +392,11 @@ class MainWindow(QWidget):
         if self.on_moved is not None:
             self.on_moved()
         self._slide()
-        # In landscape a width the app did not ask for is one the user dragged to, kept while blocks come and go
-        if (self.settings_page is None and self.landscape and not self.refitting and self.width() != self.requested_width
-                and self.on_resized_by_user is not None):
+        # In landscape a width the user dragged the edge to is kept while blocks come and go. Only a drag counts: a
+        # resize Windows applies late, such as the narrow Settings page's after leaving it, would otherwise be taken
+        # for the user's and leave the window that narrow
+        if (self.user_resizing and self.settings_page is None and self.landscape and not self.refitting
+                and self.width() != self.requested_width and self.on_resized_by_user is not None):
             self.requested_width = self.width()
             self.on_resized_by_user(self.width())
 

@@ -721,11 +721,15 @@ class FriendsModule(ModuleBlock):
         if not self.max_scroll:
             event.ignore()
             return
-        steps = event.angleDelta().y() / 120
-        self.scroll = max(0, min(self.max_scroll, round(self.scroll - steps * SCROLL_STEP)))
-        self.hovered_area = None
-        self._hide_person_tip()
-        self._layout()
+        delta = event.pixelDelta().y() or event.angleDelta().y() / 120 * SCROLL_STEP
+        before = self.scroll
+        self.scroll = max(0, min(self.max_scroll, round(self.scroll - delta)))
+        if self.scroll != before:
+            self.hovered_area = self.hovered_arrow = self.hovered_icon = None
+            self._hide_person_tip()
+            self._layout()
+            # Present scrolling before returning, even on a layered Windows surface.
+            self.repaint(self.list_rect)
         event.accept()
 
     def enterEvent(self, event) -> None:

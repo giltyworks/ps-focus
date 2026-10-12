@@ -79,6 +79,7 @@
 
   const state = {
     todayProgram: "Photoshop",
+    programSeconds: { "Krita": 0, "Clip Studio Paint": 0, "PhotoCraft": 0 },
     drawing: true,
     transparency: 50,
     period: "3 Months",
@@ -331,21 +332,22 @@
   const lastSession = (() => { for (let ago = 1; ago <= STARTED_DAYS_AGO; ago++) if (dayTotal(daysAgo(ago)) > 0) return daysAgo(ago); return today; })();
 
   function renderToday() {
-    const todaySeconds = dayTotal(today);
-    today_.two.textContent = `${(rangeTotal(daysAgo(13), today) / 3600).toFixed(1)} hrs past 2 weeks`;
+    const otherSeconds = Object.values(state.programSeconds).reduce((sum, seconds) => sum + seconds, 0);
+    const todaySeconds = dayTotal(today) - otherSeconds;
+    today_.two.textContent = `${((rangeTotal(daysAgo(13), today) - otherSeconds) / 3600).toFixed(1)} hrs past 2 weeks`;
     today_.metric.textContent = clock(todaySeconds);
     today_.sessions.textContent = `${sessionsCount} SESSIONS`;
-    today_.record.textContent = `${(lifetime / 3600).toFixed(1)} hrs on record`;
+    today_.record.textContent = `${((lifetime - otherSeconds) / 3600).toFixed(1)} hrs on record`;
     const active = state.drawing && !state.paused;
-    if (active) state.todayProgram = "Photoshop";
     today_.name.textContent = state.todayProgram;
     today_.program.disabled = false;
     if (state.todayProgram !== "Photoshop") {
       const values = { "Krita": ["0.0", "2.5", 2], "Clip Studio Paint": ["1.8", "6.2", 4], "PhotoCraft": ["0.6", "3.1", 3] }[state.todayProgram];
-      today_.two.textContent = `${values[0]} hrs past 2 weeks`;
-      today_.metric.textContent = "0s";
+      const seconds = state.programSeconds[state.todayProgram];
+      today_.two.textContent = `${(Number(values[0]) + seconds / 3600).toFixed(1)} hrs past 2 weeks`;
+      today_.metric.textContent = clock(seconds);
       today_.sessions.textContent = `${values[2]} SESSIONS`;
-      today_.record.textContent = `${values[1]} hrs on record`;
+      today_.record.textContent = `${(Number(values[1]) + seconds / 3600).toFixed(1)} hrs on record`;
     }
     today_.name.style.color = active ? "var(--psf-green)" : "var(--psf-name-online)";
     today_.status.textContent = state.paused ? "PAUSED" : "";
@@ -868,7 +870,7 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     accountStatus.hidden = !signedIn;
     const drawing = state.status === "online" && state.drawing && !state.paused;
     account.classList.toggle("psf-in-app", signedIn && drawing);
-    accountStatus.textContent = drawing ? "Photoshop" : { online: "Online", away: "Away", invisible: "Invisible", offline: "Offline" }[state.status];
+    accountStatus.textContent = drawing ? state.todayProgram : { online: "Online", away: "Away", invisible: "Invisible", offline: "Offline" }[state.status];
     accountStatus.dataset.status = drawing ? "drawing" : state.status;
   }
 
@@ -1581,6 +1583,7 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     if (!state.drawing || state.paused) return;
     const hour = new Date().getHours();
     todayHours[hour] += 1;
+    if (state.todayProgram !== "Photoshop") state.programSeconds[state.todayProgram] += 1;
     lifetime += 1;
     renderToday();
     if (lifetime % 60 === 0) renderStats();

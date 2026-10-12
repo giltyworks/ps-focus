@@ -14,7 +14,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 try:
     from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
     from PySide6.QtGui import QMouseEvent
-    from PySide6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication, QWidget
 except ImportError:
     QApplication = None
 
@@ -415,6 +415,22 @@ class QtDockingTests(unittest.TestCase):
         self.assertEqual(self.app.window.pos(), window_position + QPoint(-30, 25))
         self.assertEqual(panel.pos(), panel_position + QPoint(-30, 25))
 
+    def test_a_drag_whose_release_never_arrives_lets_go_of_the_mouse(self):
+        graph = self.app.modules["graph"]
+        start = graph.mapToGlobal(QPoint(60, graph.height() - 20))
+        self._mouse(graph, QEvent.Type.MouseButtonPress, start)
+        self._mouse(graph, QEvent.Type.MouseMove, start + QPoint(20, 0))
+        self.assertIs(QWidget.mouseGrabber(), self.app.window)
+        # Windows gave the release to another window; the mouse then moves on with the button up
+        point = self.app.window.mapToGlobal(QPoint(30, 30))
+        QApplication.sendEvent(self.app.window, QMouseEvent(
+            QEvent.Type.MouseMove, QPointF(QPoint(30, 30)), QPointF(point), Qt.MouseButton.NoButton, Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+        ))
+        self.assertIsNone(self.app.block_drag.mode)
+        self.assertIsNone(QWidget.mouseGrabber())
+        self.assertFalse(self.app.window.hasMouseTracking())
+
     def test_header_moves_the_window_except_where_it_is_clicked(self):
         header = self.app.header
         position = self.app.window.pos()
@@ -557,6 +573,17 @@ class QtDockingTests(unittest.TestCase):
         self.app._arrange_blocks()
         self.assertIsNone(self.app.landscape_width)
         self.assertEqual(self.app.window.width(), self.app.window.full_size()[0])
+
+    def test_only_a_drag_of_the_edge_chooses_the_landscape_width(self):
+        self.app.landscape = True
+        self.app._arrange_blocks()
+        window = self.app.window
+        # A resize Windows applies late, as the Settings page's after leaving it, is not the user's choice
+        window.resize(320, window.height())
+        self.assertIsNone(self.app.landscape_width)
+        window.user_resizing = True
+        window.resize(400, window.height())
+        self.assertEqual(self.app.landscape_width, 400)
 
     def test_floating_panels_turn_to_glass_away_from_the_mouse(self):
         from qt.docking import GLASS_MIN_ALPHA, glass_alpha
