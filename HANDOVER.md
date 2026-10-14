@@ -247,3 +247,10 @@ Release 1.1.1 built successfully, including both credential audits and Windows/o
 Silent installation completed with exit code 0. The installed executable reports product version 1.1.1 and was relaunched. Final artifacts are `dist/installer/PS-Focus-Setup-1.1.1.exe` and `dist/installer/PS-Focus-1.1.1-SHA256SUMS.txt`.
 
 No code or website changes were published. A future public release should follow the release instructions rather than treating this local installation as a public release. The live art-program switching test used mocked foreground programs, not actual Photoshop/Krita/CSP launches. Website demo syntax was checked, but interactive browser verification remains a validation limitation.
+
+
+## Claude Code log
+
+### 14 October 2026: "Best day" request
+
+The owner asked for a "Best day" line in Stats showing the day with the most focus time. It already exists as "Longest session" (`stat_lines.py`, from `longest_session`), and the existing "Best day" row is the best weekday on average. The owner chose to change nothing, so no code changed. Next: nothing. Open question: none.
