@@ -88,7 +88,7 @@ See [PRIVACY.md](PRIVACY.md) for the full policy. The tracker checks the foregro
 - `qt/docking.py` and `qt/block_drag.py`: floating panels. A block's title strip puts it in a new order, or out of the window into a window of its own; anything else moves the window or panel with everything snapped to it. Windows move together in one step, and see-through glass is worked out per group of snapped windows
 - `qt/friends_module.py` and `qt/friends_sync.py`: the Friends module, and its check-ins with the friends server about every ten minutes and when drawing starts or stops
 - `qt/google_sync.py`: Google sign-in, settings upload and activity backups for the app, run on background threads with the results handled on the interface's own
-- `qt/preview.py`: the copy of your data a run from source works on
+- `qt/data_copy.py`: the copy of your data a run from source works on
 - `app_config.py`: paths, constants, colours, and default settings
 - `tracker.py`: activity database and foreground-window detection. The database keeps a write-ahead log, so recording each second is a short append; backups are plain single files
 - `stat_lines.py`: the Stats module's figures

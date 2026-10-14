@@ -1,6 +1,6 @@
 """The developer version's menu, opened from the DEV badge in the title bar of `PS Focus.exe --dev`: ways to bring up
 what normally takes days of drawing or someone else's doing, the level going up, the feedback form, the update
-notice, records and friends. It runs on a copy of the data made at each start, see preview.use_preview_data, so
+notice, records and friends. It runs on a copy of the data made at each start, see data_copy.use_data_copy, so
 hours added here never reach the real history, backups or Google Drive, and feedback stays on the PC"""
 
 from __future__ import annotations

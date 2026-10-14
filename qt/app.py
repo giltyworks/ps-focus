@@ -168,16 +168,16 @@ class PSFocusQt:
         self.settings_page = SettingsPage(self.fonts, self.settings, self._setting_toggled, self._set_orientation, self._settings_resized)
         self.settings_page.exit_button.command = self.close
         self.settings_page.feedback_button.command = self._open_feedback_dialog
-        preview = bool(app_config.DATA_DIRECTORY_OVERRIDE)
-        # Starting with Windows is the installed app's alone: a preview, or a copy run from source, would point the
-        # Windows entry at itself
-        if preview or not getattr(sys, "frozen", False):
+        data_copy = bool(app_config.DATA_DIRECTORY_OVERRIDE)
+        # Starting with Windows is the installed app's alone: a copy of the data, or a copy run from source, would point
+        # the Windows entry at itself
+        if data_copy or not getattr(sys, "frozen", False):
             self.settings_page.disabled_settings.update(("launch_on_startup", "start_minimized"))
         self.settings_page.set_google_buttons_enabled(False)
         client = GoogleDriveSync(
             app_config.APP_DATA, resource_path("credentials.json"),
-            settings_filename="qt-preview-settings.json" if preview else "settings.json",
-            activity_filename="qt-preview-activity.sqlite3" if preview else "activity.sqlite3",
+            settings_filename="qt-preview-settings.json" if data_copy else "settings.json",
+            activity_filename="qt-preview-activity.sqlite3" if data_copy else "activity.sqlite3",
         )
         self.google_sync = GoogleSync(self, client)
         self.friends_sync = FriendsSync(self, self.friends, FriendsService(client.identity_token))
@@ -902,25 +902,25 @@ class InstantTips(QProxyStyle):
         return super().styleHint(hint, option, widget, return_data)
 
 
-def main(preview: bool, smoke_test: bool = False, dev: bool = False) -> None:
+def main(data_copy: bool, smoke_test: bool = False, dev: bool = False) -> None:
     from windows_startup import set_app_user_model_id
 
     if dev:
         # Its own taskbar button, beside PS Focus's
         set_app_user_model_id("PSFocus.PSFocus.Dev")
-    elif preview:
+    elif data_copy:
         set_app_user_model_id("PSFocus.PSFocus.QtPreview")
     else:
         set_app_user_model_id()
     instance = None
     # The build's start-up check runs beside any PS Focus already open, and never touches Windows startup
-    if not preview and not smoke_test:
+    if not data_copy and not smoke_test:
         instance = SingleInstance()
         if instance.already_running:
             if "--minimized" not in sys.argv:
                 instance.ask_running_copy_to_show()
             return
-    if not preview and not smoke_test and getattr(sys, "frozen", False):
+    if not data_copy and not smoke_test and getattr(sys, "frozen", False):
         # As the Tk app did: settings, history and sign-in carried over from the app's earlier name; on a first run
         # the Windows startup entry the installer was asked for; otherwise the entry pointed at this copy
         migrate_legacy_app_data()
@@ -946,7 +946,7 @@ def main(preview: bool, smoke_test: bool = False, dev: bool = False) -> None:
     if dev:
         app.window.setWindowTitle("PS Focus Dev")
         app.tray_icon.setToolTip("PS Focus Dev")
-    elif preview:
+    elif data_copy:
         app.window.setWindowTitle("PS Focus Qt Preview")
         app.tray_icon.setToolTip("PS Focus Qt Preview")
     if smoke_test:

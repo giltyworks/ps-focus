@@ -40,7 +40,7 @@ DONE_MESSAGE_DELETED = f"{APP_NAME} and all of its data have been removed"
 
 
 def data_directories() -> list[Path]:
-    """Return every folder PS Focus writes user data to, matching the locations in app_config.py and qt/preview.py"""
+    """Return every folder PS Focus writes user data to, matching the locations in app_config.py and qt/data_copy.py"""
     app_data_root = Path(os.environ.get("APPDATA", Path.home()))
     directories = [
         app_data_root / APP_NAME,

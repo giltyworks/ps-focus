@@ -1,4 +1,4 @@
-"""The Qt preview copies history without sharing installed-app backup destinations."""
+"""The copy of the data a run from source works on keeps history without sharing installed-app backup destinations."""
 
 from __future__ import annotations
 
@@ -12,23 +12,23 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from qt.preview import PREVIEW_FOLDER_NAME, use_preview_data
+from qt.data_copy import COPY_FOLDER_NAME, use_data_copy
 
 
-class QtPreviewTests(unittest.TestCase):
-    def test_source_connection_closes_when_preview_database_cannot_open(self):
+class DataCopyTests(unittest.TestCase):
+    def test_source_connection_closes_when_the_copy_cannot_open(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             real = root / "PS Focus"
             real.mkdir()
             (real / "activity.sqlite3").touch()
             source = Mock()
-            with patch.dict(os.environ, {"APPDATA": str(root)}), patch("qt.preview.sqlite3.connect", side_effect=[source, sqlite3.OperationalError("readonly database")]):
+            with patch.dict(os.environ, {"APPDATA": str(root)}), patch("qt.data_copy.sqlite3.connect", side_effect=[source, sqlite3.OperationalError("readonly database")]):
                 with self.assertRaises(sqlite3.OperationalError):
-                    use_preview_data()
+                    use_data_copy()
             source.close.assert_called_once()
 
-    def test_preview_copies_history_and_settings_but_keeps_backups_and_identity_separate(self):
+    def test_copy_has_history_and_settings_but_keeps_backups_and_identity_separate(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             real = root / "PS Focus"
@@ -46,13 +46,13 @@ class QtPreviewTests(unittest.TestCase):
             before_database = database.read_bytes()
             before_settings = settings.read_bytes()
             with patch.dict(os.environ, {"APPDATA": str(root)}):
-                preview = use_preview_data()
+                copy = use_data_copy()
                 environment = os.environ.copy()
-            self.assertEqual(preview, root / PREVIEW_FOLDER_NAME)
-            self.assertEqual((preview / "settings.json").read_bytes(), before_settings)
-            self.assertFalse((preview / "google-token.json").exists())
-            self.assertFalse((preview / "installation-id").exists())
-            connection = sqlite3.connect(preview / "activity.sqlite3")
+            self.assertEqual(copy, root / COPY_FOLDER_NAME)
+            self.assertEqual((copy / "settings.json").read_bytes(), before_settings)
+            self.assertFalse((copy / "google-token.json").exists())
+            self.assertFalse((copy / "installation-id").exists())
+            connection = sqlite3.connect(copy / "activity.sqlite3")
             try:
                 self.assertEqual(connection.execute("SELECT seconds FROM sample").fetchone()[0], 123)
                 connection.execute("UPDATE sample SET seconds = 456")
@@ -64,7 +64,7 @@ class QtPreviewTests(unittest.TestCase):
                 [sys.executable, "-c", "import app_config, json; print(json.dumps([str(p) for p in app_config.BACKUP_DIRECTORIES]))"],
                 cwd=Path(__file__).parent, env=environment, capture_output=True, text=True, check=True,
             )
-            self.assertEqual(json.loads(result.stdout), [str((preview / "backups").resolve())])
+            self.assertEqual(json.loads(result.stdout), [str((copy / "backups").resolve())])
             self.assertEqual(database.read_bytes(), before_database)
             self.assertEqual(settings.read_bytes(), before_settings)
 

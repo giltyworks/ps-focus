@@ -12,13 +12,13 @@ if "--uninstall" in sys.argv:
     sys.exit()
 
 dev = "--dev" in sys.argv
-preview = dev or ("--real-data" not in sys.argv and not getattr(sys, "frozen", False))
-if preview:
+data_copy = dev or ("--real-data" not in sys.argv and not getattr(sys, "frozen", False))
+if data_copy:
     # Before anything imports app_config, which reads the data folder once
-    from qt.preview import DEV_FOLDER_NAME, PREVIEW_FOLDER_NAME, use_preview_data
+    from qt.data_copy import COPY_FOLDER_NAME, DEV_FOLDER_NAME, use_data_copy
 
-    use_preview_data(DEV_FOLDER_NAME if dev else PREVIEW_FOLDER_NAME)
+    use_data_copy(DEV_FOLDER_NAME if dev else COPY_FOLDER_NAME)
 
 from qt.app import main  # noqa: E402
 
-main(preview, smoke_test="--smoke-test" in sys.argv, dev=dev)
+main(data_copy, smoke_test="--smoke-test" in sys.argv, dev=dev)

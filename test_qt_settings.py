@@ -810,11 +810,11 @@ class QtSettingsTests(unittest.TestCase):
         from google_drive import GoogleDriveSync
 
         folder = Path(self.temporary.name)
-        preview = GoogleDriveSync(folder, folder / "credentials.json", settings_filename="qt-preview-settings.json", activity_filename="qt-preview-activity.sqlite3")
-        with patch.object(preview, "_upload_file") as upload, patch.object(preview, "_find_file", return_value=None) as find:
-            preview.upload_settings({})
-            preview.upload_activity_backup(b"test")
-            preview.download_activity_backup()
+        copy = GoogleDriveSync(folder, folder / "credentials.json", settings_filename="qt-preview-settings.json", activity_filename="qt-preview-activity.sqlite3")
+        with patch.object(copy, "_upload_file") as upload, patch.object(copy, "_find_file", return_value=None) as find:
+            copy.upload_settings({})
+            copy.upload_activity_backup(b"test")
+            copy.download_activity_backup()
             self.assertEqual(upload.call_args_list[0].args[0], "qt-preview-settings.json")
             self.assertEqual(upload.call_args_list[1].args[0], "qt-preview-activity.sqlite3")
             find.assert_called_once_with("qt-preview-activity.sqlite3")
