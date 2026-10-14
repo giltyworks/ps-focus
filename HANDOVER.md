@@ -30,7 +30,7 @@ On hold, for the owner to decide: two PCs in the same hour lose time in the Driv
 
 ## Code quality review skill: 14 October 2026
 
-Claude Code moved the saved "code quality review" instructions out of its private memory into a project skill at `.claude/skills/code-quality-review/SKILL.md`. It runs only when the owner asks for a code quality review. Four read-only reviewers (correctness, simplicity, performance, maintainability) work in parallel, and their findings are merged into one ranked list. It then stops until the owner picks which fixes to make, fixes only those, and verifies against CLAUDE.md's definition of done plus a release build, silent reinstall and relaunch. The skill is untracked; the owner hasn't asked for a commit. No code changed.
+The "code quality review" instructions are a Claude Code skill in the owner's user folder, `C:\Users\elihu\.claude\skills\codequalityreview\SKILL.md`, so one copy serves every project. It is not in this repository; an earlier project copy under `.claude/skills/` was removed. It runs only when the owner asks for a code quality review. Four read-only reviewers (correctness, simplicity, performance, maintainability) work in parallel, and their findings are merged into one ranked list. It then stops until the owner picks which fixes to make, fixes only those, and verifies using the project's own CLAUDE.md: its test, build, release and verification steps and definition of done. For PS Focus that includes the release build, silent reinstall and relaunch.
 
 ## CLAUDE.md added: 14 October 2026
 
