@@ -93,6 +93,16 @@ class TrackingAccuracyTests(unittest.TestCase):
         self.assertAlmostEqual(self.raw_total(), 1.25)
         self.assertFalse(self.path.with_suffix(".pending.json").exists())
 
+    def test_replayed_file_that_cannot_be_deleted_does_not_swallow_the_next_save(self):
+        self.store.save_pending_activity(activity_slices(datetime(2026, 10, 12, 9), .75, "Krita"))
+        with patch("pathlib.Path.unlink", side_effect=OSError("in use")):
+            self.store.recover_pending_activity()
+        self.assertAlmostEqual(self.raw_total(), .75)
+        # The leftover file was already replayed, so the new time is saved under its own receipt
+        self.store.save_pending_activity(activity_slices(datetime(2026, 10, 12, 10), .5, "Photoshop"))
+        self.store.recover_pending_activity()
+        self.assertAlmostEqual(self.raw_total(), 1.25)
+
     def test_invalid_recovery_is_preserved(self):
         pending = self.path.with_suffix(".pending.json")
         pending.write_text(json.dumps({"receipt": "bad", "rows": [["2026-10-12", 25, 1, "Krita", "09:00"]]}))

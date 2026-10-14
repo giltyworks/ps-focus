@@ -1,3 +1,4 @@
+import re
 import unittest
 from pathlib import Path
 
@@ -28,7 +29,6 @@ class SitePageTests(unittest.TestCase):
 
     def test_demo_levels_follow_the_app_curve(self):
         import json
-        import re
 
         from app_config import LEVEL_HOURS, user_level
 
@@ -42,6 +42,17 @@ class SitePageTests(unittest.TestCase):
 
         replaced = demo_with_levels("  let a = 1;\n  const LEVEL_HOURS = [1, 2];\n  let b = 2;\n")
         self.assertEqual(replaced, f"  let a = 1;\n  const LEVEL_HOURS = {demo_level_hours()};\n  let b = 2;\n")
+
+    def test_download_button_matches_the_version_the_update_check_announces(self):
+        page = (ROOT / "docs" / "index.md").read_text(encoding="utf-8")
+        script = (ROOT / "feedback_endpoint" / "Code.gs").read_text(encoding="utf-8")
+        announced = re.search(r"const LATEST_VERSION = '([^']+)'", script)
+        link = re.search(r'id="download" href="([^"]+)"', page)
+        self.assertIsNotNone(announced, "LATEST_VERSION is no longer written as const LATEST_VERSION = '...' in Code.gs")
+        self.assertIsNotNone(link, 'The Download button in docs/index.md no longer has id="download" before its href')
+        # Fails when a release is announced but the website still hands out the older installer
+        version = announced.group(1)
+        self.assertTrue(link.group(1).endswith(f"/v{version}/PS-Focus-Setup-{version}.exe"), link.group(1))
 
 
 if __name__ == "__main__":

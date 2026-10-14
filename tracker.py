@@ -464,7 +464,12 @@ class ActivityStore:
         except (ValueError, TypeError, KeyError) as error:
             raise OSError("Pending activity is unreadable; preserved for recovery") from error
         self.record_activity(rows, receipt=receipt)
-        path.unlink()
+        try:
+            path.unlink()
+        except OSError:
+            # The rows are in the database and the receipt says so, so a file left behind is skipped next time and
+            # must not stop a later save from keeping its new time
+            pass
 
     def total_for_day(self, day: date | None = None, application: str | None = None) -> int:
         day = day or date.today()

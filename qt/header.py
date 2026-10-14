@@ -286,10 +286,11 @@ class Header(GlassMixin, QWidget):
 
     def set_progress_reached(self, reached: bool) -> None:
         if reached != self.progress_reached:
-            if reached and self.progress_known:
-                self.on_goal_reached()
+            announce = reached and self.progress_known
             self.progress_reached = reached
             self.update()
+            if announce:
+                self.on_goal_reached()
         self.progress_known = True
 
     def pulse_progress_dot(self) -> None:

@@ -49,5 +49,5 @@ github.com/giltyworks/ps-focus. README.md describes all of this in detail.
 - [ ] For a decent-sized change: `py tools/build_release.py` succeeds, the installer is reinstalled silently, and the installed app relaunches and works
 - [ ] Update `docs/assets/demo/` when a change affects UI that the demo mirrors
 - [ ] For any visible UI change, ask me to check it in the running app before calling it done
-- [ ] For a release: raise `APP_VERSION`, add `release-notes/<version>.md`, and set `LATEST_VERSION`/`DOWNLOAD_URL` in `Code.gs`
+- [ ] For a release: raise `APP_VERSION`, add `release-notes/<version>.md`, and set `LATEST_VERSION`/`DOWNLOAD_URL` in `Code.gs`, and point the Download button in `docs/index.md` at the new installer (`test_site.py` checks it matches `LATEST_VERSION`)
 - [ ] HANDOVER.md is updated for the session

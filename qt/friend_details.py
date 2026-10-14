@@ -1,14 +1,17 @@
 """A friend's figures, opened by double-clicking their name strip: a small popup over PS Focus, titled with their name,
 closed by a click anywhere else, see app_popup"""
 
-from PySide6.QtGui import QPainter
+from __future__ import annotations
+
+from PySide6.QtGui import QPainter, QPaintEvent
+from PySide6.QtWidgets import QWidget
 
 from .app_popup import CLOSE_MARGIN, CLOSE_SIZE, TITLE_HEIGHT, TITLE_LEFT, AppPopup
 from .theme import color, draw_text, line_height, text_width
 
 
 class FriendDetails(AppPopup):
-    def __init__(self, parent, fonts, name, details):
+    def __init__(self, parent: QWidget, fonts, name: str, details: str) -> None:
         super().__init__(parent, fonts, name)
         self.lines = details.splitlines()
         height = line_height(fonts.normal) + 8
@@ -19,7 +22,7 @@ class FriendDetails(AppPopup):
         )
         self.setFixedSize(width, TITLE_HEIGHT + len(self.lines) * height + 12)
 
-    def paintEvent(self, event):
+    def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         self.paint_frame(painter)
         for index, line in enumerate(self.lines):

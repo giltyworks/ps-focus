@@ -2,6 +2,21 @@
 
 Updated 14 October 2026. Read this before resuming work.
 
+## Code quality review since v1.1.26: 14 October 2026 (on hold)
+
+Ran the updated code quality review (default scope: 37 files changed since v1.1.26) as a test of the skill. Nothing was fixed, by the owner's choice; no code changed. Findings, for the owner to pick from later:
+- Important: the website's Download button in docs/index.md links to the fixed 1.1.26 installer and nothing updates it at release. Suggested fix: a test in test_site.py that the link's version matches `LATEST_VERSION` in Code.gs, plus a line in CLAUDE.md's release checklist.
+- Minor: tracker.py `save_pending_activity` can drop new shutdown time if an already-replayed pending file couldn't be deleted and a second save then fails (the comment promises more than the code does); qt/header.py `set_progress_reached` runs the goal callback before recording the new state; qt/friend_details.py lacks `from __future__ import annotations` and type hints.
+- Optional: one fingerprint helper and `ActivityStore.change_count()` for the Drive upload skip in google_sync.py; the dev level-up flag is cleared in two places; leftover `hasattr` guards at qt/app.py:508 and 541; header pulse drawing into a helper; leftover `panel`/`name` aliases in the tick; a "generated" comment above `LEVEL_HOURS` in demo.js; a comment that tracker.py now imports app_config.
+- Performance reviewer found nothing.
+
+### Fixed from that list: 14 October 2026 (not committed)
+
+- test_site.py checks the website's Download link matches `LATEST_VERSION` in Code.gs; CLAUDE.md's release line now mentions the button.
+- tracker.py: an already-replayed pending file that can't be deleted is now left behind harmlessly (its receipt skips it), so a later save keeps its new time.
+- qt/header.py `set_progress_reached` records the new state before running the goal callback; qt/friend_details.py has `__future__` and type hints. Each has a test. 304 tests and the credential check pass.
+- Left alone: the optional items (fingerprint helper, `hasattr` guards at qt/app.py:508 and 541, pulse helper, tick aliases, comments), and the demo `?v=` number. No build or reinstall: no visible change.
+
 ## Pre-commit hooks: 14 October 2026
 
 PS Focus now has local git pre-commit hooks that run gitleaks on the staged changes and `py tools/check_credentials.py`, and block the commit if either fails. They live in `.git\hooks` (`pre-commit` hands over to `pre-commit.ps1`) and aren't committed, so a fresh clone won't have them.

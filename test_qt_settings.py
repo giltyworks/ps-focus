@@ -1088,6 +1088,14 @@ class QtSettingsTests(unittest.TestCase):
             self.app._level_clicked()
             open_dialog.assert_called_once()
 
+    def test_goal_callback_sees_the_goal_as_already_reached(self):
+        header = self.app.header
+        seen: list[bool] = []
+        header.progress_known, header.progress_reached = True, False
+        header.on_goal_reached = lambda: seen.append(header.progress_reached)
+        header.set_progress_reached(True)
+        self.assertEqual(seen, [True])
+
     def test_reaching_the_daily_goal_pulses_the_dot_and_fills_today(self):
         header, calendar = self.app.header, self.app.calendar
         self.app.window.show()
