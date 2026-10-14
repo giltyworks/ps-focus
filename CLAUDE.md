@@ -8,7 +8,7 @@ settings and an activity backup to the user's private Google Drive app-data fold
 github.com/giltyworks/ps-focus. README.md describes all of this in detail.
 
 ## Tech stack
-- Python 3.14 on Windows; UI in Qt via `PySide6_Essentials==6.11.2` (the only entry in requirements.txt)
+- Python 3.14 on Windows; UI in Qt via `PySide6_Essentials==6.11.2`; PyInstaller and its hooks are pinned in requirements.txt too, since the release build needs them
 - Windows APIs through `ctypes` (foreground detection, DPAPI, WinHTTP in `web.py`, so there's no OpenSSL)
 - PyInstaller 6.22.3 (`PS Focus.spec`) and Inno Setup 6 (`installer/PS Focus.iss`) for the release build
 - Friends server: Cloudflare Worker + D1 (`friends_server/`, JS, wrangler). Feedback/update check: Google Apps Script (`feedback_endpoint/Code.gs`)

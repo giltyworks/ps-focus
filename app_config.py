@@ -24,14 +24,16 @@ APP_DATA = Path(DATA_DIRECTORY_OVERRIDE) if DATA_DIRECTORY_OVERRIDE else APP_DAT
 LEGACY_APP_DATA = APP_DATA_ROOT / LEGACY_APP_NAME
 SETTINGS_PATH = APP_DATA / "settings.json"
 DATABASE_PATH = APP_DATA / "activity.sqlite3"
+# The folder name of the copies kept outside the data folder; uninstall.py removes the same folders
+BACKUP_FOLDER_NAME = "PS Focus Backups"
 _backup_directories = [
     APP_DATA / "backups",
-    Path(os.environ.get("USERPROFILE", str(Path.home()))) / "Documents" / "PS Focus Backups",
+    Path(os.environ.get("USERPROFILE", str(Path.home()))) / "Documents" / BACKUP_FOLDER_NAME,
 ]
 if DATA_DIRECTORY_OVERRIDE:
     _backup_directories = [APP_DATA / "backups"]
 elif os.environ.get("OneDrive"):
-    _backup_directories.append(Path(os.environ["OneDrive"]) / "PS Focus Backups")
+    _backup_directories.append(Path(os.environ["OneDrive"]) / BACKUP_FOLDER_NAME)
 BACKUP_DIRECTORIES = tuple(dict.fromkeys(path.resolve() for path in _backup_directories))
 BACKUP_INTERVAL_MS = 15 * 60 * 1000
 # The window is laid out compactly. Its boxes, the program panels and the modules, run from one edge of

@@ -17,6 +17,15 @@ Ran the updated code quality review (default scope: 37 files changed since v1.1.
 - qt/header.py `set_progress_reached` records the new state before running the goal callback; qt/friend_details.py has `__future__` and type hints. Each has a test. 304 tests and the credential check pass.
 - Then the optional items (not committed yet): `GoogleSync._fingerprint` replaces the two copies of the upload fingerprint; the progress dot painting moved into `Header._paint_progress_dot` (pure move); the tick's `panel`/`name` aliases are gone; a comment on why tracker.py imports app_config. The `hasattr` guards at qt/app.py are not leftovers (settings are saved and blocks refreshed while the window is built, before Google/friends sync exist), so they stay with explaining comments. The demo's "generated" comment already existed. Not done: `ActivityStore.change_count()` (no gain), and the demo `?v=` number (bump when the site is next published).
 
+### Earlier on-hold list, worked through: 14 October 2026 (not committed, not built or installed)
+
+- Two PCs in the same hour (the owner approved the storage change): the `activity` table now has an `installation` column in its primary key, so each PC's seconds are kept apart and merging takes the larger copy per PC, then everything adds up. Old databases migrate in the schema transaction; their rows, and rows from a PC that hasn't updated, belong to installation `''` and still merge by larger-total. Downgrading to an older app after this fails to record (its upsert key no longer exists); backups from older versions still merge and restore. Totals queries were already `SUM`s, so they are unchanged. Tests added; the old merge test's expectation changed from 601 to 602 on purpose.
+- Recovery now prefers a backup this installation wrote (`last_writer`) over a newer one from another PC in the shared OneDrive folder; with none of its own it takes the newest.
+- uninstall.py takes `APP_NAME`, `LEGACY_APP_NAME` and `BACKUP_FOLDER_NAME` from app_config (the dev folder name is still its own line). PyInstaller and its hooks are in requirements.txt; build.yml installs from it.
+- Backups on the UI thread: measured 18,000 rows (about four years of heavy use), three folders, median 95 ms per snapshot, every 15 minutes and only when something changed. Left on the UI thread.
+- Reviewer notes to carry into the release note: update every PC together (an old-version PC undercounts a new backup and can't record against the new layout); a copied data folder shares its PC id with the original, so the same-hour fix doesn't apply between the two copies.
+- Still open, for the owner: the Drive restore swapping the store by hand in google_sync.py, and the "preview" naming. Optional items 21–33 untouched. Needs a version bump/release note at the next release: the release note should mention the two-PC fix.
+
 ## Pre-commit hooks: 14 October 2026
 
 PS Focus now has local git pre-commit hooks that run gitleaks on the staged changes and `py tools/check_credentials.py`, and block the commit if either fails. They live in `.git\hooks` (`pre-commit` hands over to `pre-commit.ps1`) and aren't committed, so a fresh clone won't have them.
@@ -27,7 +36,7 @@ The owner asked to fix the stale main.py reference: the comment above TODAY_PANE
 
 ## Known issues
 
-- PyInstaller is missing from requirements.txt. Only the Build installer workflow installs it (`pyinstaller==6.22.3`, `pyinstaller-hooks-contrib==2026.7`), so `py tools/build_release.py` fails on a fresh setup made from requirements.txt alone. Not fixed yet, by the owner's choice.
+- None open. (PyInstaller was added to requirements.txt on 14 October 2026; the Build installer workflow now installs from it.)
 
 ## Code quality review and fixes: 14 October 2026
 

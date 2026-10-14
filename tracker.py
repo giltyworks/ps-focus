@@ -86,6 +86,18 @@ def tracking_clock() -> float:
     return count.value / 10_000_000
 
 
+# Seconds are kept per installation, so two PCs that tracked in the same hour add up when their histories merge.
+# Rows from before that, or from a PC that has not updated, belong to the installation ''
+ACTIVITY_TABLE_SQL = """CREATE TABLE {} (
+    day TEXT NOT NULL,
+    slot INTEGER NOT NULL,
+    seconds REAL NOT NULL DEFAULT 0,
+    application TEXT NOT NULL DEFAULT 'Photoshop',
+    installation TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (day, slot, application, installation)
+)"""
+
+
 class ActivityStore:
     def __init__(self, database_path: Path, backup_directories: tuple[Path, ...] | None = None) -> None:
         database_path.parent.mkdir(parents=True, exist_ok=True)
@@ -133,29 +145,16 @@ class ActivityStore:
     def _initialize_schema(self) -> None:
         self.connection.execute("BEGIN IMMEDIATE")
         try:
-            self.connection.execute(
-                """CREATE TABLE IF NOT EXISTS activity (
-                    day TEXT NOT NULL,
-                    slot INTEGER NOT NULL,
-                    seconds REAL NOT NULL DEFAULT 0,
-                    application TEXT NOT NULL DEFAULT 'Photoshop',
-                    PRIMARY KEY (day, slot, application)
-                )"""
-            )
+            self.connection.execute(ACTIVITY_TABLE_SQL.format("IF NOT EXISTS activity"))
             activity_columns = {row[1] for row in self.connection.execute("PRAGMA table_info(activity)")}
-            if "application" not in activity_columns:
+            if not {"application", "installation"} <= activity_columns:
+                # An older layout: its rows move into the current one, as the first program's where none is recorded
+                # and as the shared history of every installation
                 self.connection.execute("ALTER TABLE activity RENAME TO activity_legacy")
+                self.connection.execute(ACTIVITY_TABLE_SQL.format("activity"))
+                application = "application" if "application" in activity_columns else "'Photoshop'"
                 self.connection.execute(
-                    """CREATE TABLE activity (
-                        day TEXT NOT NULL,
-                        slot INTEGER NOT NULL,
-                        seconds REAL NOT NULL DEFAULT 0,
-                        application TEXT NOT NULL DEFAULT 'Photoshop',
-                        PRIMARY KEY (day, slot, application)
-                    )"""
-                )
-                self.connection.execute(
-                    "INSERT INTO activity (day, slot, seconds, application) SELECT day, slot, seconds, 'Photoshop' FROM activity_legacy"
+                    f"INSERT INTO activity (day, slot, seconds, application) SELECT day, slot, seconds, {application} FROM activity_legacy"
                 )
                 self.connection.execute("DROP TABLE activity_legacy")
             self.connection.execute(
@@ -238,7 +237,9 @@ class ActivityStore:
                 connection.close()
 
     @classmethod
-    def latest_valid_backup(cls, backup_directories: tuple[Path, ...]) -> Path | None:
+    def latest_valid_backup(cls, backup_directories: tuple[Path, ...], installation_id: str | None = None) -> Path | None:
+        """The newest backup that passes its check, preferring one this installation wrote: a folder kept in OneDrive
+        is shared with the account's other PCs, whose newer snapshot would otherwise win"""
         def modified(path: Path) -> int:
             try:
                 return path.stat().st_mtime_ns
@@ -259,10 +260,30 @@ class ActivityStore:
             reverse=True,
         )
         # Newest first, so only as many files are integrity-checked as it takes to find a good one
-        return next((path for path in candidates if cls.database_is_usable(path)), None)
+        fallback = None
+        for path in candidates:
+            if not cls.database_is_usable(path):
+                continue
+            if installation_id is None or cls._last_writer(path) == installation_id:
+                return path
+            fallback = fallback or path
+        return fallback
+
+    @staticmethod
+    def _last_writer(database_path: Path) -> str | None:
+        connection = None
+        try:
+            connection = sqlite3.connect(f"{database_path.resolve().as_uri()}?mode=ro", uri=True)
+            row = connection.execute("SELECT value FROM metadata WHERE key = 'last_writer'").fetchone()
+            return row[0] if row else None
+        except (OSError, sqlite3.Error):
+            return None
+        finally:
+            if connection is not None:
+                connection.close()
 
     def _restore_latest_backup(self) -> bool:
-        latest_backup = self.latest_valid_backup(self.backup_directories)
+        latest_backup = self.latest_valid_backup(self.backup_directories, self.installation_id)
         if latest_backup is None:
             return False
 
@@ -311,7 +332,8 @@ class ActivityStore:
                         return 0
                 activity_columns = {row[1] for row in source.execute("PRAGMA table_info(activity)")}
                 application = "application" if "application" in activity_columns else "'Photoshop'"
-                activity = source.execute(f"SELECT day, slot, seconds, {application} FROM activity").fetchall()
+                installation = "installation" if "installation" in activity_columns else "''"
+                activity = source.execute(f"SELECT day, slot, seconds, {application}, {installation} FROM activity").fetchall()
                 ratings = []
                 if "productivity_ratings" in tables:
                     ratings = source.execute("SELECT day, rating FROM productivity_ratings").fetchall()
@@ -328,8 +350,9 @@ class ActivityStore:
         changes_before = self.connection.total_changes
         with self.connection:
             self.connection.executemany(
-                """INSERT INTO activity (day, slot, seconds, application) VALUES (?, ?, ?, ?)
-                   ON CONFLICT(day, slot, application) DO UPDATE SET seconds = excluded.seconds
+                # Each installation's own seconds only ever grow, so the larger of two copies is the newer one
+                """INSERT INTO activity (day, slot, seconds, application, installation) VALUES (?, ?, ?, ?, ?)
+                   ON CONFLICT(day, slot, application, installation) DO UPDATE SET seconds = excluded.seconds
                    WHERE excluded.seconds > activity.seconds""",
                 activity,
             )
@@ -417,9 +440,9 @@ class ActivityStore:
                 return
             for day, slot, seconds, application, started_at in rows:
                 self.connection.execute(
-                    """INSERT INTO activity (day, slot, seconds, application) VALUES (?, ?, ?, ?)
-                       ON CONFLICT(day, slot, application) DO UPDATE SET seconds = seconds + excluded.seconds""",
-                    (day, slot, round(seconds, 6), application),
+                    """INSERT INTO activity (day, slot, seconds, application, installation) VALUES (?, ?, ?, ?, ?)
+                       ON CONFLICT(day, slot, application, installation) DO UPDATE SET seconds = seconds + excluded.seconds""",
+                    (day, slot, round(seconds, 6), application, self.installation_id),
                 )
                 self.connection.execute(
                     """INSERT INTO session_starts (day, application, started_at) VALUES (?, ?, ?)

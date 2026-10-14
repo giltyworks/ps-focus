@@ -14,14 +14,12 @@ import sys
 import time
 from pathlib import Path
 
+from app_config import APP_NAME, BACKUP_FOLDER_NAME, LEGACY_APP_NAME
 from google_drive import GoogleDriveSync
 from unpack_cleanup import remove_stale_unpack_folders
 from windows_startup import shell_folder, system_directory, system_executable
 
-APP_NAME = "PS Focus"
-LEGACY_APP_NAME = "FocusTrace"
 APP_EXECUTABLE = "PS Focus.exe"
-BACKUP_FOLDER_NAME = "PS Focus Backups"
 RUN_KEY_PATH = r"Software\Microsoft\Windows\CurrentVersion\Run"
 SELF_DELETE_VARIABLE = "PSFOCUS_UNINSTALLER"
 INSTALL_DIRECTORY_VARIABLE = "PSFOCUS_INSTALL_DIRECTORY"

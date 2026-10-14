@@ -382,6 +382,26 @@ class ActivityStoreTests(unittest.TestCase):
         with patch.object(Path, "glob", lambda directory, pattern: iter([vanished, good_backup])), patch.object(Path, "stat", stat):
             self.assertEqual(ActivityStore.latest_valid_backup((backup_directory,)), good_backup)
 
+    def test_recovery_prefers_a_backup_this_installation_wrote_over_a_newer_one_from_another_pc(self):
+        own_directory, shared_directory = self.folder / "own-backups", self.folder / "shared-backups"
+        own_store = ActivityStore(self.folder / "own" / "activity.sqlite3", (own_directory,))
+        other_store = ActivityStore(self.folder / "other" / "activity.sqlite3", (shared_directory,))
+        try:
+            own_backup = own_store.create_local_backup()
+            other_backup = other_store.create_local_backup()
+            installation = own_store.installation_id
+        finally:
+            own_store.close()
+            other_store.close()
+        newer = own_backup.stat().st_mtime + 60
+        os.utime(other_backup, (newer, newer))
+        directories = (own_directory, shared_directory)
+
+        self.assertEqual(ActivityStore.latest_valid_backup(directories), other_backup)
+        self.assertEqual(ActivityStore.latest_valid_backup(directories, installation), own_backup)
+        # With nothing of its own, such as a new PC, it still takes the newest there is
+        self.assertEqual(ActivityStore.latest_valid_backup((shared_directory,), installation), other_backup)
+
     def test_valid_backup_bytes_restore_database_and_quarantine_corrupt_file(self):
         database_path = self.folder / "downloaded.sqlite3"
         source_path = self.folder / "source.sqlite3"
@@ -421,14 +441,77 @@ class ActivityStoreTests(unittest.TestCase):
 
         self.assertGreater(self.store.merge_backup_bytes(backup_content), 0)
         self.assertEqual(self.store.total_for_day(date(2026, 9, 29), "Krita"), 1)
-        self.assertEqual(self.store.total_for_day(date(2026, 9, 30), "Photoshop"), 601)
+        # Both PCs tracked in the 9 o'clock hour, so their time adds up: 600 from the other PC, 1 here, and 1 at 14:00
+        self.assertEqual(self.store.total_for_day(date(2026, 9, 30), "Photoshop"), 602)
         self.assertEqual(self.store.productivity_rating(date(2026, 9, 29)), 6)
         self.assertEqual(self.store.productivity_rating(date(2026, 9, 30)), 8)
         self.assertEqual(
             self.store.day_application_totals(date(2026, 9, 30)),
-            [("Photoshop", 601, "09:02")],
+            [("Photoshop", 602, "09:02")],
         )
         self.assertEqual(self.store.merge_backup_bytes(backup_content), 0)
+
+    def test_merging_the_same_hour_from_two_pcs_adds_up_and_stays_stable(self):
+        other_store = ActivityStore(self.folder / "other-installation" / "activity.sqlite3")
+        try:
+            other_store.record_active_second(datetime(2026, 9, 30, 9, 2))
+            other_store.record_active_second(datetime(2026, 9, 30, 9, 3))
+            first = other_store.create_local_backup().read_bytes()
+            other_store.record_active_second(datetime(2026, 9, 30, 9, 4))
+            second = other_store.create_local_backup(force=True).read_bytes()
+        finally:
+            other_store.close()
+        self.store.record_active_second(datetime(2026, 9, 30, 9, 17))
+
+        self.store.merge_backup_bytes(first)
+        self.assertEqual(self.store.total_for_day(date(2026, 9, 30)), 3)
+        # A newer copy of the other PC's hour replaces its older one rather than adding to it
+        self.store.merge_backup_bytes(second)
+        self.assertEqual(self.store.total_for_day(date(2026, 9, 30)), 4)
+        self.store.merge_backup_bytes(first)
+        self.assertEqual(self.store.total_for_day(date(2026, 9, 30)), 4)
+
+        # And this PC's copy, merged back there, brings that PC the other's time once
+        own = self.store.create_local_backup(force=True).read_bytes()
+        again = ActivityStore(self.folder / "third" / "activity.sqlite3")
+        try:
+            again.merge_backup_bytes(own)
+            again.merge_backup_bytes(own)
+            self.assertEqual(again.total_for_day(date(2026, 9, 30)), 4)
+        finally:
+            again.close()
+
+    def test_database_from_before_per_pc_rows_keeps_its_time_and_merges_as_shared(self):
+        old_path = self.folder / "old" / "activity.sqlite3"
+        old_path.parent.mkdir()
+        connection = sqlite3.connect(old_path)
+        connection.execute(
+            "CREATE TABLE activity (day TEXT NOT NULL, slot INTEGER NOT NULL, seconds REAL NOT NULL DEFAULT 0, "
+            "application TEXT NOT NULL DEFAULT 'Photoshop', PRIMARY KEY (day, slot, application))"
+        )
+        connection.execute("INSERT INTO activity VALUES ('2026-09-30', 9, 500, 'Krita')")
+        connection.commit()
+        connection.close()
+
+        migrated = ActivityStore(old_path)
+        try:
+            self.assertEqual(migrated.total_for_day(date(2026, 9, 30), "Krita"), 500)
+            migrated.record_active_second(datetime(2026, 9, 30, 9, 30), "Krita")
+            self.assertEqual(migrated.total_for_day(date(2026, 9, 30), "Krita"), 501)
+        finally:
+            migrated.close()
+        # An old PC's backup, with no PC recorded on its rows, still merges
+        old_backup = self.folder / "old-copy.sqlite3"
+        old_connection = sqlite3.connect(old_backup)
+        old_connection.execute(
+            "CREATE TABLE activity (day TEXT NOT NULL, slot INTEGER NOT NULL, seconds REAL NOT NULL DEFAULT 0, "
+            "application TEXT NOT NULL DEFAULT 'Photoshop', PRIMARY KEY (day, slot, application))"
+        )
+        old_connection.execute("INSERT INTO activity VALUES ('2026-09-30', 9, 700, 'Krita')")
+        old_connection.commit()
+        old_connection.close()
+        self.assertGreater(self.store.merge_backup_bytes(old_backup.read_bytes()), 0)
+        self.assertEqual(self.store.total_for_day(date(2026, 9, 30), "Krita"), 700)
 
     def test_merge_skips_own_earlier_snapshot_so_cleared_ratings_stay_cleared(self):
         session_day = date(2026, 9, 30)
