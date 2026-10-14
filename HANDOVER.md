@@ -2,6 +2,10 @@
 
 Updated 14 October 2026. Read this before resuming work.
 
+## Pre-commit hooks: 14 October 2026
+
+PS Focus now has local git pre-commit hooks that run gitleaks on the staged changes and `py tools/check_credentials.py`, and block the commit if either fails. They live in `.git\hooks` (`pre-commit` hands over to `pre-commit.ps1`) and aren't committed, so a fresh clone won't have them.
+
 ## today_panel.py comment: 14 October 2026
 
 The owner asked to fix the stale main.py reference: the comment above TODAY_PANEL_PADDING in qt/today_panel.py now says the Tk panel's main.py was removed in 3e15ae5. Comment only, no behaviour change.
