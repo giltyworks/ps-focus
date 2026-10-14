@@ -419,11 +419,10 @@ class Header(GlassMixin, QWidget):
         self._text(painter, content_left + ACCOUNT_TEXT_INSET_X, name_top, text, text_color, font)
         self.account_area = (content_left, 0, content_left + content_width - arrow_room, height)
         if arrow_room:
-            self._paint_status_arrow(painter, content_left + content_width - arrow_room - 2, height, name_top + line_height(font) / 2)
+            self._paint_status_arrow(painter, content_left + content_width - arrow_room - 2, name_top + line_height(font) / 2)
 
-    def _paint_status_arrow(self, painter: QPainter, left: int, height: int, middle_y: float | None = None) -> None:
+    def _paint_status_arrow(self, painter: QPainter, left: int, middle_y: float) -> None:
         """A small downward chevron, which opens the friends status menu; under the mouse a faint box shows behind it"""
-        middle_y = height / 2 if middle_y is None else middle_y
         top = round(middle_y - DROPDOWN_BUTTON_SIZE / 2)
         self.status_area = (left, top, left + DROPDOWN_BUTTON_SIZE, top + DROPDOWN_BUTTON_SIZE)
         paint_dropdown_arrow(painter, QRectF(left, top, DROPDOWN_BUTTON_SIZE, DROPDOWN_BUTTON_SIZE),
@@ -506,14 +505,7 @@ class Header(GlassMixin, QWidget):
         tip = self.version_text if over_version else self.level_tip if _inside(self.level_area, point) else ""
         if tip != self.toolTip():
             self.setToolTip(tip)
-        hand = (
-            over_status
-            or _inside(self.settings_area, point)
-            or _inside(self.account_area, point)
-            or _inside(self.version_area, point)
-            or (self.level_clickable and _inside(self.level_area, point))
-        )
-        self.setCursor(Qt.CursorShape.PointingHandCursor if hand else Qt.CursorShape.ArrowCursor)
+        self.setCursor(Qt.CursorShape.PointingHandCursor if self.interactive_at(point) else Qt.CursorShape.ArrowCursor)
 
 
 class ModuleControls(GlassMixin, QWidget):

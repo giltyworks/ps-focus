@@ -191,16 +191,15 @@ class FriendsSync:
             self.active_program = program
         elif self.active_program and now - self.last_active_time > ACTIVE_LINGER_SECONDS:
             self.active_program = None
-        if self.enabled():
-            # The name follows live activity; Away remains blue.
-            header = self.app.header
-            name_color = self.header_name_color()
-            if header.account_color != name_color and not header.settings_shown:
-                header.account_color = name_color
-                header.update()
         if not self.enabled():
             self._refresh_header_status()
             return
+        # The name follows live activity; Away remains blue.
+        header = self.app.header
+        name_color = self.header_name_color()
+        if header.account_color != name_color and not header.settings_shown:
+            header.account_color = name_color
+            header.update()
         self._refresh_header_status()
         since = now - self.last_sync
         # Starting or stopping drawing is told to friends, if there are any to tell

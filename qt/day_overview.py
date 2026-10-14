@@ -48,6 +48,9 @@ class DayOverview(AppPopup):
         self.focused_star: int | None = None
         # The star under the mouse: the stars light up to it, showing the rating a click would give, as on the website
         self.hovered_star: int | None = None
+        # Set once a star is chosen: the second click of a double-click, or any click before the overview closes,
+        # would otherwise choose the same star again, which clears the rating just given
+        self.rated = False
         self._lay_out()
 
     def _lay_out(self) -> None:
@@ -159,6 +162,9 @@ class DayOverview(AppPopup):
         )
 
     def _rate(self, value: int) -> None:
+        if self.rated:
+            return
+        self.rated = True
         self.on_rated(self.session_day, value)
         self.rating = self.store.productivity_rating(self.session_day) or 0
         self.update()

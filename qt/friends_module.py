@@ -16,7 +16,6 @@ from friends import format_code
 
 from .header import NAME_MAX_LENGTH, fit_text
 from .module import DOCK_CONTROL_SIZE, MODULE_TITLE_PADDING, ModuleBlock, PaintedButton, paint_hover_box, paint_dropdown_arrow, DROPDOWN_BUTTON_SIZE
-from .hover_tip import hover_tip
 from .theme import Fonts, color, draw_anchored, draw_text, line_height, text_width
 
 # Space between the module's border and its text, as the stats keep
@@ -28,9 +27,6 @@ BUTTON_GAP = 4
 ROW_GAP = 4
 GROUP_GAP = 8
 BOTTOM_PADDING = 6
-# The dot beside someone's name: green drawing, blue online, orange away; none offline
-ACTIVE_DOT_SIZE = 6
-PRESENCE_COLORS = {"drawing": "active_green"}
 # The red ring round a friend's level
 LEVEL_RING_SIZE = 20
 # Away friends have a small zzz after their name, this wide, which shows Away under the mouse
@@ -477,7 +473,7 @@ class FriendsModule(ModuleBlock):
             amount = f"{today:.1f} hrs" if today >= 1 else f"{round(today * 60)} min"
             # Drawing: the program and today's time in green. Online: today's time in blue, or just Online with none yet
             if label:
-                details, details_color = f"{label} ({amount})", PRESENCE_COLORS.get(presence, "muted")
+                details, details_color = f"{label} ({amount})", "active_green"
             elif presence == "online":
                 details, details_color = (f"{amount} today" if today > 0 else "Online"), "friend_online"
             elif presence == "away":
@@ -667,10 +663,6 @@ class FriendsModule(ModuleBlock):
         """The friend's rows under the mouse, which a faint box shows behind"""
         return next((area for area, _code, _name in self.person_areas if area.contains(point)), None)
 
-    def _hide_person_tip(self) -> None:
-        """Hide any old hover popup; detailed figures now live in the double-click dialog."""
-        hover_tip(self).hide_for(self)
-
     def mouseDoubleClickEvent(self, event: QMouseEvent) -> None:
         # Anywhere on a friend's rows, as their highlight shows, but their menu arrow. Their figures open once the
         # button is let go: a window opening while it is held takes the release, and PS Focus would go on thinking it
@@ -687,7 +679,6 @@ class FriendsModule(ModuleBlock):
     def _open_details(self, code: str, name: str) -> None:
         from .friend_details import FriendDetails
 
-        self._hide_person_tip()
         self.details_dialog = FriendDetails(self.window(), self.fonts, name, self.person_details.get(code, ""))
         self.details_dialog.show_centred_on(self.window())
 
@@ -743,7 +734,6 @@ class FriendsModule(ModuleBlock):
             # The scroll bar is not part of a friend's row
             if self.hovered_area is not None or self.hovered_arrow is not None:
                 self.hovered_area = self.hovered_arrow = None
-                self._hide_person_tip()
                 self.update()
             self.setToolTip("")
             self.update_cursor(point)
@@ -751,8 +741,6 @@ class FriendsModule(ModuleBlock):
         area = self._area_at(point)
         icon = self._icon_at(point)
         arrow = self._arrow_at(point)
-        if area != self.hovered_area:
-            self._hide_person_tip()
         if area != self.hovered_area or icon != self.hovered_icon or arrow != self.hovered_arrow:
             self.hovered_area, self.hovered_icon, self.hovered_arrow = area, icon, arrow
             self.update()
@@ -798,7 +786,6 @@ class FriendsModule(ModuleBlock):
         self.scroll = max(0, min(self.max_scroll, round(scroll)))
         if self.scroll != before:
             self.hovered_area = self.hovered_arrow = self.hovered_icon = None
-            self._hide_person_tip()
             self._layout()
             # Present scrolling before returning, even on a layered Windows surface.
             self.repaint(self.list_rect)
@@ -845,7 +832,6 @@ class FriendsModule(ModuleBlock):
 
     def leaveEvent(self, event) -> None:
         super().leaveEvent(event)
-        self._hide_person_tip()
         if self.hovered_scroll is not None and self.scroll_drag is None:
             self.hovered_scroll = None
             self.update()
@@ -915,14 +901,6 @@ class FriendsModule(ModuleBlock):
                 painter.drawEllipse(QPointF(x, y), radius, radius)
                 painter.restore()
                 draw_anchored(painter, x, y, "center", text, color("text"), self.fonts.caption)
-            elif kind == "dot":
-                _kind, x, y, dot_color = item
-                painter.save()
-                painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-                painter.setPen(Qt.PenStyle.NoPen)
-                painter.setBrush(color(dot_color))
-                painter.drawEllipse(QRectF(x, y - ACTIVE_DOT_SIZE / 2, ACTIVE_DOT_SIZE, ACTIVE_DOT_SIZE))
-                painter.restore()
         painter.setClipRect(self.list_rect)
         for rect, code in self.arrow_rects:
             self._paint_name_arrow(painter, rect.translated(0, -self.scroll), code == self.hovered_arrow)

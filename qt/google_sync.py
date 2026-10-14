@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import queue
 import threading
 from copy import deepcopy
@@ -24,6 +25,10 @@ class GoogleSync:
         self.reauthentication_required = False
         self.pending_settings = False
         self.pending_backup = False
+        # What the last upload held: a fingerprint of the file, and the store and its change count when it was made.
+        # While Drive still holds that file and nothing has been recorded since, there is nothing to merge or upload
+        self.uploaded: tuple[str, ActivityStore, int] | None = None
+        self.uploading: tuple[str, ActivityStore, int] | None = None
         page = app.settings_page
         page.connect_button.command = self.connect
         page.reconnect_button.command = self.connect
@@ -177,7 +182,10 @@ class GoogleSync:
         settings = deepcopy(self.app.settings)
         self._start("sync", lambda: self.client.upload_settings(settings))
 
-    def backup(self) -> None:
+    def backup(self, force: bool = False) -> None:
+        if force:
+            # Backing up by hand uploads whatever Drive holds
+            self.uploaded = None
         if not self.client.connected or self.reauthentication_required:
             return
         if self.busy:
@@ -234,6 +242,9 @@ class GoogleSync:
                     self.email = ""
                     self.reauthentication_required = False
                     self.pending_settings = self.pending_backup = False
+                if kind in ("connect", "switch", "logout"):
+                    # Another account's Drive has not had this upload
+                    self.uploaded = None
                 self.update_status()
                 if kind == "logout" and not value:
                     self.app.settings_page.set_google(("Signed out locally; Google token revocation could not be confirmed", "orange"), False, "connect")
@@ -245,21 +256,26 @@ class GoogleSync:
                 elif kind == "sync":
                     self.app._backup_activity_now()
                 elif kind == "download":
-                    try:
-                        # SQLite belongs to the UI thread, including restore and module rebinding.
-                        if value is not None:
-                            self._apply_download(value)
-                        path = self.app.store.create_local_backups()[0]
-                        content = path.read_bytes()
-                    except Exception as error:
-                        self.app.settings_page.set_backup_status(f"Could not merge Google Drive backup: {error}", "red")
+                    store = self.app.store
+                    if value is not None and self.uploaded == (hashlib.sha256(value).hexdigest(), store, store.connection.total_changes):
+                        self.app.settings_page.set_backup_status("Activity backup saved to Google Drive", "active_green")
                     else:
-                        self._start("upload", lambda payload=content: self.client.upload_activity_backup(payload))
+                        try:
+                            # SQLite belongs to the UI thread, including restore and module rebinding.
+                            if value is not None:
+                                self._apply_download(value)
+                            path = self.app.store.create_local_backups()[0]
+                            content = path.read_bytes()
+                        except Exception as error:
+                            self.app.settings_page.set_backup_status(f"Could not merge Google Drive backup: {error}", "red")
+                        else:
+                            self.uploading = (hashlib.sha256(content).hexdigest(), self.app.store, self.app.store.connection.total_changes)
+                            self._start("upload", lambda payload=content: self.client.upload_activity_backup(payload))
                 elif kind == "upload":
+                    self.uploaded = self.uploading
                     self.app.settings_page.set_backup_status("Activity backup saved to Google Drive", "active_green")
-            if hasattr(self.app, "friends_sync"):
-                # Signing in, out or to another account changes whose friends are shown
-                self.app.friends_sync.account_changed()
+            # Signing in, out or to another account changes whose friends are shown
+            self.app.friends_sync.account_changed()
             if self.pending_settings and not self.busy:
                 self.pending_settings = False
                 self.settings_changed()

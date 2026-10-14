@@ -138,7 +138,6 @@ class PSFocusQt:
         # sight until the window's column takes it in
         program = self.settings.get("today_program")
         self.today = TodayPanel(program if program in PROGRAMS else PROGRAMS[0], self.fonts)
-        self.panels = {"today": self.today}
         self.today.on_program = self._select_program
         self.manual_program = False
         self.open_programs: set[str] = set()
@@ -160,7 +159,7 @@ class PSFocusQt:
         # The calendar and stats change slowly, so they are worked out again every so many seconds
         self.slow_refresh_ticks = 0
         self.block_drag = BlockDrag(
-            {**self.panels, **self.modules}, lambda: self.block_order, self._blocks_reordered, self._save_settings, lambda: self.landscape,
+            self.blocks_by_name(), lambda: self.block_order, self._blocks_reordered, self._save_settings, lambda: self.landscape,
             self.docking, self._moves_window,
         )
         window = self.window
@@ -204,7 +203,8 @@ class PSFocusQt:
         self.poll_timer = QTimer(interval=150, timeout=self._poll_signals)
         self.poll_timer.start()
         self._send_pending_feedback()
-        # The preview would be offered the Tk release, so only the real app looks for a newer version
+        # A copy on its own data folder, run from source or as a test, is not the installed release, so only the real
+        # app looks for a newer version
         self.update_timer = QTimer(interval=UPDATE_CHECK_INTERVAL_MS, timeout=self._check_for_updates)
         if not app_config.DATA_DIRECTORY_OVERRIDE:
             self._check_for_updates()
@@ -266,11 +266,9 @@ class PSFocusQt:
             self.settings_page.set_backup_status("Local backup saved; some backup folders could not be written", "orange")
         else:
             self.settings_page.set_backup_status("Local activity backups saved", "muted")
-        if hasattr(self, "google_sync"):
-            self.google_sync.backup()
-        if hasattr(self, "feedback"):
-            # Undelivered feedback is tried again with each periodic backup, as in the Tk app
-            self._send_pending_feedback()
+        self.google_sync.backup(force=force)
+        # Undelivered feedback is tried again with each periodic backup, as in the Tk app
+        self._send_pending_feedback()
 
     def _settings_resized(self) -> None:
         if self.settings_shown and hasattr(self, "settings_page"):
@@ -410,16 +408,12 @@ class PSFocusQt:
             self._refresh_stats()
             if self.landscape:
                 height = self._landscape_height(anchor)
-                today_height = next(iter(self.panels.values())).natural_height - 2
-                for name, panel in self.panels.items():
-                    if self.docking.is_floating(name):
-                        continue
+                if anchor is not None:
                     # The panel under the header is shorter by the header's height, so its column ends level too
-                    panel.set_stretch(height - today_height - (self._header_overhead() if panel is anchor else 0))
+                    self.today.set_stretch(height - (self.today.natural_height - 2) - self._header_overhead())
             else:
                 height = 0
-                for panel in self.panels.values():
-                    panel.set_stretch(0)
+                self.today.set_stretch(0)
             for name, module in self.modules.items():
                 # A floating module keeps the portrait layout, having no columns to share a height with
                 if not self.docking.is_floating(name):
@@ -441,7 +435,7 @@ class PSFocusQt:
     def _landscape_height(self, anchor: TodayPanel | None) -> int:
         """Height every column shares in landscape, inside the blocks' borders: what the tallest of them needs,
         counting the header and checkboxes on top of the anchor panel, so every column ends level"""
-        today_height = next(iter(self.panels.values())).natural_height - 2
+        today_height = self.today.natural_height - 2
         overhead = self._header_overhead()
         # With no anchor panel the header stands alone: its height, less a block's border of a pixel each side
         column = today_height + overhead if anchor is not None else overhead - MODULE_GAP - 2
@@ -464,7 +458,7 @@ class PSFocusQt:
         self.landscape_width = width if width < self.window.full_size()[0] else None
 
     def blocks_by_name(self) -> dict:
-        return {**self.panels, **self.modules}
+        return {"today": self.today, **self.modules}
 
     def _moves_window(self, widget) -> bool:
         """Whether a press on this part of the window, not a block, moves it: the header and checkbox rows, the gaps
@@ -473,7 +467,7 @@ class PSFocusQt:
         return widget in (window, window.viewport, window.container, window.clip_margin, window.title_bar, self.header, self.module_controls)
 
     def _shown_blocks(self) -> list:
-        blocks = {**self.panels, **self.modules}
+        blocks = self.blocks_by_name()
         return self.docking.shown_with_preview([blocks[name] for name in self.block_order if self._block_shown(name)])
 
     def _anchor_panel(self) -> TodayPanel | None:
@@ -504,7 +498,7 @@ class PSFocusQt:
 
     def _refresh_module(self, name: str) -> None:
         # A program panel is brought up to date every second anyway
-        if name in self.panels:
+        if name == "today":
             return
         if name == "graph":
             self.chart.refresh()
@@ -623,12 +617,17 @@ class PSFocusQt:
 
             traceback.print_exc()
 
+    def _read_activity_state(self) -> tuple[str | None, bool, bool]:
+        """The program in front, whether the user has been active lately, and whether tracking is paused"""
+        return foreground_application(), user_is_active(IDLE_TIMEOUT_SECONDS), bool(self.settings.get("tracking_paused"))
+
+    def _pending_rows(self) -> list[tuple]:
+        return [(day, slot, seconds, program, first) for (day, slot, program), (seconds, first) in self.pending_activity.items()]
+
     def _poll_activity(self) -> None:
         if self.closing:
             return
-        foreground = foreground_application()
-        idle_active = user_is_active(IDLE_TIMEOUT_SECONDS)
-        state = (foreground, idle_active, bool(self.settings.get("tracking_paused")))
+        state = self._read_activity_state()
         if state != self.activity_state:
             self._tick(state)
 
@@ -643,17 +642,14 @@ class PSFocusQt:
                 pending, first = self.pending_activity.get(key, (0.0, started_at))
                 self.pending_activity[key] = (round(pending + seconds, 6), min(first, started_at))
         if self.pending_activity:
-            rows = [(day, slot, seconds, program, first)
-                    for (day, slot, program), (seconds, first) in self.pending_activity.items()]
-            self.store.record_activity(rows)
+            self.store.record_activity(self._pending_rows())
             self.pending_activity.clear()
         self.tracking_error = None
         self.today.setToolTip("")
 
     def _track_and_refresh(self, activity_state=None) -> None:
         if activity_state is None:
-            activity_state = (foreground_application(), user_is_active(IDLE_TIMEOUT_SECONDS),
-                              bool(self.settings.get("tracking_paused")))
+            activity_state = self._read_activity_state()
         # Elapsed time belongs to the previously observed foreground state.
         previous_program, previous_present, previous_paused = self.activity_state
         foreground_app, idle_active, paused = activity_state
@@ -672,25 +668,25 @@ class PSFocusQt:
         today = date.today()
         total_today_seconds = self.store.total_for_day(today)
         lifetime_seconds = self.store.total_seconds()
-        for panel in self.panels.values():
-            name = panel.application
-            today_seconds = self.store.total_for_day(today, name)
-            two_weeks_seconds = self.store.total_for_range(today - timedelta(days=13), today, name)
-            total_seconds = self.store.total_seconds(name)
-            last_session = self.store.last_recorded_day(name)
-            panel.set_text("total", format_duration(today_seconds))
-            panel.set_text("two_week", f"{two_weeks_seconds / 3600:.1f} hrs past 2 weeks")
-            panel.set_text("sessions", f"{self.store.lifetime_sessions(application=name)} SESSIONS")
-            panel.set_text("record_hours", f"{total_seconds / 3600:.1f} hrs on record")
-            last_session_text = last_session.strftime("%d %b").lstrip("0") if last_session else "--"
-            panel.set_text("last_session", f"last session on {last_session_text}")
-            app_active = self.active and foreground_app == name
-            panel.set_text("name", name, "active_green" if app_active else "name_online" if name in open_programs else "muted")
-            panel.set_text(
-                "status",
-                "PAUSED" if paused else "",
-                "muted",
-            )
+        panel = self.today
+        name = panel.application
+        today_seconds = self.store.total_for_day(today, name)
+        two_weeks_seconds = self.store.total_for_range(today - timedelta(days=13), today, name)
+        total_seconds = self.store.total_seconds(name)
+        last_session = self.store.last_recorded_day(name)
+        panel.set_text("total", format_duration(today_seconds))
+        panel.set_text("two_week", f"{two_weeks_seconds / 3600:.1f} hrs past 2 weeks")
+        panel.set_text("sessions", f"{self.store.lifetime_sessions(application=name)} SESSIONS")
+        panel.set_text("record_hours", f"{total_seconds / 3600:.1f} hrs on record")
+        last_session_text = last_session.strftime("%d %b").lstrip("0") if last_session else "--"
+        panel.set_text("last_session", f"last session on {last_session_text}")
+        app_active = self.active and foreground_app == name
+        panel.set_text("name", name, "active_green" if app_active else "name_online" if name in open_programs else "muted")
+        panel.set_text(
+            "status",
+            "PAUSED" if paused else "",
+            "muted",
+        )
         self.header.set_progress_reached(total_today_seconds >= SESSION_MINIMUM_SECONDS)
         level = user_level(lifetime_seconds)
         self.header.set_level(level, self.level_revealed)
@@ -863,10 +859,8 @@ class PSFocusQt:
         except Exception:
             # Keep failed writes for recovery on next launch; don't silently drop them.
             if self.pending_activity:
-                rows = [(day, slot, seconds, program, first)
-                        for (day, slot, program), (seconds, first) in self.pending_activity.items()]
                 try:
-                    self.store.save_pending_activity(rows)
+                    self.store.save_pending_activity(self._pending_rows())
                 except Exception:
                     import traceback
                     traceback.print_exc()

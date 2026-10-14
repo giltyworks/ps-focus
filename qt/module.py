@@ -44,8 +44,7 @@ def paint_title_strip(painter: QPainter, rect: QRect, hovered: bool, alpha: int 
     painter.restore()
 
 
-def paint_dropdown_arrow(painter: QPainter, rect: QRectF, hovered: bool = False,
-                         alpha: int = 255, middle_y: float | None = None) -> None:
+def paint_dropdown_arrow(painter: QPainter, rect: QRectF, hovered: bool = False, alpha: int = 255) -> None:
     """Shared dropdown chevron; its glyph stays visible even on translucent panels."""
     painter.save()
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -58,7 +57,7 @@ def paint_dropdown_arrow(painter: QPainter, rect: QRectF, hovered: bool = False,
     pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
     painter.setPen(pen)
     x = rect.x() + rect.width() / 2
-    y = rect.y() + rect.height() / 2 if middle_y is None else middle_y
+    y = rect.y() + rect.height() / 2
     painter.drawPolyline([QPointF(x - 3, y - 1.5), QPointF(x, y + 1.5), QPointF(x + 3, y - 1.5)])
     painter.restore()
 

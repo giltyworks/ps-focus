@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import bisect
 import json
+import math
 import os
 import sys
 from datetime import timedelta
@@ -59,7 +60,6 @@ COMPACT_BOTTOM_SPACE = 4
 METRIC_FONT_SIZE = 30
 HEADING_FONT_SIZE = 12
 CHART_HEIGHT = 210
-MIN_WINDOW_HEIGHT = 40
 IDLE_TIMEOUT_SECONDS = 300
 # Tracked time in a day that makes it a session, a blue calendar day, and lights the header indicator
 SESSION_MINIMUM_SECONDS = 15 * 60
@@ -97,7 +97,7 @@ CHART_PERIOD_CAPTIONS = {
     "3 Months": "Past 90 days",
     "6 Months": "Past 180 days",
 }
-# The programs PS Focus counts time in, all three always; the one panel shows whichever is in front
+# The programs PS Focus counts time in, every one always; the one panel shows whichever is in front
 PROGRAMS = ("Photoshop", "Krita", "Clip Studio Paint", "PhotoCraft")
 COLORS = {
     # A near-black background, the logo's own, under panels only a little lighter, so the two do not contrast
@@ -150,7 +150,7 @@ DEFAULT_SETTINGS = {
     "show_friends": False,
     # online, away, invisible or offline, chosen in the menu next to the account name
     "friends_status": "online",
-    # Program panels and modules side by side instead of one under another, see PSFocusApp._apply_layout
+    # Program panels and modules side by side instead of one under another, see PSFocusQt._arrange_blocks
     "landscape": False,
     # The program the panel last showed, kept while none of them is in front
     "today_program": "Photoshop",
@@ -257,7 +257,8 @@ def level_xp_text(total_seconds: float) -> str:
     rows = [("Total XP:", xp)]
     level = user_level(total_seconds)
     if level < LEVEL_CAP:
-        next_xp = round(LEVEL_HOURS[level] * 3600)
+        # Rounded up, as the level only rises once the exact threshold is reached
+        next_xp = math.ceil(LEVEL_HOURS[level] * 3600)
         rows += [("Next level at:", next_xp), ("Remaining XP:", max(0, next_xp - xp))]
     cells = "".join(f"<tr><td>{label}</td><td align='right' style='padding-left: 12px'>{value:,}</td></tr>" for label, value in rows)
     return f"<table cellspacing='0' cellpadding='0'>{cells}</table>"

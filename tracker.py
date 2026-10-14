@@ -15,6 +15,8 @@ import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+from app_config import SESSION_MINIMUM_SECONDS
+
 # The snapshots each backup folder keeps: the newest few, for a damaged history file, and the newest of each
 # of the last few weeks' days, for a mistake noticed later. Snapshots are made only when the history has
 # changed, so after a break from drawing the newest ones are kept however old they are
@@ -104,15 +106,16 @@ class ActivityStore:
         except BaseException:
             self.connection.close()
             raise
-        self.backup_error: str | None = None
         # The change count the newest snapshots were taken at, and where they are, see create_local_backups
         self._backed_up_changes: int | None = None
         self._last_backups: list[Path] = []
         try:
             self.recover_pending_activity()
             self.create_local_backup()
-        except (OSError, sqlite3.Error) as error:
-            self.backup_error = str(error)
+        except (OSError, sqlite3.Error):
+            # Unsaved time that cannot be replayed keeps its file for the next try; the app's own backup straight after
+            # start-up tries the snapshot again and shows any failure in Settings
+            pass
 
     def _load_installation_id(self) -> str:
         """Return the identifier that marks which installation last wrote a database"""
@@ -235,6 +238,14 @@ class ActivityStore:
 
     @classmethod
     def latest_valid_backup(cls, backup_directories: tuple[Path, ...]) -> Path | None:
+        def modified(path: Path) -> int:
+            try:
+                return path.stat().st_mtime_ns
+            except OSError:
+                # Gone since the folder was listed, such as thinned by another PC through OneDrive; it sorts last
+                # and then fails its check, rather than stopping the app from starting
+                return 0
+
         candidates = sorted(
             (
                 path
@@ -243,7 +254,7 @@ class ActivityStore:
                 # Databases set aside by restore_backup_bytes are not backups, even when they still open
                 if not path.name.startswith("activity-corrupt-")
             ),
-            key=lambda path: path.stat().st_mtime_ns,
+            key=modified,
             reverse=True,
         )
         # Newest first, so only as many files are integrity-checked as it takes to find a good one
@@ -423,10 +434,17 @@ class ActivityStore:
     def save_pending_activity(self, rows) -> None:
         """Preserve unsaved shutdown time if SQLite temporarily cannot accept writes."""
         path = self.database_path.with_suffix(".pending.json")
+        receipt, saved_rows = uuid.uuid4().hex, []
         if path.exists():
-            self.recover_pending_activity()
+            try:
+                self.recover_pending_activity()
+            except sqlite3.Error:
+                # SQLite still refuses writes, so the older rows wait too, and the new ones join them under the older
+                # receipt: should that replay have been saved after all, nothing is counted twice
+                saved = json.loads(path.read_text(encoding="utf-8"))
+                receipt, saved_rows = saved["receipt"], saved["rows"]
         temporary = path.with_suffix(".tmp")
-        temporary.write_text(json.dumps({"receipt": uuid.uuid4().hex, "rows": list(rows)}), encoding="utf-8")
+        temporary.write_text(json.dumps({"receipt": receipt, "rows": saved_rows + list(rows)}), encoding="utf-8")
         temporary.replace(path)
 
     def recover_pending_activity(self) -> None:
@@ -548,7 +566,7 @@ class ActivityStore:
         busier = sum(1 for total in earlier if total > this_week)
         return max(1, -(-100 * (busier + 1) // (len(earlier) + 1)))
 
-    def longest_session(self, minimum_seconds: int = 15 * 60) -> tuple[date, int] | None:
+    def longest_session(self, minimum_seconds: int = SESSION_MINIMUM_SECONDS) -> tuple[date, int] | None:
         """Return the day with the most tracked time of all, across every program, and that time in seconds
 
         A day needs the session minimum to count. When days tie, the earlier one keeps the record: it has to be
@@ -627,7 +645,7 @@ class ActivityStore:
                 (day.strftime("%Y-%m-%d"),),
             )
 
-    def calendar_streaks(self, today: date | None = None, blue_day_threshold: int = 15 * 60) -> tuple[int, int]:
+    def calendar_streaks(self, today: date | None = None, blue_day_threshold: int = SESSION_MINIMUM_SECONDS) -> tuple[int, int]:
         today = today or date.today()
         rows = self.connection.execute(
             "SELECT day FROM activity WHERE day <= ? GROUP BY day HAVING SUM(seconds) >= ?",
@@ -645,7 +663,7 @@ class ActivityStore:
         rest_day_streak = (today - max(blue_days)).days if blue_days else 0
         return week_streak, rest_day_streak
 
-    def lifetime_sessions(self, minimum_seconds: int = 15 * 60, application: str | None = None) -> int:
+    def lifetime_sessions(self, minimum_seconds: int = SESSION_MINIMUM_SECONDS, application: str | None = None) -> int:
         application_clause = " AND application = ?" if application is not None else ""
         parameters: tuple = ()
         if application is not None:
@@ -688,7 +706,7 @@ class ActivityStore:
         ).fetchall()
         return [(application, int(seconds), started_at) for application, seconds, started_at in rows]
 
-    def qualifying_sessions(self, start: date, end: date, minimum_seconds: int = 15 * 60, application: str | None = None) -> list[tuple[date, str, int]]:
+    def qualifying_sessions(self, start: date, end: date, minimum_seconds: int = SESSION_MINIMUM_SECONDS, application: str | None = None) -> list[tuple[date, str, int]]:
         application_clause = " AND activity.application = ?" if application is not None else ""
         session_start_join = (
             "LEFT JOIN session_starts ON session_starts.day = activity.day AND session_starts.application = activity.application"

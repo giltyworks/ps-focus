@@ -2,6 +2,7 @@ import os
 import tempfile
 import sqlite3
 import unittest
+from unittest.mock import patch
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
@@ -69,6 +70,23 @@ class WeekRankTests(unittest.TestCase):
         # An equal week is not counted as busier, so matching every past week ranks as the best
         self._record(monday + timedelta(days=1), 3000)
         self.assertEqual(self.store.week_rank(today), 20)
+
+
+class LevelTests(unittest.TestCase):
+    def test_remaining_xp_reaches_zero_only_with_the_next_level(self):
+        import re
+        from app_config import LEVEL_CAP, LEVEL_HOURS, level_xp_text, user_level
+
+        def remaining(seconds: int) -> int:
+            return int(re.search(r"Remaining XP:</td><td[^>]*>([\d,]+)<", level_xp_text(seconds)).group(1).replace(",", ""))
+
+        for level in range(1, LEVEL_CAP):
+            # One second short of the next level still has a second to earn
+            short = int(LEVEL_HOURS[level] * 3600 - 1e-9)
+            if user_level(short) == level:
+                self.assertGreaterEqual(remaining(short), 1, level)
+        self.assertNotIn("Remaining XP", level_xp_text(LEVEL_HOURS[-1] * 3600))
+        self.assertIn("Total XP:", level_xp_text(0))
 
 
 class SnapshotRetentionTests(unittest.TestCase):
@@ -151,6 +169,19 @@ class ActivityStoreTests(unittest.TestCase):
         values, _ = self.store.period_data("Day", date(2026, 9, 30))
         self.assertEqual(values[14], 2 / 60)
         self.assertEqual(self.store.total_for_day(date(2026, 9, 30)), 2)
+
+    def test_session_figures_share_the_one_session_minimum(self):
+        import inspect
+        from app_config import SESSION_MINIMUM_SECONDS
+
+        # Blue calendar days use the shared setting, so the session counts, streaks and record must too
+        for method, parameter in (
+            (ActivityStore.longest_session, "minimum_seconds"),
+            (ActivityStore.lifetime_sessions, "minimum_seconds"),
+            (ActivityStore.qualifying_sessions, "minimum_seconds"),
+            (ActivityStore.calendar_streaks, "blue_day_threshold"),
+        ):
+            self.assertIs(inspect.signature(method).parameters[parameter].default, SESSION_MINIMUM_SECONDS, method.__name__)
 
     def test_dashboard_activity_index_covers_application_date_and_seconds(self):
         index_columns = [
@@ -338,6 +369,18 @@ class ActivityStoreTests(unittest.TestCase):
 
         self.assertEqual(ActivityStore.latest_valid_backup((backup_directory,)), good_backup)
         self.assertIsNone(ActivityStore.latest_valid_backup((self.folder / "missing",)))
+
+        # A snapshot deleted between listing the folder and reading its time, as OneDrive may do, is passed over
+        vanished = backup_directory / "activity-29991231-000001-000000.sqlite3"
+        real_stat = Path.stat
+
+        def stat(path, *arguments, **keywords):
+            if path.name == vanished.name:
+                raise FileNotFoundError(path)
+            return real_stat(path, *arguments, **keywords)
+
+        with patch.object(Path, "glob", lambda directory, pattern: iter([vanished, good_backup])), patch.object(Path, "stat", stat):
+            self.assertEqual(ActivityStore.latest_valid_backup((backup_directory,)), good_backup)
 
     def test_valid_backup_bytes_restore_database_and_quarantine_corrupt_file(self):
         database_path = self.folder / "downloaded.sqlite3"

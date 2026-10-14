@@ -79,6 +79,20 @@ class TrackingAccuracyTests(unittest.TestCase):
         self.store.recover_pending_activity()
         self.assertAlmostEqual(self.raw_total(), .75)
 
+    def test_a_second_failed_shutdown_keeps_both_lots_of_unsaved_time(self):
+        self.store.save_pending_activity(activity_slices(datetime(2026, 10, 12, 9), .75, "Krita"))
+        other = sqlite3.connect(self.path)
+        try:
+            other.execute("BEGIN IMMEDIATE")
+            self.store.connection.execute("PRAGMA busy_timeout = 0")
+            self.store.save_pending_activity(activity_slices(datetime(2026, 10, 12, 10), .5, "Photoshop"))
+        finally:
+            other.rollback()
+            other.close()
+        self.store.recover_pending_activity()
+        self.assertAlmostEqual(self.raw_total(), 1.25)
+        self.assertFalse(self.path.with_suffix(".pending.json").exists())
+
     def test_invalid_recovery_is_preserved(self):
         pending = self.path.with_suffix(".pending.json")
         pending.write_text(json.dumps({"receipt": "bad", "rows": [["2026-10-12", 25, 1, "Krita", "09:00"]]}))

@@ -119,7 +119,8 @@ class CalendarModule(ModuleBlock):
             self.fill.start()
 
     def filling(self) -> bool:
-        return self.fill is not None and self.fill.state() == QAbstractAnimation.State.Running
+        # Switched to the year mid-sweep, today's square is a small one the month's sweep would be drawn over
+        return self.view == "Month" and self.fill is not None and self.fill.state() == QAbstractAnimation.State.Running
 
     def _paint_today_fill(self, painter: QPainter) -> None:
         """Over the drawn picture, which already shows today blue: the grey square, the blue sweeping across it so far,

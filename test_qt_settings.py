@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import sqlite3
 import tempfile
 import threading
 import unittest
@@ -76,7 +77,7 @@ class QtSettingsTests(unittest.TestCase):
         self.app.store.record_active_second(application="Krita")
         with patch("qt.app.foreground_application", return_value="Krita"), patch("qt.app.user_is_active", return_value=False):
             self.app._track_and_refresh()
-        panel = self.app.panels["today"]
+        panel = self.app.today
         self.assertEqual((panel.application, panel.texts["name"].text), ("Krita", "Krita"))
         self.assertEqual(panel.texts["total"].text, "1s")
         self.assertEqual(self.app.settings["today_program"], "Krita")
@@ -414,6 +415,22 @@ class QtSettingsTests(unittest.TestCase):
         self.assertEqual(overview.width(), portrait)
         overview.deleteLater()
 
+    def test_double_clicking_a_star_keeps_the_rating(self):
+        from datetime import date
+        from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+        from PySide6.QtWidgets import QApplication
+        from qt.day_overview import DayOverview
+
+        overview = DayOverview(self.app.window, self.app.fonts, self.app.store, date.today(), self.app._set_productivity_rating)
+        left, top, width, height = overview.star_areas[6]
+        point = QPointF(left + width // 2, top + height // 2)
+        global_point = QPointF(overview.mapToGlobal(point.toPoint()))
+        for kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonDblClick):
+            QApplication.sendEvent(overview, QMouseEvent(kind, point, global_point, Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+        self.assertEqual(self.app.store.productivity_rating(date.today()), 7)
+        overview.deleteLater()
+
     def test_day_and_friend_popups_close_on_a_click_elsewhere_escape_or_their_cross(self):
         from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
         from PySide6.QtGui import QKeyEvent, QMouseEvent
@@ -712,6 +729,35 @@ class QtSettingsTests(unittest.TestCase):
         controller.poll()
         self.assertEqual(controller.email, "")
         self.assertEqual(self.app.settings_page.google_buttons, "connect")
+
+    def test_google_backup_skips_the_upload_while_drive_holds_this_unchanged_history(self):
+        controller, client = self._fake_google()
+        uploads = []
+        client.upload_activity_backup.side_effect = uploads.append
+        controller.connect()
+        controller.poll()
+        self.assertEqual(len(uploads), 1)
+        # Drive now holds exactly that upload, and nothing has been recorded since
+        client.download_activity_backup.return_value = uploads[-1]
+        controller.backup()
+        controller.poll()
+        self.assertEqual(len(uploads), 1)
+        self.assertEqual(self.app.settings_page.backup_status[1], "active_green")
+        # New time is uploaded
+        self.app.store.record_active_second(application="Krita")
+        controller.backup()
+        controller.poll()
+        self.assertEqual(len(uploads), 2)
+        # So is a copy another PC put there in place of this one, even with nothing new here
+        client.download_activity_backup.return_value = uploads[0]
+        controller.backup()
+        controller.poll()
+        self.assertEqual(len(uploads), 3)
+        # And backing up by hand always uploads
+        client.download_activity_backup.return_value = uploads[-1]
+        self.app._backup_activity_now(force=True)
+        controller.poll()
+        self.assertEqual(len(uploads), 4)
 
     def test_google_settings_changes_wait_for_current_operation(self):
         controller, client = self._fake_google()
@@ -1063,6 +1109,16 @@ class QtSettingsTests(unittest.TestCase):
         header.pulse.setCurrentTime(header.pulse.duration())
         self.assertFalse(header.pulsing())
         self.assertFalse(calendar.filling())
+        # Switching to the year mid-sweep stops it being drawn over the year's small squares
+        calendar.view = "Month"
+        calendar.refresh()
+        calendar.fill_today()
+        self.assertTrue(calendar.filling())
+        calendar._toggle_view()
+        self.assertEqual(calendar.fill.state(), calendar.fill.State.Running)
+        self.assertFalse(calendar.filling())
+        calendar.grab()
+        calendar._toggle_view()
         self.app.window.hide()
 
     def test_level_up_plays_fireworks_and_sound_once(self):
@@ -1291,6 +1347,12 @@ class DevToolsTests(unittest.TestCase):
             self.tools.level_up()
         self.assertEqual(user_level(self.app.store.total_seconds()), before + 1)
         celebrate.assert_called_once()
+        celebrate.assert_called_once_with(sound=True)
+        self.assertFalse(self.app.dev_level_up_requested)
+        # A failed write leaves no request behind for a later, real level-up to sound
+        with patch.object(self.app.store, "record_activity", side_effect=sqlite3.OperationalError("locked")), self.assertRaises(sqlite3.OperationalError):
+            self.tools.level_up()
+        self.assertFalse(self.app.dev_level_up_requested)
 
     def test_added_hours_land_today_and_make_records(self):
         today = date.today()

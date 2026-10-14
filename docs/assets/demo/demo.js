@@ -58,14 +58,10 @@
   let lifetime = 0;
   history.forEach((hours) => hours.forEach((seconds) => (lifetime += seconds)));
 
-  const LEVEL_ANCHORS = [[1, 0], [10, 40], [25, 180], [50, 650], [75, 1350], [80, 1790], [85, 2345], [90, 3010], [92, 3340], [95, 3895], [97, 4390], [98, 4670], [99, 5000]];
-  const levelFor = (hours) => {
-    for (let i = 1; i < LEVEL_ANCHORS.length; i++) {
-      const [level, needed] = LEVEL_ANCHORS[i], [previous, before] = LEVEL_ANCHORS[i - 1];
-      if (hours < needed) return previous + Math.floor((hours - before) / (needed - before) * (level - previous));
-    }
-    return 99;
-  };
+  // The hours each level starts at, the app's LEVEL_HOURS. tools/sync_site.py writes this line, so change the curve in app_config.py
+  const LEVEL_HOURS = [0, 2.857, 6.185, 9.953, 14.128, 18.678, 23.572, 28.779, 34.265, 40, 46.123, 52.785, 59.965, 67.647, 75.811, 84.44, 93.516, 103.02, 112.933, 123.238, 133.917, 144.951, 156.321, 168.01, 180, 192.514, 205.771, 219.742, 234.398, 249.711, 265.653, 282.194, 299.306, 316.962, 335.132, 353.787, 372.9, 392.441, 412.383, 432.696, 453.353, 474.324, 495.581, 517.096, 538.841, 560.785, 582.902, 605.163, 627.538, 650, 672.159, 693.738, 714.876, 735.713, 756.386, 777.036, 797.802, 818.823, 840.237, 862.185, 884.804, 908.236, 932.618, 958.089, 984.79, 1012.858, 1042.434, 1073.656, 1106.664, 1141.597, 1178.593, 1217.792, 1259.334, 1303.357, 1350, 1410.773, 1492.318, 1587.477, 1689.091, 1790, 1891.188, 1997.959, 2109.636, 2225.542, 2345, 2467.673, 2594.409, 2726.309, 2864.472, 3010, 3168.952, 3340, 3513.609, 3694.706, 3895, 4129.808, 4390, 4670, 5000];
+  // As the app's user_level, the number of levels whose hours have been reached
+  const levelFor = (hours) => LEVEL_HOURS.filter((needed) => needed <= hours).length;
   const clock = (seconds) => {
     const h = Math.floor(seconds / 3600), m = Math.floor(seconds % 3600 / 60), s = Math.floor(seconds % 60);
     return h ? `${h}h ${String(m).padStart(2, "0")}m ${String(s).padStart(2, "0")}s` : m ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;

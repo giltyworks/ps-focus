@@ -7,6 +7,31 @@ Updated 14 October 2026. Read this before resuming work.
 - PyInstaller is missing from requirements.txt. Only the Build installer workflow installs it (`pyinstaller==6.22.3`, `pyinstaller-hooks-contrib==2026.7`), so `py tools/build_release.py` fails on a fresh setup made from requirements.txt alone. Not fixed yet, by the owner's choice.
 - A comment in qt/today_panel.py ("The same measurements as the Tk panel, see main.py") points to main.py, which no longer exists. Not fixed yet, by the owner's choice.
 
+## Code quality review and fixes: 14 October 2026
+
+Claude Code ran the code quality review (four read-only reviewers, merged into 33 numbered findings). The owner picked the recommended set; the rest are on hold. Not committed.
+
+Fixed (each with a test):
+- Double-clicking a rating star no longer sets and then clears the rating: DayOverview takes one rating per opening (`rated` flag).
+- Session counts, streaks and longest session use `SESSION_MINIMUM_SECONDS` instead of their own `15 * 60` (tracker.py now imports it from app_config).
+- The website demo's levels now use the app's exact `LEVEL_HOURS` table (it used straight lines between anchors). `tools/sync_site.py` writes the table into demo.js; test_site fails if the curve changes without running it. The demo's `?v=` cache number in docs/index.md was not bumped; do that when the site is next published.
+- Google Drive: the 15-minute backup skips the merge and upload while Drive still holds exactly this PC's last upload (SHA-256 of the bytes) and the store's change count is unchanged. Back up now, signing in/out and switching account always upload. A stale copy uploaded by another PC is still replaced.
+- Start-up recovery no longer crashes if a backup file vanishes between listing and reading (OneDrive).
+- A second failed shutdown save now keeps both lots of unsaved time, under the older receipt so nothing is counted twice.
+- "Remaining XP" rounds the next level up, so it can't show 0 before the level rises (52 levels were affected).
+- Today's calendar fill is no longer drawn over the year view when the view is switched mid-animation.
+- Dev version: the level-up fanfare request is always cleared after the menu's level-up.
+- Tidying with no behaviour change: comments pointing at removed Tk files (qt/__init__.py now says the Tk sources are in the commit before 3e15ae5; make_celebration.py points at qt/celebration.py; uninstall.py, stat_lines.py, app_config.py, the update-check comment and the credentials error message corrected); dead friend-list code (dot, PRESENCE_COLORS, `_hide_person_tip`), unused `backup_error`, `MIN_WINDOW_HEIGHT` and arrow parameters removed; `self.panels` replaced by `self.today`; `_read_activity_state` and `_pending_rows` helpers; header cursor uses `interactive_at`; always-true `hasattr` guards removed in `_backup_activity_now`, `GoogleSync.poll` and docking; `FriendsSync.tick` checks `enabled()` once.
+- Kept on purpose: the second `_send_pending_feedback()` at start-up (it still runs if the start-up backup fails) and the qt/today_panel.py main.py comment (owner's earlier choice).
+
+301 tests and the credential check passed. 1.1.27 built (installer SHA-256 `1d8b24c1cc619d0ee714dd1bcebe837f4e4bf2598be270a1d4de664bba52f051`), installed silently (exit 0) and relaunched, normal and `--dev`. README updated (Drive upload skip, sync_site after level changes).
+
+On hold, for the owner to decide: two PCs in the same hour lose time in the Drive merge (keeps the larger total per hour; a real fix changes the storage); local backups run on the UI thread (time them first; dropping the second integrity check is the cheap step); damaged-database recovery may pick another PC's OneDrive backup; the Drive restore swaps the store by hand in google_sync.py; uninstall.py keeps its own list of data folders; "preview" naming; optional items 21–33 (speed savings, helpers, shared test setup, version stamping, release-note warning that the harder top levels lower long-time users' levels).
+
+## Code quality review skill: 14 October 2026
+
+Claude Code moved the saved "code quality review" instructions out of its private memory into a project skill at `.claude/skills/code-quality-review/SKILL.md`. It runs only when the owner asks for a code quality review. Four read-only reviewers (correctness, simplicity, performance, maintainability) work in parallel, and their findings are merged into one ranked list. It then stops until the owner picks which fixes to make, fixes only those, and verifies against CLAUDE.md's definition of done plus a release build, silent reinstall and relaunch. The skill is untracked; the owner hasn't asked for a commit. No code changed.
+
 ## CLAUDE.md added: 14 October 2026
 
 Claude Code added CLAUDE.md at the project root: what the app does, stack, commands, layout, conventions and a definition of done. It asks both tools to read this file at the start of a session and to update it at the end with what changed, what's next and any open questions. No code changed.

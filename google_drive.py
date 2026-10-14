@@ -103,7 +103,7 @@ class GoogleDriveSync:
             credential_paths.append(Path(__file__).resolve().with_name("credentials.json"))
         credentials_file = next((path for path in credential_paths if path.is_file()), None)
         if credentials_file is None:
-            raise RuntimeError("Add a Google OAuth Desktop app credentials.json beside the executable (or main.py)")
+            raise RuntimeError("Add a Google OAuth Desktop app credentials.json beside the executable (or, run from source, in the project folder)")
         data = json.loads(credentials_file.read_text(encoding="utf-8-sig"))
         config = data.get("installed")
         if not isinstance(config, dict) or not config.get("client_id") or not config.get("client_secret"):

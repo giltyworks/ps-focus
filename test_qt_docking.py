@@ -211,7 +211,7 @@ class QtDockingTests(unittest.TestCase):
 
     def test_grip_drag_inside_the_window_reorders_instead(self):
         calendar = self.app.modules["calendar"]
-        target = self.app.panels["today"]
+        target = self.app.today
         above = target.mapToGlobal(QPoint(target.width() // 2, 2))
         self._drag(calendar, self._grip("calendar"), self._grip("calendar") + QPoint(0, 10), above)
         self.assertFalse(self.app.docking.is_floating("calendar"))
@@ -408,7 +408,7 @@ class QtDockingTests(unittest.TestCase):
         panel = self._float("stats", QPoint(300, 400))
         left, top, _right, _bottom = self.app.docking.main_bounds()
         panel.move(left - panel.width(), top)
-        photoshop = self.app.panels["today"]
+        photoshop = self.app.today
         start = photoshop.mapToGlobal(QPoint(60, 40))
         window_position, panel_position = self.app.window.pos(), panel.pos()
         self._drag(photoshop, start, start + QPoint(-30, 25))
@@ -445,7 +445,7 @@ class QtDockingTests(unittest.TestCase):
 
     def test_program_panel_title_reorders_inside_the_window(self):
         self.application.processEvents()
-        photoshop = self.app.panels["today"]
+        photoshop = self.app.today
         title = photoshop.mapToGlobal(photoshop.title_rect().center())
         graph = self.app.modules["graph"]
         # Let go on the top of the graph, which comes after Friends
@@ -454,7 +454,7 @@ class QtDockingTests(unittest.TestCase):
         self.assertLess(self.app.block_order.index("friends"), self.app.block_order.index("today"))
 
     def test_program_panel_floats_and_docks_like_a_module(self):
-        photoshop = self.app.panels["today"]
+        photoshop = self.app.today
         title = photoshop.mapToGlobal(photoshop.title_rect().center())
         self._drag(photoshop, title, title + QPoint(0, 10), QPoint(300, 400))
         self.assertTrue(self.app.docking.is_floating("today"))
@@ -491,7 +491,7 @@ class QtDockingTests(unittest.TestCase):
         panel = self._float("stats", QPoint(200, 300))
         block = self.app.modules["stats"]
         start = block.mapToGlobal(QPoint(40, 60))
-        photoshop = self.app.panels["today"]
+        photoshop = self.app.today
         photoshop_top = photoshop.mapTo(self.app.window, QPoint(0, 0)).y()
         over = photoshop.mapToGlobal(QPoint(100, 5))
         self._press_move(block, start, start + QPoint(10, 0), over)
@@ -517,7 +517,7 @@ class QtDockingTests(unittest.TestCase):
         block = self.app.modules["stats"]
         height = self.app.window.height()
         start = block.mapToGlobal(QPoint(40, 60))
-        over = self.app.panels["today"].mapToGlobal(QPoint(100, 5))
+        over = self.app.today.mapToGlobal(QPoint(100, 5))
         self._press_move(block, start, start + QPoint(10, 0), over)
         self.assertGreater(self.app.window.height(), height)
         self._mouse(block, QEvent.Type.MouseMove, QPoint(100, 1300))
@@ -559,7 +559,7 @@ class QtDockingTests(unittest.TestCase):
         second.move(first.x() + first.width(), first.y())
         block = self.app.modules["stats"]
         start = block.mapToGlobal(QPoint(40, 60))
-        over = self.app.panels["today"].mapToGlobal(QPoint(100, 20))
+        over = self.app.today.mapToGlobal(QPoint(100, 20))
         self._press_move(block, start, start + QPoint(10, 0), over)
         self.assertIsNone(self.app.docking.dock_slot)
         self.assertFalse(self.app.docking.preview.isVisible())
@@ -651,7 +651,7 @@ class QtDockingTests(unittest.TestCase):
         calendar = self.app.modules["calendar"]
         calendar.update_cursor(calendar.title_rect().center())
         self.assertEqual(calendar.cursor().shape(), Qt.CursorShape.OpenHandCursor)
-        photoshop = self.app.panels["today"]
+        photoshop = self.app.today
         photoshop._hover("title")
         self.assertTrue(photoshop.title_hovered)
         self.assertEqual(photoshop.cursor().shape(), Qt.CursorShape.OpenHandCursor)

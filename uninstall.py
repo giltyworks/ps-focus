@@ -1,7 +1,7 @@
 """Uninstall mode of the app, run as `PS Focus.exe --uninstall`: what is removed and how
 
 Removes PS Focus and, when asked, its settings, activity history, and backups. The window asking is the app's own:
-qt/uninstall_window.py, or ui_uninstall.py in the Tk app
+qt/uninstall_window.py
 """
 
 from __future__ import annotations
@@ -42,7 +42,7 @@ DONE_MESSAGE_DELETED = f"{APP_NAME} and all of its data have been removed"
 
 
 def data_directories() -> list[Path]:
-    """Return every folder PS Focus writes user data to, matching the locations used by main.py"""
+    """Return every folder PS Focus writes user data to, matching the locations in app_config.py and qt/preview.py"""
     app_data_root = Path(os.environ.get("APPDATA", Path.home()))
     directories = [
         app_data_root / APP_NAME,

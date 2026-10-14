@@ -1,5 +1,5 @@
 """What the Stats module says: its rows of figures and the sessions in the period the calendar shows. Shared by the
-Tk and Qt interfaces, so it holds no drawing"""
+Stats block, the calendar and the day overview, so it holds no drawing"""
 
 from __future__ import annotations
 

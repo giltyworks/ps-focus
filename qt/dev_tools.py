@@ -107,7 +107,11 @@ class DevTools:
             return
         # A minute past the next level's hours; the next tick sees the level rise and celebrates
         self.app.dev_level_up_requested = True
-        self.add_today(LEVEL_HOURS[level] * 3600 - self.app.store.total_seconds() + 60)
+        try:
+            self.add_today(LEVEL_HOURS[level] * 3600 - self.app.store.total_seconds() + 60)
+        finally:
+            # The tick inside has celebrated by now; left set, a later real level-up would play a second fanfare
+            self.app.dev_level_up_requested = False
 
     def celebrate(self) -> None:
         self.app.celebrate()

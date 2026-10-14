@@ -50,7 +50,7 @@ SCOOP_SECONDS = 0.018
 # A short burst of breath at the start of each note gives it a defined edge
 BREATH_LEVEL = 0.10
 BREATH_SECONDS = 0.025
-# When each firework bursts on screen; keep in step with FIREWORK_BURST_TIMES in ui_celebration.py
+# When each firework bursts on screen; keep in step with FIREWORK_BURST_TIMES in qt/celebration.py
 FIREWORK_BURST_TIMES = (0.0, 0.3, 0.55, 0.85, 1.1, 1.35, 1.6)
 # Loudest point of a firework's crackle as a fraction of full scale, set separately from the trumpet
 FIREWORK_VOLUME = 0.0252
