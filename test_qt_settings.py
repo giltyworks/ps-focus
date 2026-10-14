@@ -797,7 +797,7 @@ class QtSettingsTests(unittest.TestCase):
         controller.backup()
         controller.poll()
         self.assertEqual(self.app.store.total_for_day(date.today(), "Krita"), 1)
-        for module in self.app.modules.values():
+        for module in (self.app.chart, self.app.calendar, self.app.stats):
             self.assertIs(module.store, self.app.store)
         client.download_activity_backup.return_value = b"invalid database"
         previous_uploads = client.upload_activity_backup.call_count
@@ -994,7 +994,7 @@ class QtSettingsTests(unittest.TestCase):
         controller.poll()
         client.upload_activity_backup.assert_not_called()
         self.assertEqual(self.app.settings_page.backup_status[1], "red")
-        for module in self.app.modules.values():
+        for module in (self.app.chart, self.app.calendar, self.app.stats):
             self.assertIs(module.store, self.app.store)
         self.app.store.record_active_second(application="Photoshop")
         self.assertEqual(self.app.store.total_for_day(date.today(), "Photoshop"), 1)

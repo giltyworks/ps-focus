@@ -24,7 +24,8 @@ Ran the updated code quality review (default scope: 37 files changed since v1.1.
 - uninstall.py takes `APP_NAME`, `LEGACY_APP_NAME` and `BACKUP_FOLDER_NAME` from app_config (the dev folder name is still its own line). PyInstaller and its hooks are in requirements.txt; build.yml installs from it.
 - Backups on the UI thread: measured 18,000 rows (about four years of heavy use), three folders, median 95 ms per snapshot, every 15 minutes and only when something changed. Left on the UI thread.
 - Reviewer notes to carry into the release note: update every PC together (an old-version PC undercounts a new backup and can't record against the new layout); a copied data folder shares its PC id with the original, so the same-hour fix doesn't apply between the two copies.
-- Still open, for the owner: the Drive restore swapping the store by hand in google_sync.py, and the "preview" naming. Optional items 21–33 untouched. Needs a version bump/release note at the next release: the release note should mention the two-PC fix.
+- The Drive restore's hand-swap of the store moved out of google_sync.py into `PSFocusQt.restore_activity` (qt/app.py), which owns the list of things holding the store (chart, calendar, stats). The two tests that looped over every module for `.store` now check just those three (the old code had set a stray `store` on the Friends module).
+- "Preview" naming deliberately not renamed: the persistent names (the `PS Focus Qt Preview` data folder, `qt-preview-*` Drive files, window title) would orphan existing copies, and `preview` is also used for the docking drop preview, so a bulk rename risks hitting the wrong thing. A tidy-up there would be a separate, visible change; the owner can say if they want the folder/window title renamed. Optional items 21–33 untouched. Needs a version bump/release note at the next release: the release note should mention the two-PC fix.
 
 ## Pre-commit hooks: 14 October 2026
 

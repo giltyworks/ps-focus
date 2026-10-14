@@ -270,6 +270,20 @@ class PSFocusQt:
         # Undelivered feedback is tried again with each periodic backup, as in the Tk app
         self._send_pending_feedback()
 
+    def restore_activity(self, content: bytes) -> bool:
+        """Replace the history with a backup's bytes, returning False (and keeping the history) when they are unusable.
+        The store and everything that holds it are swapped here, so a new holder only has to be added here"""
+        # A day overview reads the database it was opened with, which is about to be replaced
+        for overview in self.window.findChildren(DayOverview):
+            overview.close()
+        self.store.close()
+        try:
+            return ActivityStore.restore_backup_bytes(app_config.DATABASE_PATH, content, app_config.BACKUP_DIRECTORIES[0])
+        finally:
+            self.store = ActivityStore(app_config.DATABASE_PATH, app_config.BACKUP_DIRECTORIES)
+            for module in (self.chart, self.calendar, self.stats):
+                module.store = self.store
+
     def _settings_resized(self) -> None:
         if self.settings_shown and hasattr(self, "settings_page"):
             self.window.show_settings(self.settings_page)
