@@ -414,6 +414,41 @@ class QtSettingsTests(unittest.TestCase):
         self.assertEqual(overview.width(), portrait)
         overview.deleteLater()
 
+    def test_day_and_friend_popups_close_on_a_click_elsewhere_escape_or_their_cross(self):
+        from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+        from PySide6.QtGui import QKeyEvent, QMouseEvent
+        from PySide6.QtWidgets import QApplication
+        from qt.day_overview import DayOverview
+        from qt.friend_details import FriendDetails
+
+        window = self.app.window
+        window.show()
+        makers = (
+            lambda: DayOverview(window, self.app.fonts, self.app.store, date.today(), lambda _day, _rating: None),
+            lambda: FriendDetails(window, self.app.fonts, "Friend", "40.0 hrs total"),
+        )
+
+        def press(popup, point):
+            QApplication.sendEvent(popup, QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(point), QPointF(popup.mapToGlobal(point)), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+
+        for make in makers:
+            for close in (
+                lambda popup: press(popup, QPoint(-20, -20)),
+                lambda popup: QApplication.sendEvent(popup, QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier)),
+                lambda popup: press(popup, popup.close_area().center()),
+            ):
+                popup = make()
+                popup.show_centred_on(window)
+                self.application.processEvents()
+                self.assertTrue(popup.isVisible())
+                # A click on its content leaves it open
+                press(popup, QPoint(popup.width() // 2, popup.height() - 4))
+                self.assertTrue(popup.isVisible())
+                close(popup)
+                self.assertFalse(popup.isVisible())
+                self.application.processEvents()
+        window.hide()
+
     def test_a_calendar_day_opens_when_the_button_is_let_go(self):
         from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
         from PySide6.QtGui import QMouseEvent
@@ -456,7 +491,7 @@ class QtSettingsTests(unittest.TestCase):
             self.assertFalse(window.testAttribute(created), type(window).__name__)
             window.deleteLater()
 
-    def test_small_windows_open_over_ps_focus_on_its_screen_with_their_own_title_bar_coloured(self):
+    def test_small_windows_open_over_ps_focus_on_its_screen(self):
         from datetime import date
         from unittest import mock
         from PySide6.QtCore import Qt
@@ -479,7 +514,12 @@ class QtSettingsTests(unittest.TestCase):
                 dialog.show_centred_on(window)
             name = type(dialog).__name__
             self.assertTrue(screen.contains(dialog.frameGeometry().topLeft()), name)
-            colour.assert_called_once_with(int(dialog.winId()))
+            if isinstance(dialog, FeedbackDialog):
+                colour.assert_called_once_with(int(dialog.winId()))
+            else:
+                # The day overview and a friend's details are popups, closed by a click elsewhere, drawing their own title
+                self.assertEqual(dialog.windowType(), Qt.WindowType.Popup, name)
+                colour.assert_not_called()
             # Only the window itself is a Windows window: a part of it given its own handle draws apart from it
             self.assertFalse(any(child.testAttribute(Qt.WidgetAttribute.WA_NativeWindow) for child in dialog.findChildren(QWidget)), name)
             dialog.close()
@@ -1001,6 +1041,29 @@ class QtSettingsTests(unittest.TestCase):
             self.app.level_revealed = True
             self.app._level_clicked()
             open_dialog.assert_called_once()
+
+    def test_reaching_the_daily_goal_pulses_the_dot_and_fills_today(self):
+        header, calendar = self.app.header, self.app.calendar
+        self.app.window.show()
+        self.application.processEvents()
+        # Found already reached at start: nothing plays. Reached later: the dot pulses and today's square fills
+        header.progress_known, header.progress_reached = False, False
+        header.set_progress_reached(True)
+        self.assertFalse(header.pulsing())
+        header.set_progress_reached(False)
+        header.set_progress_reached(True)
+        self.assertTrue(header.pulsing())
+        self.assertEqual(calendar.filling(), calendar.view == "Month")
+        header.pulse.setCurrentTime(300)
+        header.grab()
+        if calendar.filling():
+            calendar.fill.setCurrentTime(200)
+            calendar.grab()
+            calendar.fill.setCurrentTime(calendar.fill.duration())
+        header.pulse.setCurrentTime(header.pulse.duration())
+        self.assertFalse(header.pulsing())
+        self.assertFalse(calendar.filling())
+        self.app.window.hide()
 
     def test_level_up_plays_fireworks_and_sound_once(self):
         self.app.window.show()

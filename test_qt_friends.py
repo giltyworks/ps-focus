@@ -279,7 +279,7 @@ class QtFriendsTests(unittest.TestCase):
             self.application.processEvents()
             dialog = module.details_dialog
             self.assertTrue(dialog.isVisible())
-            self.assertIn("3.0 hrs past 2 weeks", dialog.lines)
+            self.assertNotIn("3.0 hrs past 2 weeks", dialog.lines)
             self.assertIn("40.0 hrs total", dialog.lines)
             self.assertIn("Member since 14 Mar 2025", dialog.lines)
             self.assertEqual(dialog.windowTitle(), "Friend 7" if scrolled else "Friend 0")

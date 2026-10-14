@@ -76,6 +76,7 @@ class DevTools:
             ("feedback_unlock", f"Got feedback?: {'shown' if self.app.feedback_unlocked else 'hidden'}", "Whatever has been tracked"),
             ("update", f"Update notice: {'on' if self.app.available_update else 'off'}", "As if a newer version were out"),
             ("hour", "Add an hour today", ""),
+            ("goal_pulse", "Replay the daily goal", "Dot pulse and today's square"),
             ("longest", "Make today the longest session", ""),
             ("best_week", "Make this week a gold-medal week", ""),
             ("sample_friends", f"Sample friends: {'on' if friends.sample_friends else 'off'}", "Shown signed out too"),
@@ -105,10 +106,14 @@ class DevTools:
             self._tell("Already at the top level")
             return
         # A minute past the next level's hours; the next tick sees the level rise and celebrates
+        self.app.dev_level_up_requested = True
         self.add_today(LEVEL_HOURS[level] * 3600 - self.app.store.total_seconds() + 60)
 
     def celebrate(self) -> None:
         self.app.celebrate()
+
+    def goal_pulse(self) -> None:
+        self.app.goal_reached()
 
     def feedback_reveal(self) -> None:
         self.feedback_reset()

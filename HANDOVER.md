@@ -1,6 +1,15 @@
 # PS Focus handover
 
-Updated 12 October 2026. Read this before resuming work.
+Updated 14 October 2026. Read this before resuming work.
+
+## Known issues
+
+- PyInstaller is missing from requirements.txt. Only the Build installer workflow installs it (`pyinstaller==6.22.3`, `pyinstaller-hooks-contrib==2026.7`), so `py tools/build_release.py` fails on a fresh setup made from requirements.txt alone. Not fixed yet, by the owner's choice.
+- A comment in qt/today_panel.py ("The same measurements as the Tk panel, see main.py") points to main.py, which no longer exists. Not fixed yet, by the owner's choice.
+
+## CLAUDE.md added: 14 October 2026
+
+Claude Code added CLAUDE.md at the project root: what the app does, stack, commands, layout, conventions and a definition of done. It asks both tools to read this file at the start of a session and to update it at the end with what changed, what's next and any open questions. No code changed.
 
 ## Full release rollup since 1.1.0
 

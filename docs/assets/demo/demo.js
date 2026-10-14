@@ -58,7 +58,7 @@
   let lifetime = 0;
   history.forEach((hours) => hours.forEach((seconds) => (lifetime += seconds)));
 
-  const LEVEL_ANCHORS = [[1, 0], [10, 40], [25, 180], [50, 650], [75, 1350], [80, 1550], [85, 1800], [90, 2100], [92, 2250], [95, 2500], [97, 2725], [98, 2850], [99, 3000]];
+  const LEVEL_ANCHORS = [[1, 0], [10, 40], [25, 180], [50, 650], [75, 1350], [80, 1790], [85, 2345], [90, 3010], [92, 3340], [95, 3895], [97, 4390], [98, 4670], [99, 5000]];
   const levelFor = (hours) => {
     for (let i = 1; i < LEVEL_ANCHORS.length; i++) {
       const [level, needed] = LEVEL_ANCHORS[i], [previous, before] = LEVEL_ANCHORS[i - 1];
@@ -747,7 +747,7 @@
   function friendRow(friend) {
     const nameClass = { drawing: "psf-drawing", online: "psf-online", away: "psf-away", offline: "psf-offline" }[friend.presence];
     const shown = state.nicknames.get(friend.code) || friend.name;
-    const name = el("span", { class: `psf-name ${nameClass}` }, shown);
+    const name = el("span", { class: `psf-name ${nameClass}` }, el("span", { class: "psf-name-text" }, shown));
     if (state.nicknaming === friend.code) {
       // The nickname is typed over the name: Enter keeps it, Escape or clicking elsewhere leaves it as it was. On a
       // phone, whose keyboard is put away with Done, putting it away keeps what was typed
@@ -767,6 +767,8 @@
     name.append(el("button", { type: "button", class: "psf-icon-button psf-chevron", title: `${friend.name}'s menu`, onclick: (event) => friendMenu(event.currentTarget, friend) }, svg(ICONS.chevron)));
     const row = el("div", { class: `psf-friend${friend.fresh ? " psf-new" : ""}`, oncontextmenu: (event) => { event.preventDefault(); friendMenu(name, friend); } },
       el("span", { class: "psf-lv" }, String(friend.level)), name,
+      // Their hours over the past two weeks, which the list is ranked by, at the right of their name, as the app
+      el("span", { class: "psf-right" }, `${friend.two.toFixed(1)} hrs past 2 weeks`),
       el("span", {}), friend.presence === "drawing"
         // Today's time with the program they are drawing in, as the app shows it
         ? el("span", { class: "psf-sub psf-program" }, `${PROGRAM_SHORT[friend.program] || friend.program} (${todayAmount(friend.today)})`)
@@ -780,8 +782,8 @@
               ? el("span", { class: "psf-sub" }, friend.lastOnline ? `Last online ${friend.lastOnline} hours ago` : "Offline")
               : el("span", { class: "psf-sub" }, `${todayAmount(friend.today)} today`));
     // Detailed figures open on a double-click of the name, as in the app.
-    const figures = `${friend.two.toFixed(1)} hrs past 2 weeks
-${friend.total.toFixed(1)} hrs total`
+    // The past two weeks show on the row itself, so they are left out here, as the app
+    const figures = `${friend.total.toFixed(1)} hrs total`
       + (friend.since ? `
 Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${friend.since.getFullYear()}` : "");
     // Anywhere on the friend's rows, as the app, but their menu arrow
@@ -971,7 +973,7 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
       boxedRow("Start minimized", "Open PS Focus in the tray when launched at sign-in", toggle("startMinimized")),
       el("div", { class: "psf-check-row" },
         el("label", { class: "psf-check-label" }, "Pause tracking", checkbox(state.paused, "Pause tracking", () => setPaused(!state.paused))),
-        el("label", { class: "psf-check-label" }, "Disable fanfare sound", toggle("fanfareOff"))),
+        el("label", { class: "psf-check-label" }, "Mute fanfare sound", toggle("fanfareOff"))),
       el("div", { class: "psf-backups" },
         el("b", {}, "Settings and activity backups"),
         el("span", {}, "Activity is saved locally on this PC and backed up to Google Drive when connected"),

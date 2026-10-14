@@ -1,11 +1,12 @@
-"""The day overview, opened from a calendar day: the time in each program, and the day's productivity rating"""
+"""The day overview, opened from a calendar day: the time in each program, and the day's productivity rating. A small
+popup over PS Focus, titled with the date, closed by a click anywhere else, see app_popup"""
 
 from __future__ import annotations
 
 from datetime import date
 from typing import Callable
 
-from PySide6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, Qt, QTimer
 from PySide6.QtGui import QColor, QKeyEvent, QMouseEvent, QPainter, QPaintEvent
 from PySide6.QtWidgets import QWidget
 
@@ -13,7 +14,7 @@ from app_config import TODAY_PANEL_WIDTH, WINDOW_MARGIN, format_duration
 from stat_lines import DAY_ABBREVIATIONS, format_clock
 from tracker import ActivityStore
 
-from .app_dialog import AppDialog
+from .app_popup import TITLE_HEIGHT, AppPopup
 from .header import fit_text
 from .icons import icon
 from .theme import Fonts, color, draw_outline_text, draw_text, line_height, text_width
@@ -29,20 +30,19 @@ STAR_COUNT = 10
 # a dim grey after it
 STAR = "\U00002b50"
 UNRATED_STAR = "#5c5c5c"
+# How long the chosen rating shows before the overview closes by itself
+CLOSE_AFTER_RATING_MS = 150
 
 
-class DayOverview(AppDialog):
+class DayOverview(AppPopup):
     def __init__(
         self, parent: QWidget, fonts: Fonts, store: ActivityStore, session_day: date, on_rated: Callable[[date, int], None]
     ) -> None:
-        # The date is carried by the title bar alone, such as "Thu, 1 Oct 2026", to keep the window compact
-        super().__init__(parent, f"{DAY_ABBREVIATIONS[session_day.weekday()]}, {session_day.day} {session_day.strftime('%b %Y')}")
-        self.fonts = fonts
+        # The date is carried by the title alone, such as "Thu, 1 Oct 2026", to keep the window compact
+        super().__init__(parent, fonts, f"{DAY_ABBREVIATIONS[session_day.weekday()]}, {session_day.day} {session_day.strftime('%b %Y')}")
         self.store = store
         self.session_day = session_day
         self.on_rated = on_rated
-        self.setMouseTracking(True)
-        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.rating = store.productivity_rating(session_day) or 0
         # The star that Tab has moved to, which Enter or Space chooses, as with the Tk dialog's stars
         self.focused_star: int | None = None
@@ -57,7 +57,8 @@ class DayOverview(AppDialog):
         # Each piece is (kind, left, top, ...), in the order drawn
         self.pieces: list[tuple] = []
         widths = []
-        top = 0
+        # Under the title row
+        top = TITLE_HEIGHT - 8
         longest = self.store.longest_session()
         # The day holding the all-time record carries a badge; it moves on when a longer session is tracked
         if longest is not None and longest[0] == self.session_day:
@@ -130,7 +131,7 @@ class DayOverview(AppDialog):
 
     def paintEvent(self, _event: QPaintEvent) -> None:
         painter = QPainter(self)
-        painter.fillRect(self.rect(), color("background"))
+        self.paint_frame(painter)
         if self.panel is not None:
             left, top, width, height = self.panel
             painter.fillRect(left, top, width, height, color("panel"))
@@ -161,18 +162,20 @@ class DayOverview(AppDialog):
         self.on_rated(self.session_day, value)
         self.rating = self.store.productivity_rating(self.session_day) or 0
         self.update()
+        QTimer.singleShot(CLOSE_AFTER_RATING_MS, self, self.close)
 
-    def mousePressEvent(self, event: QMouseEvent) -> None:
+    def content_pressed(self, event: QMouseEvent) -> None:
         value = self._star_at(event.position().toPoint())
         if event.button() == Qt.MouseButton.LeftButton and value is not None:
             self._rate(value)
 
-    def mouseMoveEvent(self, event: QMouseEvent) -> None:
+    def content_moved(self, event: QMouseEvent) -> None:
         star = self._star_at(event.position().toPoint())
         self.setCursor(Qt.CursorShape.PointingHandCursor if star is not None else Qt.CursorShape.ArrowCursor)
         self._hover_star(star)
 
-    def leaveEvent(self, _event) -> None:
+    def leaveEvent(self, event) -> None:
+        super().leaveEvent(event)
         self._hover_star(None)
 
     def _hover_star(self, star: int | None) -> None:
@@ -190,5 +193,5 @@ class DayOverview(AppDialog):
         if event.key() in (Qt.Key.Key_Return, Qt.Key.Key_Enter, Qt.Key.Key_Space) and self.focused_star is not None:
             self._rate(self.focused_star)
             return
-        # Escape closes the overview, as the title bar's X does; there is no Close button
+        # Escape closes the overview, as its × does
         super().keyPressEvent(event)

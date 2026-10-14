@@ -7,7 +7,7 @@ import calendar
 from datetime import date
 from typing import Callable
 
-from PySide6.QtCore import QPoint, QRect, QRectF, Qt
+from PySide6.QtCore import QAbstractAnimation, QPoint, QRect, QRectF, Qt, QVariantAnimation
 from PySide6.QtGui import QColor, QMouseEvent, QPainter, QPaintEvent, QPixmap
 
 from app_config import EDGE_PADDING, LINE_PADDING, MODULE_CANVAS_WIDTH, MODULE_MARGIN, SESSION_MINIMUM_SECONDS
@@ -62,6 +62,9 @@ SIDE_STRIP_GAP = 6
 SIDE_ARROW_GAP = 5
 SIDE_STRIP_RIGHT_MARGIN = MODULE_MARGIN
 
+# When today reaches the session minimum its square fills blue from left to right, over this long
+TODAY_FILL_SECONDS = 0.45
+
 # A day that can be opened: its area on the calendar, and the day
 DayBox = tuple[int, int, int, int, date]
 
@@ -96,7 +99,47 @@ class CalendarModule(ModuleBlock):
         self.drawn_with: tuple | None = None
         self.picture: QPixmap | None = None
         self.day_boxes: list[DayBox] = []
+        # Today's square filling, as it becomes a session day; made the first time it is needed
+        self.fill: QVariantAnimation | None = None
         self.set_layout(False)
+
+    def fill_today(self) -> None:
+        """Fill today's square with blue, sweeping across, as it becomes a session day. Only the month view shows it"""
+        self.refresh()
+        # Only while it can be seen: hidden in the tray or minimized there is nothing to animate
+        if self.isVisible() and self.view == "Month" and any(box[4] == date.today() for box in self.day_boxes):
+            if self.fill is None:
+                self.fill = QVariantAnimation(self)
+                self.fill.setStartValue(0.0)
+                self.fill.setEndValue(1.0)
+                self.fill.setDuration(round(TODAY_FILL_SECONDS * 1000))
+                self.fill.valueChanged.connect(self.update)
+                self.fill.finished.connect(self.update)
+            self.fill.stop()
+            self.fill.start()
+
+    def filling(self) -> bool:
+        return self.fill is not None and self.fill.state() == QAbstractAnimation.State.Running
+
+    def _paint_today_fill(self, painter: QPainter) -> None:
+        """Over the drawn picture, which already shows today blue: the grey square, the blue sweeping across it so far,
+        and the day's number on top"""
+        box = next((box for box in self.day_boxes if box[4] == date.today()), None)
+        if box is None:
+            return
+        left, top, right, bottom, day = box
+        share = self.fill.currentTime() / self.fill.duration()
+        # Eased out: quick to start, settling as it reaches the far side
+        reach = left + (right - left) * (1 - (1 - share) ** 3)
+        painter.save()
+        painter.translate(self.origin)
+        self._cell(painter, left, top, right, bottom, self.surface("calendar_cell"), CALENDAR_CELL_RADIUS)
+        painter.setClipRect(QRectF(left, top, reach - left, bottom - top))
+        self._cell(painter, left, top, right, bottom, color("calendar_blue"), CALENDAR_CELL_RADIUS)
+        painter.setClipping(False)
+        inset = LANDSCAPE_DAY_NUMBER_INSET if self.landscape else CALENDAR_DAY_NUMBER_INSET
+        draw_anchored(painter, (left + right) / 2, top + inset, "n", str(day.day), color("text"), self.fonts.small)
+        painter.restore()
 
     def side_width(self) -> int:
         """Width of the landscape strip: just enough for its widest line, the longest month name and year"""
@@ -412,6 +455,8 @@ class CalendarModule(ModuleBlock):
         self.paint_frame(painter)
         if self.picture is not None:
             self.draw_picture(painter, self.origin, self.picture)
+            if self.filling():
+                self._paint_today_fill(painter)
             # In landscape the days start at the top, their picture covering the panel where the name is
             if self.landscape:
                 self.paint_title(painter)

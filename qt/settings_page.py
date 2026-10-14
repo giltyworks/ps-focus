@@ -37,7 +37,7 @@ BUTTON_PADX = 10
 BUTTON_PADY = 3
 BUTTON_ROW_PADDING = 4
 
-OPTION_CHECKBOXES = (("tracking_paused", "Pause tracking"), ("disable_fanfare_sound", "Disable fanfare sound"))
+OPTION_CHECKBOXES = (("tracking_paused", "Pause tracking"), ("disable_fanfare_sound", "Mute fanfare sound"))
 TOGGLES = (
     ("launch_on_startup", "Start with Windows", "Launch PS Focus when you sign in to Windows"),
     ("start_minimized", "Start minimized", "Open PS Focus in the tray when launched at sign-in"),

@@ -12,7 +12,7 @@ from pathlib import Path
 
 APP_NAME = "PS Focus"
 # Raise for every published build; the installer, the executable's file properties, and the update check all use it
-APP_VERSION = "1.1.26"
+APP_VERSION = "1.1.27"
 APP_PUBLISHER = "Giltyworks"
 APP_USER_MODEL_ID = "PSFocus.PSFocus"
 LEGACY_APP_NAME = "FocusTrace"
@@ -75,14 +75,14 @@ LEVEL_ANCHORS = (
     (25, 180),
     (50, 650),
     (75, 1350),
-    (80, 1550),
-    (85, 1800),
-    (90, 2100),
-    (92, 2250),
-    (95, 2500),
-    (97, 2725),
-    (98, 2850),
-    (99, 3000),
+    (80, 1790),
+    (85, 2345),
+    (90, 3010),
+    (92, 3340),
+    (95, 3895),
+    (97, 4390),
+    (98, 4670),
+    (99, 5000),
 )
 LEVEL_CAP = LEVEL_ANCHORS[-1][0]
 LEVEL_BADGE_SIZE = 26
@@ -247,3 +247,17 @@ LEVEL_HOURS = tuple(_level_thresholds())
 def user_level(total_seconds: float) -> int:
     hours = max(0.0, total_seconds) / 3600
     return bisect.bisect_right(LEVEL_HOURS, hours)
+
+
+def level_xp_text(total_seconds: float) -> str:
+    """What the level shows on hover, as RuneScape does, with one XP for each second tracked: the XP the next level
+    starts at and how much is still to earn under the total, which shows alone once the last level is reached. A table,
+    so the numbers line up at the right"""
+    xp = int(max(0.0, total_seconds))
+    rows = [("Total XP:", xp)]
+    level = user_level(total_seconds)
+    if level < LEVEL_CAP:
+        next_xp = round(LEVEL_HOURS[level] * 3600)
+        rows += [("Next level at:", next_xp), ("Remaining XP:", max(0, next_xp - xp))]
+    cells = "".join(f"<tr><td>{label}</td><td align='right' style='padding-left: 12px'>{value:,}</td></tr>" for label, value in rows)
+    return f"<table cellspacing='0' cellpadding='0'>{cells}</table>"

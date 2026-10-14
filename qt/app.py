@@ -29,6 +29,7 @@ from app_config import (
     PROGRAMS,
     SESSION_MINIMUM_SECONDS,
     format_duration,
+    level_xp_text,
     load_settings,
     resource_path,
     user_level,
@@ -79,6 +80,8 @@ class PSFocusQt:
         self.application = application
         # The developer version, on a copy of the data with a menu of things to try; see dev_tools
         self.dev = dev
+        # Set by the developer version's level up tool, whose level-up plays the fanfare
+        self.dev_level_up_requested = False
         self.instance = instance
         self.closing = False
         self.settings = load_settings()
@@ -128,6 +131,7 @@ class PSFocusQt:
             self.window.title_bar.on_dev = self.dev_tools.open_menu
         self.header.on_settings = self._toggle_settings
         self.header.on_level = self._level_clicked
+        self.header.on_goal_reached = self.goal_reached
         self.header.on_version = self._open_update_page
         self.header.version_text = f"Version {app_config.APP_VERSION}"
         # One panel for the program in front, or the last one that was. Made without a parent, so it stays out of
@@ -690,6 +694,7 @@ class PSFocusQt:
         self.header.set_progress_reached(total_today_seconds >= SESSION_MINIMUM_SECONDS)
         level = user_level(lifetime_seconds)
         self.header.set_level(level, self.level_revealed)
+        self.header.set_level_tip(level_xp_text(lifetime_seconds) if self.level_revealed else "")
         self.update_glass()
         self._celebrate_level_up(level)
         override = self.feedback_unlock_override
@@ -787,13 +792,22 @@ class PSFocusQt:
         finally:
             self.feedback_send_in_progress = False
 
+    def goal_reached(self) -> None:
+        """Today has just reached the session minimum: the dot by the name pulses and today's square fills blue"""
+        self.header.pulse_progress_dot()
+        if self.module_ticked["calendar"]:
+            self.calendar.fill_today()
+
     def _celebrate_level_up(self, level: int) -> None:
         """Celebrate when the level has risen since the last tick; the first tick only sets the starting point"""
         previous, self.celebrated_level = self.celebrated_level, level
         if previous is not None and level > previous:
-            self.celebrate()
+            # The developer version counts the same drawing as the normal app beside it, so both rise together; two
+            # fanfares a moment apart sound broken. Its level-ups stay quiet unless asked for from its menu
+            self.celebrate(sound=not self.dev or self.dev_level_up_requested)
+            self.dev_level_up_requested = False
 
-    def celebrate(self) -> None:
+    def celebrate(self, sound: bool = True) -> None:
         if self.fireworks is not None and not self.fireworks.finished:
             # A show is already running; restarting the sound alone would knock it out of step with the bursts
             return
@@ -801,7 +815,7 @@ class PSFocusQt:
         if self.window.isVisible() and not self.window.isMinimized():
             origin = self.window.mapFromGlobal(self.header.mapToGlobal(self.header.badge_center()))
             self.fireworks = Fireworks(self.window, origin)
-        if not self.settings.get("disable_fanfare_sound"):
+        if sound and not self.settings.get("disable_fanfare_sound"):
             play_celebration_sound()
 
     def _check_for_updates(self) -> None:

@@ -243,7 +243,7 @@
 .psf-friend-list { padding: 4px 8px 6px; max-height: 210px; overflow: auto; scrollbar-width: thin; scrollbar-color: #333 transparent; }
 .psf-section { font-size: 12px; color: var(--psf-muted); margin: 6px 0 2px; }
 /* A friend's two lines snug together, as the app: the name's line 18 tall, the details' 17, 4 between friends */
-.psf-friend { display: grid; grid-template-columns: 27px 1fr; grid-template-rows: 18px 17px; align-items: center; padding: 2px 0; }
+.psf-friend { display: grid; grid-template-columns: 27px 1fr auto; grid-template-rows: 18px 17px; align-items: center; padding: 2px 0; }
 .psf-friend .psf-lv { width: 17px; height: 17px; border: 1.5px solid var(--psf-red); border-radius: 50%; font-size: 10px; display: grid; place-items: center; margin-top: 1px; }
 .psf-friend .psf-name { font-weight: 600; font-size: 14.667px; line-height: 18px; display: flex; align-items: center; gap: 5px; min-width: 0; white-space: nowrap; }
 .psf-friend .psf-name.psf-drawing { color: var(--psf-name-drawing); }
@@ -258,7 +258,11 @@
 .psf-friend .psf-zzz span:nth-child(2) { position: relative; top: -2px; }
 .psf-friend .psf-zzz span:nth-child(3) { position: relative; top: -4px; }
 .psf-friend .psf-right { text-align: right; font-size: 12px; color: var(--psf-muted); }
-.psf-friend .psf-sub { grid-column: 2; font-size: 12px; color: var(--psf-muted); }
+/* A long name gives way to the hours beside it, shortened with an ellipsis, as the app */
+.psf-friend .psf-name-text { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.psf-friend .psf-right { margin-left: 8px; }
+/* The details' line runs under the hours too, as the app */
+.psf-friend .psf-sub { grid-column: 2 / 4; font-size: 12px; color: var(--psf-muted); }
 .psf-friend .psf-sub-right { text-align: right; font-size: 12px; color: var(--psf-muted); }
 .psf-friend.psf-new { animation: psf-flash 1.4s ease-out; }
 @keyframes psf-flash { from { background: rgba(34, 197, 94, .25); } to { background: transparent; } }

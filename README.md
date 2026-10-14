@@ -47,7 +47,7 @@ The **Start with Windows** setting adds or removes PS Focus in the current user'
 
 ## Levels
 
-Lifetime tracked time across all programs sets a level from 1 to 99, shown beside **Level** in the top left. The hours each level needs are fixed in `app_config.py` (`LEVEL_ANCHORS`) and cannot be changed from the settings file. Reaching a new level plays a trumpet fanfare with fireworks over the window; with the window hidden or minimized only the sound plays, and **Disable fanfare sound** in Settings silences it.
+Lifetime tracked time across all programs sets a level from 1 to 99, shown beside **Level** in the top left. The hours each level needs are fixed in `app_config.py` (`LEVEL_ANCHORS`) and cannot be changed from the settings file. Reaching a new level plays a trumpet fanfare with fireworks over the window; with the window hidden or minimized only the sound plays, and **Mute fanfare sound** in Settings silences it.
 
 ## Stats
 

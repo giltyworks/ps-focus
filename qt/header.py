@@ -5,9 +5,9 @@ from __future__ import annotations
 
 from typing import Callable
 
-from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
-from PySide6.QtGui import QColor, QFocusEvent, QFont, QFontMetrics, QImage, QKeyEvent, QMouseEvent, QPainter, QPaintEvent, QPen
-from PySide6.QtWidgets import QLineEdit, QWidget
+from PySide6.QtCore import QAbstractAnimation, QPoint, QPointF, QRect, QRectF, Qt, QVariantAnimation
+from PySide6.QtGui import QColor, QCursor, QFocusEvent, QFont, QFontMetrics, QImage, QKeyEvent, QMouseEvent, QPainter, QPaintEvent, QPen
+from PySide6.QtWidgets import QLineEdit, QToolTip, QWidget
 
 from app_config import EDGE_PADDING, LEVEL_BADGE_SIZE, TODAY_PANEL_WIDTH
 
@@ -37,6 +37,12 @@ SETTINGS_BUTTON_LEFT = HEADER_WIDTH - HEADER_ICON_SIZE - 2
 # The rounded square of a checkbox, as Settings draws them
 CHECKBOX_BOX_SIZE = 14
 CHECKBOX_CORNER_RADIUS = 4
+# The pulse when today reaches its goal: rings spreading from the progress dot and fading, each starting a little after
+# the last, and the dot swelling briefly with them
+GOAL_PULSE_DELAYS = (0.0, 0.28)
+GOAL_PULSE_SECONDS = 0.75
+GOAL_PULSE_SPREAD = 5.0
+GOAL_PULSE_SWELL = 1.5
 MODULE_LABELS = (("graph", "Graph"), ("calendar", "Calendar"), ("stats", "Stats"), ("friends", "Friends"))
 # The module buttons: each an icon in a square, with this much between them; a shown module's icon is bright, a hidden
 # one's dim
@@ -207,10 +213,16 @@ class Header(GlassMixin, QWidget):
         self.status_color = "muted"
         self.account_font = fonts.small
         self.progress_reached = False
+        # Whether the dot has been set once: reaching the goal pulses it, but finding it already reached at start does not
+        self.progress_known = False
+        # Made the first time the goal is reached
+        self.pulse: QVariantAnimation | None = None
         self.settings_shown = False
         self.version_text, self.version_is_link = "", False
         self.version_hovered = False
         self.level_clickable = False
+        # What the level shows on hover, the XP to the next level; empty while the level is still hidden
+        self.level_tip = ""
         # Whether the mouse is over the settings button, which then shows its box
         self.settings_hovered = False
         # Whether the arrow for the friends status menu follows the account name, while friends are on, and whether
@@ -225,6 +237,8 @@ class Header(GlassMixin, QWidget):
         self.on_account_double: Callable[[], None] = lambda: None
         self.on_version: Callable[[], None] = lambda: None
         self.on_settings: Callable[[], None] = lambda: None
+        # When today reaches the session minimum while the app runs; the app pulses the dot and fills today's square
+        self.on_goal_reached: Callable[[], None] = lambda: None
         # Given where the status menu should open, in screen coordinates
         self.on_status: Callable[[QPoint], None] = lambda _point: None
         # Areas that respond to the pointer, as (left, top, right, bottom); empty while not shown
@@ -260,10 +274,41 @@ class Header(GlassMixin, QWidget):
             self.badge = render_level_badge(level, revealed, ratio)
             self.update()
 
+    def set_level_tip(self, tip: str) -> None:
+        """The XP shown on hovering the level, kept up to date while it shows, so Remaining XP counts down each second"""
+        if tip == self.level_tip:
+            return
+        showing = QToolTip.isVisible() and self.toolTip() == self.level_tip and bool(self.level_tip)
+        self.level_tip = tip
+        if showing:
+            self.setToolTip(tip)
+            QToolTip.showText(QCursor.pos(), tip, self)
+
     def set_progress_reached(self, reached: bool) -> None:
         if reached != self.progress_reached:
+            if reached and self.progress_known:
+                self.on_goal_reached()
             self.progress_reached = reached
             self.update()
+        self.progress_known = True
+
+    def pulse_progress_dot(self) -> None:
+        # Only while it can be seen: hidden in the tray or minimized there is nothing to animate
+        if not self.isVisible():
+            return
+        if self.pulse is None:
+            self.pulse = QVariantAnimation(self)
+            self.pulse.setStartValue(0.0)
+            self.pulse.setEndValue(1.0)
+            self.pulse.setDuration(round((max(GOAL_PULSE_DELAYS) + GOAL_PULSE_SECONDS) * 1000))
+            self.pulse.valueChanged.connect(self.update)
+            self.pulse.finished.connect(self.update)
+        self.pulse.stop()
+        self.pulse.start()
+
+    def pulsing(self) -> bool:
+        return self.pulse is not None and self.pulse.state() == QAbstractAnimation.State.Running
+
 
     @staticmethod
     def level_width(fonts: Fonts) -> int:
@@ -342,7 +387,23 @@ class Header(GlassMixin, QWidget):
         painter.setPen(color("calendar_blue" if reached else "border"))
         painter.setBrush(color("calendar_blue" if reached else "panel_alt"))
         # Tk's oval from (2, 6) to (16, 20), its outline running along the inside of that box
-        painter.drawEllipse(QRectF(group_left + 2.5, dot_top + 6.5, 13, 13))
+        dot = QRectF(group_left + 2.5, dot_top + 6.5, 13, 13)
+        if self.pulsing():
+            elapsed = self.pulse.currentTime() / 1000
+            swell = GOAL_PULSE_SWELL * max(0.0, 1 - abs(elapsed / GOAL_PULSE_SECONDS * 2 - 1)) if elapsed < GOAL_PULSE_SECONDS else 0.0
+            painter.drawEllipse(dot.adjusted(-swell, -swell, swell, swell))
+            painter.setBrush(Qt.BrushStyle.NoBrush)
+            for delay in GOAL_PULSE_DELAYS:
+                share = (elapsed - delay) / GOAL_PULSE_SECONDS
+                if 0 <= share <= 1:
+                    # Eased out: quick to spread, slowing as it fades
+                    spread = GOAL_PULSE_SPREAD * (1 - (1 - share) ** 3)
+                    ring = QColor(color("calendar_blue"))
+                    ring.setAlphaF(1 - share)
+                    painter.setPen(QPen(ring, 1.5))
+                    painter.drawEllipse(dot.adjusted(-spread, -spread, spread, spread))
+        else:
+            painter.drawEllipse(dot)
         painter.restore()
         if editing:
             return
@@ -426,9 +487,9 @@ class Header(GlassMixin, QWidget):
             self.mousePressEvent(event)
 
     def leaveEvent(self, _event) -> None:
+        self.setToolTip("")
         if self.settings_hovered or self.status_hovered or self.version_hovered:
             self.settings_hovered = self.status_hovered = self.version_hovered = False
-            self.setToolTip("")
             self.update()
 
     def mouseMoveEvent(self, event: QMouseEvent) -> None:
@@ -441,8 +502,10 @@ class Header(GlassMixin, QWidget):
         over_version = self.version_is_link and _inside(self.version_area, point)
         if over_version != self.version_hovered:
             self.version_hovered = over_version
-            self.setToolTip(self.version_text if over_version else "")
             self.update()
+        tip = self.version_text if over_version else self.level_tip if _inside(self.level_area, point) else ""
+        if tip != self.toolTip():
+            self.setToolTip(tip)
         hand = (
             over_status
             or _inside(self.settings_area, point)

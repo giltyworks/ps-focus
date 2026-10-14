@@ -437,7 +437,8 @@ class FriendsModule(ModuleBlock):
             top = y
             # Detailed figures appear in the dialog opened by double-clicking their name.
             two_weeks, total = float(stats.get("two_weeks", 0) or 0), float(stats.get("total", 0) or 0)
-            self.person_details[code] = f"{two_weeks:.1f} hrs past 2 weeks" + chr(10) + f"{total:.1f} hrs total"
+            # The past two weeks show on the row itself, so the details leave them out
+            self.person_details[code] = f"{total:.1f} hrs total"
             since = stats.get("since")
             if isinstance(since, str) and len(since) == 10:
                 try:
@@ -445,9 +446,12 @@ class FriendsModule(ModuleBlock):
                     self.person_details[code] += chr(10) + f"Member since {day.day} {day.strftime('%b %Y')}"
                 except ValueError:
                     pass
-            hours_left = right
+            # Their hours over the past two weeks, which the list is ranked by, at the right of their name
+            hours = f"{two_weeks:.1f} hrs past 2 weeks"
+            hours_left = right - text_width(fonts.small, hours)
             middle = y + name_line // 2
             self.items.append(("level", left + LEVEL_RING_SIZE / 2, middle, str(stats.get("level", 0))))
+            self.items.append(("anchored", right, middle, "e", hours, "muted", fonts.small))
             name_left = left + level_width
             # Beside the name, a zzz while they are away; what they are drawing in goes with today's time, below
             label = PROGRAM_SHORT_NAMES.get(active, active) if active else ""
