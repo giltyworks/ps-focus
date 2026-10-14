@@ -382,6 +382,25 @@ class Header(GlassMixin, QWidget):
         group_left = self._group_left(content_width)
         content_left = group_left + PROGRESS_DOT_SPACE
         dot_top = (height - HEADER_ICON_SIZE) // 2
+        self._paint_progress_dot(painter, group_left, dot_top)
+        if editing:
+            return
+        # Always in its own colour: a backup or upload going on in the background does not grey it
+        text_color = color(self.account_color)
+        if self.status_text:
+            # The name with its status under it, the two centred on the row together
+            name_top = (height - self._account_block_height()) // 2
+            status_top = name_top + line_height(font) - STATUS_LINE_OVERLAP
+            self._text(painter, content_left + ACCOUNT_TEXT_INSET_X, status_top, self.status_text, color(self.status_color), self.fonts.caption)
+        else:
+            name_top = (height - line_height(font)) // 2
+        self._text(painter, content_left + ACCOUNT_TEXT_INSET_X, name_top, text, text_color, font)
+        self.account_area = (content_left, 0, content_left + content_width - arrow_room, height)
+        if arrow_room:
+            self._paint_status_arrow(painter, content_left + content_width - arrow_room - 2, name_top + line_height(font) / 2)
+
+    def _paint_progress_dot(self, painter: QPainter, group_left: int, dot_top: int) -> None:
+        """The dot that fills blue once today reaches its goal, swelling and ringing while the goal pulse plays"""
         reached = self.progress_reached
         painter.save()
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
@@ -406,21 +425,6 @@ class Header(GlassMixin, QWidget):
         else:
             painter.drawEllipse(dot)
         painter.restore()
-        if editing:
-            return
-        # Always in its own colour: a backup or upload going on in the background does not grey it
-        text_color = color(self.account_color)
-        if self.status_text:
-            # The name with its status under it, the two centred on the row together
-            name_top = (height - self._account_block_height()) // 2
-            status_top = name_top + line_height(font) - STATUS_LINE_OVERLAP
-            self._text(painter, content_left + ACCOUNT_TEXT_INSET_X, status_top, self.status_text, color(self.status_color), self.fonts.caption)
-        else:
-            name_top = (height - line_height(font)) // 2
-        self._text(painter, content_left + ACCOUNT_TEXT_INSET_X, name_top, text, text_color, font)
-        self.account_area = (content_left, 0, content_left + content_width - arrow_room, height)
-        if arrow_room:
-            self._paint_status_arrow(painter, content_left + content_width - arrow_room - 2, name_top + line_height(font) / 2)
 
     def _paint_status_arrow(self, painter: QPainter, left: int, middle_y: float) -> None:
         """A small downward chevron, which opens the friends status menu; under the mouse a faint box shows behind it"""

@@ -505,6 +505,7 @@ class PSFocusQt:
         elif name == "calendar":
             self.calendar.refresh()
         elif name == "friends":
+            # Blocks are first arranged before the friends sync is made
             if hasattr(self, "friends_sync"):
                 self.friends_sync.refresh_view()
         else:
@@ -538,6 +539,7 @@ class PSFocusQt:
         temporary = app_config.SETTINGS_PATH.with_suffix(".tmp")
         temporary.write_text(json.dumps(self.settings, indent=2), encoding="utf-8")
         temporary.replace(app_config.SETTINGS_PATH)
+        # Settings are first saved while the window is built, before Google sync exists
         if upload and hasattr(self, "google_sync"):
             self.google_sync.settings_changed()
 
@@ -668,21 +670,20 @@ class PSFocusQt:
         today = date.today()
         total_today_seconds = self.store.total_for_day(today)
         lifetime_seconds = self.store.total_seconds()
-        panel = self.today
-        name = panel.application
-        today_seconds = self.store.total_for_day(today, name)
-        two_weeks_seconds = self.store.total_for_range(today - timedelta(days=13), today, name)
-        total_seconds = self.store.total_seconds(name)
-        last_session = self.store.last_recorded_day(name)
-        panel.set_text("total", format_duration(today_seconds))
-        panel.set_text("two_week", f"{two_weeks_seconds / 3600:.1f} hrs past 2 weeks")
-        panel.set_text("sessions", f"{self.store.lifetime_sessions(application=name)} SESSIONS")
-        panel.set_text("record_hours", f"{total_seconds / 3600:.1f} hrs on record")
+        application = self.today.application
+        today_seconds = self.store.total_for_day(today, application)
+        two_weeks_seconds = self.store.total_for_range(today - timedelta(days=13), today, application)
+        total_seconds = self.store.total_seconds(application)
+        last_session = self.store.last_recorded_day(application)
+        self.today.set_text("total", format_duration(today_seconds))
+        self.today.set_text("two_week", f"{two_weeks_seconds / 3600:.1f} hrs past 2 weeks")
+        self.today.set_text("sessions", f"{self.store.lifetime_sessions(application=application)} SESSIONS")
+        self.today.set_text("record_hours", f"{total_seconds / 3600:.1f} hrs on record")
         last_session_text = last_session.strftime("%d %b").lstrip("0") if last_session else "--"
-        panel.set_text("last_session", f"last session on {last_session_text}")
-        app_active = self.active and foreground_app == name
-        panel.set_text("name", name, "active_green" if app_active else "name_online" if name in open_programs else "muted")
-        panel.set_text(
+        self.today.set_text("last_session", f"last session on {last_session_text}")
+        app_active = self.active and foreground_app == application
+        self.today.set_text("name", application, "active_green" if app_active else "name_online" if application in open_programs else "muted")
+        self.today.set_text(
             "status",
             "PAUSED" if paused else "",
             "muted",

@@ -15,6 +15,7 @@ import uuid
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
+# The one setting shared with the rest of the app, so what counts as a session is defined in a single place
 from app_config import SESSION_MINIMUM_SECONDS
 
 # The snapshots each backup folder keeps: the newest few, for a damaged history file, and the newest of each

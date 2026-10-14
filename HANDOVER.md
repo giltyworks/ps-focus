@@ -15,7 +15,7 @@ Ran the updated code quality review (default scope: 37 files changed since v1.1.
 - test_site.py checks the website's Download link matches `LATEST_VERSION` in Code.gs; CLAUDE.md's release line now mentions the button.
 - tracker.py: an already-replayed pending file that can't be deleted is now left behind harmlessly (its receipt skips it), so a later save keeps its new time.
 - qt/header.py `set_progress_reached` records the new state before running the goal callback; qt/friend_details.py has `__future__` and type hints. Each has a test. 304 tests and the credential check pass.
-- Left alone: the optional items (fingerprint helper, `hasattr` guards at qt/app.py:508 and 541, pulse helper, tick aliases, comments), and the demo `?v=` number. No build or reinstall: no visible change.
+- Then the optional items (not committed yet): `GoogleSync._fingerprint` replaces the two copies of the upload fingerprint; the progress dot painting moved into `Header._paint_progress_dot` (pure move); the tick's `panel`/`name` aliases are gone; a comment on why tracker.py imports app_config. The `hasattr` guards at qt/app.py are not leftovers (settings are saved and blocks refreshed while the window is built, before Google/friends sync exist), so they stay with explaining comments. The demo's "generated" comment already existed. Not done: `ActivityStore.change_count()` (no gain), and the demo `?v=` number (bump when the site is next published).
 
 ## Pre-commit hooks: 14 October 2026
 

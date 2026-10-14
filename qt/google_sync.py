@@ -193,6 +193,11 @@ class GoogleSync:
             return
         self._start("download", self.client.download_activity_backup)
 
+    def _fingerprint(self, content: bytes) -> tuple[str, ActivityStore, int]:
+        """What an upload of this file holds, set beside the store as it is now, see uploaded"""
+        store = self.app.store
+        return hashlib.sha256(content).hexdigest(), store, store.connection.total_changes
+
     def _apply_download(self, content: bytes) -> None:
         app = self.app
         if ActivityStore.database_has_user_data(app_config.DATABASE_PATH):
@@ -256,8 +261,7 @@ class GoogleSync:
                 elif kind == "sync":
                     self.app._backup_activity_now()
                 elif kind == "download":
-                    store = self.app.store
-                    if value is not None and self.uploaded == (hashlib.sha256(value).hexdigest(), store, store.connection.total_changes):
+                    if value is not None and self.uploaded == self._fingerprint(value):
                         self.app.settings_page.set_backup_status("Activity backup saved to Google Drive", "active_green")
                     else:
                         try:
@@ -269,7 +273,7 @@ class GoogleSync:
                         except Exception as error:
                             self.app.settings_page.set_backup_status(f"Could not merge Google Drive backup: {error}", "red")
                         else:
-                            self.uploading = (hashlib.sha256(content).hexdigest(), self.app.store, self.app.store.connection.total_changes)
+                            self.uploading = self._fingerprint(content)
                             self._start("upload", lambda payload=content: self.client.upload_activity_backup(payload))
                 elif kind == "upload":
                     self.uploaded = self.uploading
