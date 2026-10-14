@@ -18,7 +18,8 @@ github.com/giltyworks/ps-focus. README.md describes all of this in detail.
 - Install: `py -m pip install -r requirements.txt`
 - Run: `py -m qt` (works on a fresh copy of the data in `%APPDATA%\PS Focus Qt Preview`)
   - `--real-data` uses the real data folder; `--dev` opens the developer version; `--uninstall` opens the uninstall window
-- Test: `py -m unittest discover -v`
+- Test: `py -m unittest discover`
+  - If tests fail, rerun only the failing tests with -v for detail
 - Build: `py tools/build_release.py` (runs the tests, PyInstaller, credential checks, smoke test, installer and checksums; output goes to `dist/installer/`)
 - Credential scan (also runs in CI on every push): `py tools/check_credentials.py`
 - Friends server locally: `cd friends_server; npm run dev`, then `py test_server.py`
@@ -42,7 +43,7 @@ github.com/giltyworks/ps-focus. README.md describes all of this in detail.
 - Don't change layout, colours or visual design without asking me first
 
 ## Definition of done
-- [ ] `py -m unittest discover -v` passes, with new behaviour covered by a test
+- [ ] `py -m unittest discover` passes, with new behaviour covered by a test
 - [ ] `py tools/check_credentials.py` passes
 - [ ] README.md is updated wherever the behaviour it describes has changed
 - [ ] For a decent-sized change: `py tools/build_release.py` succeeds, the installer is reinstalled silently, and the installed app relaunches and works
