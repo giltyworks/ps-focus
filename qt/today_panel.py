@@ -13,8 +13,9 @@ from app_config import TODAY_PANEL_WIDTH, PROGRAMS
 from .module import OUTLINE_MIN_ALPHA, DOCK_CONTROL_SIZE, paint_dock_icon, paint_title_strip, paint_dropdown_arrow, DROPDOWN_BUTTON_SIZE
 from .theme import Fonts, ascent, color, draw_text, halo_strength, line_height
 
-# The same measurements as the Tk panel, see main.py: space inside the panel above its first row and below its
-# last, and at each side of its text; above and below the big figure's digits; between the last two rows
+# The same measurements as the old Tk panel (main.py, removed in 3e15ae5): space inside the panel above its first
+# row and below its last, and at each side of its text; above and below the big figure's digits; between the last
+# two rows
 TODAY_PANEL_PADDING = 9
 TODAY_PANEL_SIDE_PADDING = 8
 TODAY_FIGURE_SPACE = (12, 15)

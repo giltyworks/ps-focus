@@ -2,10 +2,13 @@
 
 Updated 14 October 2026. Read this before resuming work.
 
+## today_panel.py comment: 14 October 2026
+
+The owner asked to fix the stale main.py reference: the comment above TODAY_PANEL_PADDING in qt/today_panel.py now says the Tk panel's main.py was removed in 3e15ae5. Comment only, no behaviour change.
+
 ## Known issues
 
 - PyInstaller is missing from requirements.txt. Only the Build installer workflow installs it (`pyinstaller==6.22.3`, `pyinstaller-hooks-contrib==2026.7`), so `py tools/build_release.py` fails on a fresh setup made from requirements.txt alone. Not fixed yet, by the owner's choice.
-- A comment in qt/today_panel.py ("The same measurements as the Tk panel, see main.py") points to main.py, which no longer exists. Not fixed yet, by the owner's choice.
 
 ## Code quality review and fixes: 14 October 2026
 
@@ -22,7 +25,7 @@ Fixed (each with a test):
 - Today's calendar fill is no longer drawn over the year view when the view is switched mid-animation.
 - Dev version: the level-up fanfare request is always cleared after the menu's level-up.
 - Tidying with no behaviour change: comments pointing at removed Tk files (qt/__init__.py now says the Tk sources are in the commit before 3e15ae5; make_celebration.py points at qt/celebration.py; uninstall.py, stat_lines.py, app_config.py, the update-check comment and the credentials error message corrected); dead friend-list code (dot, PRESENCE_COLORS, `_hide_person_tip`), unused `backup_error`, `MIN_WINDOW_HEIGHT` and arrow parameters removed; `self.panels` replaced by `self.today`; `_read_activity_state` and `_pending_rows` helpers; header cursor uses `interactive_at`; always-true `hasattr` guards removed in `_backup_activity_now`, `GoogleSync.poll` and docking; `FriendsSync.tick` checks `enabled()` once.
-- Kept on purpose: the second `_send_pending_feedback()` at start-up (it still runs if the start-up backup fails) and the qt/today_panel.py main.py comment (owner's earlier choice).
+- Kept on purpose: the second `_send_pending_feedback()` at start-up (it still runs if the start-up backup fails) and, at the time, the qt/today_panel.py main.py comment (since fixed, see above).
 
 301 tests and the credential check passed. 1.1.27 built (installer SHA-256 `1d8b24c1cc619d0ee714dd1bcebe837f4e4bf2598be270a1d4de664bba52f051`), installed silently (exit 0) and relaunched, normal and `--dev`. README updated (Drive upload skip, sync_site after level changes).
 
