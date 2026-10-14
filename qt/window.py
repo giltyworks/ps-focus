@@ -405,6 +405,10 @@ class MainWindow(QWidget):
                 and self.width() != self.requested_width and self.on_resized_by_user is not None):
             self.requested_width = self.width()
             self.on_resized_by_user(self.width())
+        # The window is see-through, so each new size shows what is behind it until it is painted: painting now, before
+        # Windows goes on to show the size, rather than at the next idle moment, keeps that from flashing as it is dragged
+        if self.user_resizing and self.isVisible():
+            self.repaint()
 
     def moveEvent(self, event: QMoveEvent) -> None:
         super().moveEvent(event)

@@ -585,6 +585,17 @@ class QtDockingTests(unittest.TestCase):
         window.resize(400, window.height())
         self.assertEqual(self.app.landscape_width, 400)
 
+    def test_dragging_the_window_edge_paints_each_size_at_once(self):
+        window = self.app.window
+        window.show()
+        self.application.processEvents()
+        with patch.object(type(window), "repaint") as repaint:
+            window.resize(window.width(), window.height() - 1)
+            repaint.assert_not_called()
+            window.user_resizing = True
+            window.resize(window.width(), window.height() - 1)
+            repaint.assert_called()
+
     def test_floating_panels_turn_to_glass_away_from_the_mouse(self):
         from qt.docking import GLASS_MIN_ALPHA, glass_alpha
 

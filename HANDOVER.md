@@ -279,3 +279,7 @@ No code or website changes were published. A future public release should follow
 ### 14 October 2026: "Best day" request
 
 The owner asked for a "Best day" line in Stats showing the day with the most focus time. It already exists as "Longest session" (`stat_lines.py`, from `longest_session`), and the existing "Best day" row is the best weekday on average. The owner chose to change nothing, so no code changed. Next: nothing. Open question: none.
+
+### 14 October 2026: resize flicker attempt
+
+The owner sees the main window flash, showing what is behind it, for a split second when dragging the bottom edge in portrait (landscape fine so far, full opacity). The window is always `WA_TranslucentBackground`. Attempt: `MainWindow.resizeEvent` in qt/window.py now calls `repaint()` while the user drags the edge (`user_resizing`), with a test that it is called. It is a hypothesis: not built, installed or seen by the owner, and an offscreen test cannot show the flicker is gone. Next: build, install, and the owner drags the bottom edge in portrait and checks landscape for stutter; if it still flashes or stutters, gate the repaint to portrait or look at the WM_NCCALCSIZE handling in `nativeEvent`. Open question: publish 1.1.27 now or hold until the flicker is checked; it still needs release-notes/1.1.27.md (say update every PC together), `LATEST_VERSION` in Code.gs and the Download button.
