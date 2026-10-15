@@ -1,6 +1,15 @@
 # PS Focus handover
 
-Updated 14 October 2026. Read this before resuming work.
+Updated 15 October 2026. Read this before resuming work.
+
+## Parked: 15 October 2026
+
+Everything since v1.1.26 is committed and pushed but unreleased: the goal pulse, level XP and popups with harder top levels; the multi-PC merge change (each PC's time kept apart); the window-edge resize fix; the review fixes. The website demo already shows these changes.
+
+Risks to check when resuming, before releasing:
+- Test the multi-PC merge on two real PCs.
+- Check how existing users' levels change under the new level rules.
+- Run /codequalityreview on the release diff.
 
 ## Code quality review since v1.1.26: 14 October 2026 (on hold)
 
