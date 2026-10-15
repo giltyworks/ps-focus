@@ -295,3 +295,9 @@ The owner sees the main window flash, showing what is behind it, for a split sec
 - `test_ui_screenshots.py` runs the tool as a separate process, checks all 7 pictures in both folders plus the comparisons, and that the real data folder's files are unchanged.
 - `tools/site_screenshots.py` was run after the refactor into a temporary folder and still makes a normal landscape picture.
 - Next: use `before`/`after` around visual changes and look at `screenshots/compare/`. Open questions: none.
+
+### 15 October 2026: screenshot tool `--only` option
+
+- `py tools/ui_screenshots.py before|after --only today,stats` draws just those pictures. Pictures and comparisons not named are left as they are; a run without `--only` still clears the folders first. Unknown names are refused with the list of valid ones. CLAUDE.md now tells Claude to use `--only` and never capture everything unless asked. No visual change to the app.
+- Checked with `py -m unittest discover` (311 OK) and the credential scan. The reviewer returned PASS. Its advisories, not acted on yet: no test for `--only` itself (the existing `test_ui_screenshots.py` covers only full runs), and the full-run check compares names in order, so listing all seven in another order counts as a partial run.
+- Next: optionally add a test for `--only`. Open questions: none.

@@ -6,6 +6,8 @@ look can be seen before and after without opening the app
                                           picture beside its "before" one
     --out FOLDER   keep the pictures somewhere else (the folder holding before/, after/ and compare/)
     --scale 1.5    draw as a scaled Windows display would; 1 by default
+    --only today,stats   draw only these pictures and leave the other pictures in the folder as they are; every picture
+                         by default, which clears the folder first. Names are those in PICTURE_NAMES
 
 The app runs against a throwaway data folder with the same sample history as the website pictures
 (tools/sample_data.py), never the real data, and the script stops if the data folder is not that throwaway one.
@@ -42,11 +44,20 @@ COMPARE_TEXT = "#f0f0f0"
 SETTLE_SECONDS = 0.4
 
 
+def read_names(text: str) -> tuple[str, ...]:
+    names = tuple(part.strip() for part in text.split(",") if part.strip())
+    unknown = [name for name in names if name not in PICTURE_NAMES]
+    if not names or unknown:
+        raise argparse.ArgumentTypeError(f"unknown picture {', '.join(unknown) or text!r}; choose from {', '.join(PICTURE_NAMES)}")
+    return names
+
+
 def read_arguments(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("mode", choices=("before", "after"))
     parser.add_argument("--out", type=Path, default=ROOT / "screenshots")
     parser.add_argument("--scale", type=float, default=1.0)
+    parser.add_argument("--only", type=read_names, default=None)
     return parser.parse_args(argv)
 
 
@@ -123,10 +134,14 @@ def main(argv: list[str]) -> None:
     app.window.show()
 
     folder = arguments.out / arguments.mode
-    shutil.rmtree(folder, ignore_errors=True)
-    folder.mkdir(parents=True)
+    # Pictures that weren't asked for are kept, so separate runs can each cover a different block
+    if arguments.only is None:
+        shutil.rmtree(folder, ignore_errors=True)
+    folder.mkdir(parents=True, exist_ok=True)
 
     def save(name: str, widget) -> None:
+        if arguments.only is not None and name not in arguments.only:
+            return
         image = widget.grab().toImage()
         image.save(str(folder / f"{name}.png"))
         print(f"{name}.png: {image.width()}x{image.height()}")
@@ -142,7 +157,7 @@ def main(argv: list[str]) -> None:
     save("main-landscape", app.window)
 
     if arguments.mode == "after":
-        write_comparisons(arguments.out, QImage, QPainter, QColor)
+        write_comparisons(arguments.out, arguments.only or PICTURE_NAMES, QImage, QPainter, QColor)
 
     app.store.close()
     shutil.rmtree(data, ignore_errors=True)
@@ -150,12 +165,14 @@ def main(argv: list[str]) -> None:
     os._exit(0)
 
 
-def write_comparisons(out: Path, QImage, QPainter, QColor) -> None:
-    """Each picture in after/ that also exists in before/, drawn side by side with a label over each"""
+def write_comparisons(out: Path, names: tuple[str, ...], QImage, QPainter, QColor) -> None:
+    """Each named picture in after/ that also exists in before/, drawn side by side with a label over each"""
     compare = out / "compare"
-    shutil.rmtree(compare, ignore_errors=True)
-    compare.mkdir(parents=True)
-    for name in PICTURE_NAMES:
+    # A run limited to some pictures leaves the other comparisons alone, as it does the other pictures
+    if names == PICTURE_NAMES:
+        shutil.rmtree(compare, ignore_errors=True)
+    compare.mkdir(parents=True, exist_ok=True)
+    for name in names:
         before = QImage(str(out / "before" / f"{name}.png"))
         after = QImage(str(out / "after" / f"{name}.png"))
         if before.isNull() or after.isNull():

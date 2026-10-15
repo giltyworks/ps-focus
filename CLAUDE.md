@@ -21,7 +21,7 @@ github.com/giltyworks/ps-focus. README.md describes all of this in detail.
 - Test: `py -m unittest discover`
   - If tests fail, rerun only the failing tests with -v for detail
 - Build: `py tools/build_release.py` (runs the tests, PyInstaller, credential checks, smoke test, installer and checksums; output goes to `dist/installer/`)
-- See the UI without opening the app: `py tools/ui_screenshots.py before`, make the change, then `py tools/ui_screenshots.py after` (PNGs in the git-ignored `screenshots/`: each block, both window layouts, and side-by-side `compare/`; made-up data only, `--scale 1.5` for a scaled display)
+- See the UI without opening the app: `py tools/ui_screenshots.py before`, make the change, then `py tools/ui_screenshots.py after`; add `--only today,stats` to capture just those blocks (names: today, chart, calendar, stats, friends, main-portrait, main-landscape) and never capture all unless asked (PNGs in the git-ignored `screenshots/`: each block, both window layouts, and side-by-side `compare/`; made-up data only, `--scale 1.5` for a scaled display)
 - Credential scan (also runs in CI on every push): `py tools/check_credentials.py`
 - Friends server locally: `cd friends_server; npm run dev`, then `py test_server.py`
 - After editing PRIVACY.md or TERMS.md: `py tools/sync_site.py`
