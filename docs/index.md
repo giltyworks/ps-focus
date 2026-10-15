@@ -11,13 +11,21 @@ body_class: home
 <p class="what">Automatically tracks your time in Photoshop, Krita, Clip Studio Paint, and PhotoCraft.</p>
 <p class="what-sub">Free for Windows. Your hours become charts, a calendar, and a level.</p>
 
-<a class="button" id="download" href="https://github.com/giltyworks/ps-focus/releases/download/v1.1.26/PS-Focus-Setup-1.1.26.exe">Download for Windows</a> <a class="try-link" href="#try">or try it right here</a>
-<script>/* A PC downloads the installer and opens the release page beside it to read meanwhile; a phone can't run
-   the installer, so it gets the release page alone */
+<a class="button" id="download" href="https://github.com/giltyworks/ps-focus/releases/latest">Download for Windows</a> <a class="try-link" href="#try">or try it right here</a>
+<script>/* The button starts as the release page, which is also where a phone stays since it can't run the installer.
+   A PC asks GitHub for the newest release and points the button at its installer, then opens the release page
+   beside the download to read meanwhile. If GitHub can't be reached the button stays on the release page */
 (function () {
-  var button = document.getElementById("download"), release = "https://github.com/giltyworks/ps-focus/releases/latest";
-  if (matchMedia("(max-width: 760px), (pointer: coarse)").matches) button.href = release;
-  else button.addEventListener("click", function () { window.open(release, "_blank", "noopener"); });
+  var button = document.getElementById("download"), release = button.href, direct = false;
+  if (matchMedia("(max-width: 760px), (pointer: coarse)").matches) return;
+  button.addEventListener("click", function () { if (direct) window.open(release, "_blank", "noopener"); });
+  fetch("https://api.github.com/repos/giltyworks/ps-focus/releases/latest")
+    .then(function (response) { return response.ok ? response.json() : Promise.reject(); })
+    .then(function (data) {
+      var installer = (data.assets || []).find(function (asset) { return /^PS-Focus-Setup-[0-9.]+\.exe$/.test(asset.name); });
+      if (installer) { button.href = installer.browser_download_url; direct = true; }
+    })
+    .catch(function () {});
 })();</script>
 
 </div>

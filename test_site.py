@@ -43,16 +43,21 @@ class SitePageTests(unittest.TestCase):
         replaced = demo_with_levels("  let a = 1;\n  const LEVEL_HOURS = [1, 2];\n  let b = 2;\n")
         self.assertEqual(replaced, f"  let a = 1;\n  const LEVEL_HOURS = {demo_level_hours()};\n  let b = 2;\n")
 
-    def test_download_button_matches_the_version_the_update_check_announces(self):
+    def test_download_button_finds_the_latest_installer_by_itself(self):
         page = (ROOT / "docs" / "index.md").read_text(encoding="utf-8")
-        script = (ROOT / "feedback_endpoint" / "Code.gs").read_text(encoding="utf-8")
-        announced = re.search(r"const LATEST_VERSION = '([^']+)'", script)
         link = re.search(r'id="download" href="([^"]+)"', page)
-        self.assertIsNotNone(announced, "LATEST_VERSION is no longer written as const LATEST_VERSION = '...' in Code.gs")
         self.assertIsNotNone(link, 'The Download button in docs/index.md no longer has id="download" before its href')
-        # Fails when a release is announced but the website still hands out the older installer
-        version = announced.group(1)
-        self.assertTrue(link.group(1).endswith(f"/v{version}/PS-Focus-Setup-{version}.exe"), link.group(1))
+        # The button must not name a version, so a release never leaves the website behind
+        self.assertEqual(link.group(1), "https://github.com/giltyworks/ps-focus/releases/latest")
+        self.assertIn("https://api.github.com/repos/giltyworks/ps-focus/releases/latest", page)
+        # The script picks the installer by file name, so the name the build produces must still fit
+        pattern = re.search(r"test\(asset\.name\)", page) and re.search(r"return (/\^PS-Focus-Setup-.*?\$/)\.test", page)
+        self.assertIsNotNone(pattern, "The Download button's file name check is missing from docs/index.md")
+        installer = (ROOT / "installer" / "PS Focus.iss").read_text(encoding="utf-8")
+        self.assertIn("OutputBaseFilename=PS-Focus-Setup-{#AppVersion}", installer)
+        from app_config import APP_VERSION
+
+        self.assertIsNotNone(re.fullmatch(pattern.group(1)[2:-2], f"PS-Focus-Setup-{APP_VERSION}.exe"))
 
 
 if __name__ == "__main__":
