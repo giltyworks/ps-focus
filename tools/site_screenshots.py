@@ -7,15 +7,14 @@ pictures, not even in the rounded corners.
 Run as `py tools/site_screenshots.py [folder]` (the website's assets by default), then commit and push the site.
 """
 import os
-import random
 import sys
 import tempfile
 import time
-from datetime import date, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "tools"))
 out = Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT / "docs" / "assets"
 out.mkdir(parents=True, exist_ok=True)
 data = Path(tempfile.mkdtemp(prefix="psfocus-site-"))
@@ -33,6 +32,7 @@ from PySide6.QtWidgets import QApplication, QSystemTrayIcon, QWidget  # noqa: E4
 
 import qt.app as qt_app  # noqa: E402
 from qt.app import PSFocusQt  # noqa: E402
+from sample_data import fill_sample_history  # noqa: E402
 
 # No tray icon, update check, celebration or tip; Photoshop in front the whole time
 PSFocusQt._start_tray_icon = lambda self: setattr(self, "tray_icon", QSystemTrayIcon())
@@ -51,37 +51,7 @@ app._save_settings = lambda upload=True: None
 app.tick_timer.stop()
 app.focus_timer.stop()
 
-# Ten weeks of plausible drawing sessions: most weekdays, some weekends, an hour or three at a time
-rng = random.Random(11)
-today = date.today()
-store = app.store
-with store.connection:
-    for days_ago in range(1, 71):
-        day = today - timedelta(days=days_ago)
-        if rng.random() < (0.45 if day.weekday() >= 5 else 0.2):
-            continue
-        start_hour = rng.choice((9, 10, 13, 14, 19, 20))
-        minutes = rng.choice((35, 50, 75, 90, 110, 140, 170, 205))
-        hour, remaining = start_hour, minutes * 60
-        while remaining > 0 and hour < 24:
-            seconds = min(remaining, rng.randint(2400, 3600))
-            store.connection.execute(
-                "INSERT OR REPLACE INTO activity (day, slot, seconds, application) VALUES (?, ?, ?, 'Photoshop')", (day.isoformat(), hour, seconds)
-            )
-            remaining -= seconds
-            hour += 1
-        store.connection.execute(
-            "INSERT OR IGNORE INTO session_starts (day, application, started_at) VALUES (?, 'Photoshop', ?)",
-            (day.isoformat(), f"{start_hour:02d}:{rng.choice((5, 10, 20, 30, 40)):02d}"),
-        )
-        if rng.random() < 0.4:
-            store.connection.execute("INSERT OR REPLACE INTO productivity_ratings (day, rating) VALUES (?, ?)", (day.isoformat(), rng.randint(5, 9)))
-    # Today so far: a session in progress
-    for hour, seconds in ((9, 2900), (10, 3400), (11, 1750)):
-        store.connection.execute(
-            "INSERT OR REPLACE INTO activity (day, slot, seconds, application) VALUES (?, ?, ?, 'Photoshop')", (today.isoformat(), hour, seconds)
-        )
-    store.connection.execute("INSERT OR IGNORE INTO session_starts (day, application, started_at) VALUES (?, 'Photoshop', '09:10')", (today.isoformat(),))
+fill_sample_history(app.store)
 
 
 def settle(seconds=0.6):

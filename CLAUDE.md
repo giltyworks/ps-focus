@@ -21,6 +21,7 @@ github.com/giltyworks/ps-focus. README.md describes all of this in detail.
 - Test: `py -m unittest discover`
   - If tests fail, rerun only the failing tests with -v for detail
 - Build: `py tools/build_release.py` (runs the tests, PyInstaller, credential checks, smoke test, installer and checksums; output goes to `dist/installer/`)
+- See the UI without opening the app: `py tools/ui_screenshots.py before`, make the change, then `py tools/ui_screenshots.py after` (PNGs in the git-ignored `screenshots/`: each block, both window layouts, and side-by-side `compare/`; made-up data only, `--scale 1.5` for a scaled display)
 - Credential scan (also runs in CI on every push): `py tools/check_credentials.py`
 - Friends server locally: `cd friends_server; npm run dev`, then `py test_server.py`
 - After editing PRIVACY.md or TERMS.md: `py tools/sync_site.py`
@@ -49,5 +50,5 @@ github.com/giltyworks/ps-focus. README.md describes all of this in detail.
 - [ ] For a decent-sized change: `py tools/build_release.py` succeeds, the installer is reinstalled silently, and the installed app relaunches and works
 - [ ] Update `docs/assets/demo/` when a change affects UI that the demo mirrors
 - [ ] For any visible UI change, ask me to check it in the running app before calling it done
-- [ ] For a release: raise `APP_VERSION`, add `release-notes/<version>.md`, and set `LATEST_VERSION`/`DOWNLOAD_URL` in `Code.gs`, and point the Download button in `docs/index.md` at the new installer (`test_site.py` checks it matches `LATEST_VERSION`)
+- [ ] For a release: raise `APP_VERSION`, add `release-notes/<version>.md`, and set `LATEST_VERSION`/`DOWNLOAD_URL` in `Code.gs` (the website's Download button finds the newest installer by itself; `test_site.py` checks its file-name pattern still fits the build's installer name)
 - [ ] HANDOVER.md is updated for the session

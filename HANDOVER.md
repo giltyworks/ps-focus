@@ -10,6 +10,10 @@ Ran the updated code quality review (default scope: 37 files changed since v1.1.
 - Optional: one fingerprint helper and `ActivityStore.change_count()` for the Drive upload skip in google_sync.py; the dev level-up flag is cleared in two places; leftover `hasattr` guards at qt/app.py:508 and 541; header pulse drawing into a helper; leftover `panel`/`name` aliases in the tick; a "generated" comment above `LEVEL_HOURS` in demo.js; a comment that tracker.py now imports app_config.
 - Performance reviewer found nothing.
 
+### Download button now finds the latest installer by itself: 15 October 2026 (not committed, not pushed)
+
+- docs/index.md: the button's written link is the GitHub `releases/latest` page; on a PC a small script asks GitHub's API for the newest release and points the button at its `PS-Focus-Setup-<version>.exe`, then opens the release page beside the download as before. Phones, no JavaScript or an API failure keep the release-page link. No visual change. Replaces the manual "point the button at the new installer" release step (CLAUDE.md updated); test_site.py now checks the fallback link, the API address, and that the file-name pattern fits the installer name the build produces. The website only changes once docs/ is pushed.
+
 ### Fixed from that list: 14 October 2026 (not committed)
 
 - test_site.py checks the website's Download link matches `LATEST_VERSION` in Code.gs; CLAUDE.md's release line now mentions the button.
@@ -283,3 +287,11 @@ The owner asked for a "Best day" line in Stats showing the day with the most foc
 ### 14 October 2026: resize flicker attempt
 
 The owner sees the main window flash, showing what is behind it, for a split second when dragging the bottom edge in portrait (landscape fine so far, full opacity). The window is always `WA_TranslucentBackground`. Attempt: `MainWindow.resizeEvent` in qt/window.py now calls `repaint()` while the user drags the edge (`user_resizing`), with a test that it is called. It is a hypothesis: not built, installed or seen by the owner, and an offscreen test cannot show the flicker is gone. Next: build, install, and the owner drags the bottom edge in portrait and checks landscape for stutter; if it still flashes or stutters, gate the repaint to portrait or look at the WM_NCCALCSIZE handling in `nativeEvent`. Open question: publish 1.1.27 now or hold until the flicker is checked; it still needs release-notes/1.1.27.md (say update every PC together), `LATEST_VERSION` in Code.gs and the Download button.
+
+### 15 October 2026: offscreen screenshot tool
+
+- `tools/ui_screenshots.py before|after` draws Today, chart, calendar, Stats, Friends and the main window (portrait and landscape) offscreen into the git-ignored `screenshots/` (`before/`, `after/`, and `compare/` side by side). It runs the whole app on a throwaway data folder with the sample history from the new `tools/sample_data.py` (moved out of `tools/site_screenshots.py`, which now uses it), and refuses to run if any data path is outside that folder. `--scale` and `--out` options. No visual change to the app.
+- Offscreen Qt has no fonts of its own (all text came out as empty boxes), so the tool sets `QT_QPA_FONTDIR` to Windows' Fonts folder. Differences from the real app are listed in the script's docstring: no Windows frame/shadow/rounded corners, no see-through panels, slightly different text smoothing, 100% scale unless `--scale`, still frame, made-up data.
+- `test_ui_screenshots.py` runs the tool as a separate process, checks all 7 pictures in both folders plus the comparisons, and that the real data folder's files are unchanged.
+- `tools/site_screenshots.py` was run after the refactor into a temporary folder and still makes a normal landscape picture.
+- Next: use `before`/`after` around visual changes and look at `screenshots/compare/`. Open questions: none.
