@@ -6,6 +6,7 @@ import hashlib
 import queue
 import threading
 from copy import deepcopy
+from typing import NamedTuple
 
 import app_config
 from tracker import ActivityStore
@@ -13,6 +14,14 @@ from tracker import ActivityStore
 from google_drive import GoogleAccountAccessRequired
 
 from .header import NAME_MAX_LENGTH
+
+
+class UploadFingerprint(NamedTuple):
+    """What an upload of a backup file holds, set beside the store as it was when the upload was made"""
+
+    digest: str
+    store: ActivityStore
+    changes: int
 
 
 class GoogleSync:
@@ -27,8 +36,8 @@ class GoogleSync:
         self.pending_backup = False
         # What the last upload held: a fingerprint of the file, and the store and its change count when it was made.
         # While Drive still holds that file and nothing has been recorded since, there is nothing to merge or upload
-        self.uploaded: tuple[str, ActivityStore, int] | None = None
-        self.uploading: tuple[str, ActivityStore, int] | None = None
+        self.uploaded: UploadFingerprint | None = None
+        self.uploading: UploadFingerprint | None = None
         page = app.settings_page
         page.connect_button.command = self.connect
         page.reconnect_button.command = self.connect
@@ -193,10 +202,10 @@ class GoogleSync:
             return
         self._start("download", self.client.download_activity_backup)
 
-    def _fingerprint(self, content: bytes) -> tuple[str, ActivityStore, int]:
+    def _fingerprint(self, content: bytes) -> UploadFingerprint:
         """What an upload of this file holds, set beside the store as it is now, see uploaded"""
         store = self.app.store
-        return hashlib.sha256(content).hexdigest(), store, store.connection.total_changes
+        return UploadFingerprint(hashlib.sha256(content).hexdigest(), store, store.connection.total_changes)
 
     def _apply_download(self, content: bytes) -> None:
         app = self.app

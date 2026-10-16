@@ -406,7 +406,7 @@ class Header(GlassMixin, QWidget):
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(color("calendar_blue" if reached else "border"))
         painter.setBrush(color("calendar_blue" if reached else "panel_alt"))
-        # Tk's oval from (2, 6) to (16, 20), its outline running along the inside of that box
+        # An oval from (2, 6) to (16, 20), its outline running along the inside of that box
         dot = QRectF(group_left + 2.5, dot_top + 6.5, 13, 13)
         if self.pulsing():
             elapsed = self.pulse.currentTime() / 1000

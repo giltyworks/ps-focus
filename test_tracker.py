@@ -496,7 +496,11 @@ class ActivityStoreTests(unittest.TestCase):
         migrated = ActivityStore(old_path)
         try:
             self.assertEqual(migrated.total_for_day(date(2026, 9, 30), "Krita"), 500)
+            # The same hour is held both as shared time from before and as this PC's own, and the larger counts, as the
+            # shared time may already include other PCs' own; the next hour adds up as usual
             migrated.record_active_second(datetime(2026, 9, 30, 9, 30), "Krita")
+            self.assertEqual(migrated.total_for_day(date(2026, 9, 30), "Krita"), 500)
+            migrated.record_active_second(datetime(2026, 9, 30, 10, 0), "Krita")
             self.assertEqual(migrated.total_for_day(date(2026, 9, 30), "Krita"), 501)
         finally:
             migrated.close()
@@ -512,6 +516,73 @@ class ActivityStoreTests(unittest.TestCase):
         old_connection.close()
         self.assertGreater(self.store.merge_backup_bytes(old_backup.read_bytes()), 0)
         self.assertEqual(self.store.total_for_day(date(2026, 9, 30), "Krita"), 700)
+
+    def old_layout_backup(self, name: str, seconds: float, day: str = "2026-09-30") -> bytes:
+        """A backup as a PC that has not updated writes it: no installation on its rows"""
+        path = self.folder / name
+        connection = sqlite3.connect(path)
+        connection.execute(
+            "CREATE TABLE activity (day TEXT NOT NULL, slot INTEGER NOT NULL, seconds REAL NOT NULL DEFAULT 0, "
+            "application TEXT NOT NULL DEFAULT 'Photoshop', PRIMARY KEY (day, slot, application))"
+        )
+        connection.execute("INSERT INTO activity VALUES (?, 9, ?, 'Photoshop')", (day, seconds))
+        connection.commit()
+        connection.close()
+        return path.read_bytes()
+
+    def test_every_total_counts_a_double_held_hour_once(self):
+        # 500 seconds that this PC tracked, handed back by an old PC that cannot say whose they are: 1000 if added
+        self.store.record_activity([("2026-09-29", 9, 500, "Photoshop", "09:00")])
+        self.store.merge_backup_bytes(self.old_layout_backup("old-day.sqlite3", 500, "2026-09-29"))
+        day = date(2026, 9, 29)
+        self.assertEqual(self.store.total_for_day(day), 500)
+        self.assertEqual(self.store.month_totals(2026, 9), {29: 500})
+        self.assertEqual(self.store.lifetime_sessions(), 0)
+        self.assertEqual(self.store.lifetime_sessions(application="Photoshop"), 0)
+        self.assertEqual(self.store.calendar_streaks(day), (0, 0))
+        self.assertEqual(self.store.qualifying_sessions(day, day), [])
+        self.assertEqual(self.store.day_application_totals(day)[0][:2], ("Photoshop", 500))
+        self.assertEqual(self.store.longest_session(), None)
+        # The same day with the time really there twice over would be a session; 900 and more in one hour is one
+        self.store.record_activity([("2026-09-29", 10, 900, "Photoshop", "10:00")])
+        self.assertEqual(self.store.lifetime_sessions(), 1)
+        self.assertEqual(self.store.total_for_day(day), 1400)
+
+    def test_time_an_old_pc_hands_back_is_not_counted_twice(self):
+        self.store.record_activity([("2026-09-30", 9, 600, "Photoshop", "09:00")])
+        # The old PC merged this PC's 600 seconds, so its copy of the hour holds them, without saying whose they are
+        self.store.merge_backup_bytes(self.old_layout_backup("old-same.sqlite3", 600))
+        self.assertEqual(self.store.total_for_day(date(2026, 9, 30)), 600)
+        # Once that PC added 300 seconds of its own, the hour is 900, not 1500
+        self.store.merge_backup_bytes(self.old_layout_backup("old-more.sqlite3", 900))
+        self.assertEqual(self.store.total_for_day(date(2026, 9, 30)), 900)
+        self.assertEqual(self.store.total_seconds("Photoshop"), 900)
+        self.assertEqual(self.store.total_for_range(date(2026, 9, 1), date(2026, 9, 30)), 900)
+        # Time recorded here afterwards only shows once this PC's own part passes the old PC's copy
+        self.store.record_activity([("2026-09-30", 9, 100, "Photoshop", "09:00")])
+        self.assertEqual(self.store.total_for_day(date(2026, 9, 30)), 900)
+        self.store.record_activity([("2026-09-30", 9, 400, "Photoshop", "09:00")])
+        self.assertEqual(self.store.total_for_day(date(2026, 9, 30)), 1100)
+
+        # And this PC's copy merged on a third PC gives the same hour, however often it is merged
+        copy = self.store.create_local_backup(force=True).read_bytes()
+        third = ActivityStore(self.folder / "third" / "activity.sqlite3")
+        try:
+            third.merge_backup_bytes(copy)
+            third.merge_backup_bytes(copy)
+            self.assertEqual(third.total_for_day(date(2026, 9, 30)), 1100)
+        finally:
+            third.close()
+
+    def test_hour_totals_view_stays_out_of_backups(self):
+        self.store.record_active_second(datetime(2026, 9, 30, 9, 17))
+        backup = self.store.create_local_backup(force=True)
+        connection = sqlite3.connect(f"{backup.resolve().as_uri()}?mode=ro", uri=True)
+        try:
+            names = {row[0] for row in connection.execute("SELECT name FROM sqlite_master")}
+        finally:
+            connection.close()
+        self.assertNotIn("activity_hours", names)
 
     def test_merge_skips_own_earlier_snapshot_so_cleared_ratings_stay_cleared(self):
         session_day = date(2026, 9, 30)

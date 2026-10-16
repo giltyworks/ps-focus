@@ -67,7 +67,7 @@ from .today_panel import TodayPanel
 from .window import MainWindow, set_topmost
 from .google_sync import GoogleSync
 
-# Every block that can be put in order: the program panels and the modules, as in the Tk ui_modules
+# The modules that can be put in order, beside the Today panel
 MODULE_NAMES = ("graph", "calendar", "stats", "friends")
 # The first order: the program panel, then Friends, the most used after it, then the rest
 BLOCK_NAMES = ("today", "friends", "graph", "calendar", "stats")
@@ -226,8 +226,8 @@ class PSFocusQt:
             self.docking.sync_visibility(hidden=True)
 
     def _read_block_order(self) -> list[str]:
-        """The saved order of the program panels and modules, with any missing added at the end; see the Tk
-        PSFocusApp._read_block_order, which also carries over the order kept by versions before 1.0.6"""
+        """The saved order of the Today panel and modules, with any missing added at the end; it also carries over the
+        order kept by versions before 1.0.6"""
         order = self.settings.get("block_order")
         if not isinstance(order, list):
             modules = self.settings.get("module_order")
@@ -909,6 +909,8 @@ def main(data_copy: bool, smoke_test: bool = False, dev: bool = False) -> None:
         # Its own taskbar button, beside PS Focus's
         set_app_user_model_id("PSFocus.PSFocus.Dev")
     elif data_copy:
+        # The "Preview" in this id, the window title and the data-copy file names is kept as it was, since Windows
+        # and the saved files already know those names
         set_app_user_model_id("PSFocus.PSFocus.QtPreview")
     else:
         set_app_user_model_id()
@@ -962,7 +964,7 @@ def main(data_copy: bool, smoke_test: bool = False, dev: bool = False) -> None:
         # Exercise the packed painter/assets/plugins, not just a default empty dashboard.
         application.processEvents()
         if app.window.windowIcon().pixmap(32, 32).isNull() or app.tray_icon.icon().pixmap(32, 32).isNull():
-            raise RuntimeError("Packaged preview icons could not be decoded")
+            raise RuntimeError("Packaged icons could not be decoded")
         for name in MODULE_NAMES:
             app.module_ticked[name] = True
         for landscape in (False, True):
@@ -971,7 +973,7 @@ def main(data_copy: bool, smoke_test: bool = False, dev: bool = False) -> None:
             application.processEvents()
             # The friends module draws as it paints, with no picture made ahead
             if any(module.picture is None or module.picture.isNull() for name, module in app.modules.items() if name != "friends"):
-                raise RuntimeError("Packaged preview module rendering failed")
+                raise RuntimeError("Packaged module rendering failed")
         app._toggle_settings()
         app._toggle_settings()
         QTimer.singleShot(250, app.close)

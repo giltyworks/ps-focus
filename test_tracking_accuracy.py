@@ -103,6 +103,86 @@ class TrackingAccuracyTests(unittest.TestCase):
         self.store.recover_pending_activity()
         self.assertAlmostEqual(self.raw_total(), 1.25)
 
+    def test_unreadable_older_file_does_not_stop_new_time_being_saved(self):
+        unreadable = self.path.with_suffix(".pending.json")
+        unreadable.write_text("not json")
+        self.store.save_pending_activity(activity_slices(datetime(2026, 10, 12, 10), .5, "Photoshop"))
+        self.assertEqual(unreadable.read_text(), "not json")
+        [newer] = [path for path in self.path.parent.glob("*.pending*.json") if path != unreadable]
+        self.assertEqual(json.loads(newer.read_text())["rows"][0][3], "Photoshop")
+        # The damaged file is kept for a person to look at, and the newer one is still replayed past it
+        with self.assertRaises(OSError):
+            self.store.recover_pending_activity()
+        self.assertAlmostEqual(self.raw_total(), .5)
+        self.assertFalse(newer.exists())
+
+    def test_new_time_is_not_skipped_when_a_failed_replay_was_committed_after_all(self):
+        self.store.save_pending_activity(activity_slices(datetime(2026, 10, 12, 9), .75, "Krita"))
+        replay = self.store.record_activity
+
+        def commit_then_fail(rows, receipt=None):
+            replay(rows, receipt=receipt)
+            raise sqlite3.OperationalError("database is locked")
+
+        with patch.object(self.store, "record_activity", commit_then_fail):
+            self.store.save_pending_activity(activity_slices(datetime(2026, 10, 12, 10), .5, "Photoshop"))
+        self.assertAlmostEqual(self.raw_total(), .75)
+        # The older file's receipt is already stored, so it is skipped, but the newer time has a receipt of its own
+        self.store.recover_pending_activity()
+        self.assertAlmostEqual(self.raw_total(), 1.25)
+        self.assertEqual(list(self.path.parent.glob("*.pending*.json")), [])
+
+    def write_pending(self, name, hour, receipt, age):
+        path = self.path.parent / name
+        path.write_text(json.dumps({"receipt": receipt, "rows": [["2026-10-12", hour, 1, "Krita", "09:00"]]}))
+        os.utime(path, (age, age))
+        return path
+
+    def test_replayed_file_left_behind_goes_first_even_when_it_looks_newer(self):
+        self.write_pending("activity.pending-other.json", 10, "other", 1000)
+        replayed = self.write_pending("activity.pending.json", 9, "replayed", 3000)
+        # The file with the newer time was replayed earlier but could not be deleted, so the database holds its receipt
+        self.store.record_activity([("2026-10-12", 9, 1, "Krita", "09:00")], receipt="replayed")
+        self.store.recover_pending_activity()
+        self.assertEqual(self.raw_total(), 2)
+        self.assertFalse(replayed.exists())
+        self.assertEqual(list(self.path.parent.glob("*.pending*.json")), [])
+
+    def test_several_pending_files_replay_past_a_damaged_one(self):
+        self.write_pending("activity.pending.json", 9, "first", 1000)
+        damaged = self.path.parent / "activity.pending-middle.json"
+        damaged.write_text("not json")
+        os.utime(damaged, (2000, 2000))
+        self.write_pending("activity.pending-last.json", 11, "last", 3000)
+        with self.assertRaises(OSError):
+            self.store.recover_pending_activity()
+        self.assertEqual(self.raw_total(), 2)
+        self.assertEqual([path.name for path in self.path.parent.glob("*.pending*.json")], [damaged.name])
+
+    def test_file_that_cannot_be_opened_for_a_moment_does_not_make_a_newer_file_count_twice(self):
+        older = self.write_pending("activity.pending.json", 9, "older", 1000)
+        newer = self.write_pending("activity.pending-newer.json", 10, "newer", 2000)
+        real_read, real_unlink = Path.read_text, Path.unlink
+
+        def busy_read(path, *arguments, **keywords):
+            if path == older and busy_read.busy:
+                raise OSError("in use")
+            return real_read(path, *arguments, **keywords)
+
+        def stuck_unlink(path, *arguments, **keywords):
+            if path == newer and stuck_unlink.stuck:
+                raise OSError("in use")
+            return real_unlink(path, *arguments, **keywords)
+
+        busy_read.busy = stuck_unlink.stuck = True
+        with patch("pathlib.Path.read_text", busy_read), patch("pathlib.Path.unlink", stuck_unlink):
+            with self.assertRaises(OSError):
+                self.store.recover_pending_activity()
+            busy_read.busy = stuck_unlink.stuck = False
+            self.store.recover_pending_activity()
+        self.assertEqual(self.raw_total(), 2)
+        self.assertEqual(list(self.path.parent.glob("*.pending*.json")), [])
+
     def test_invalid_recovery_is_preserved(self):
         pending = self.path.with_suffix(".pending.json")
         pending.write_text(json.dumps({"receipt": "bad", "rows": [["2026-10-12", 25, 1, "Krita", "09:00"]]}))

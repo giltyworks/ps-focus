@@ -97,6 +97,35 @@ ACTIVITY_TABLE_SQL = """CREATE TABLE {} (
     PRIMARY KEY (day, slot, application, installation)
 )"""
 
+# What every total reads: the seconds of each hour. The shared rows (installation '') of an old-layout PC already
+# include the time it merged in from the others, so counting them beside the per-installation rows would add that time
+# twice. For an hour held both ways only the larger of the two counts, which never counts time twice and, in a mixed
+# hour, can only undercount. The smaller one is taken off as a negative row from activity_overlap, a short list kept
+# up to date by refresh_overlap, so that totals stay plain sums over the table. Anything that writes activity rows
+# other than record_activity and merge_backup_bytes has to call refresh_overlap too, and a query on the hours must not
+# filter on seconds > 0 before summing, as that drops the negative rows
+ACTIVITY_OVERLAP_SQL = """CREATE TEMP TABLE IF NOT EXISTS activity_overlap (
+    day TEXT NOT NULL,
+    slot INTEGER NOT NULL,
+    application TEXT NOT NULL,
+    seconds REAL NOT NULL,
+    PRIMARY KEY (day, slot, application)
+)"""
+ACTIVITY_HOURS_VIEW_SQL = """CREATE TEMP VIEW IF NOT EXISTS activity_hours AS
+    SELECT day, slot, application, seconds FROM activity
+    UNION ALL
+    SELECT day, slot, application, -seconds FROM activity_overlap"""
+ACTIVITY_OVERLAP_SELECT_SQL = """SELECT day, slot, application, MIN(shared, own) FROM (
+        SELECT day, slot, application,
+               SUM(CASE WHEN installation = '' THEN seconds ELSE 0 END) AS shared,
+               SUM(CASE WHEN installation <> '' THEN seconds ELSE 0 END) AS own
+        FROM activity {} GROUP BY day, slot, application
+    ) WHERE shared > 0 AND own > 0"""
+
+
+class DamagedPendingFile(OSError):
+    """A file of unsaved time whose contents are wrong, as opposed to one that cannot be opened right now"""
+
 
 class ActivityStore:
     def __init__(self, database_path: Path, backup_directories: tuple[Path, ...] | None = None) -> None:
@@ -196,10 +225,27 @@ class ActivityStore:
                 "INSERT INTO metadata (key, value) VALUES ('last_writer', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                 (self.installation_id,),
             )
+            # Temporary, so they are never written into a database file or a backup
+            self.connection.execute(ACTIVITY_OVERLAP_SQL)
+            self.connection.execute(ACTIVITY_HOURS_VIEW_SQL)
+            self.refresh_overlap()
             self.connection.commit()
         except BaseException:
             self.connection.rollback()
             raise
+
+    def refresh_overlap(self, day: str | None = None, slot: int | None = None, application: str | None = None) -> None:
+        """Work out again which time is held twice, for one hour or, with no arguments, for the whole history"""
+        if day is None:
+            self.connection.execute("DELETE FROM activity_overlap")
+            self.connection.execute("INSERT INTO activity_overlap " + ACTIVITY_OVERLAP_SELECT_SQL.format(""))
+            return
+        key = (day, slot, application)
+        self.connection.execute("DELETE FROM activity_overlap WHERE day = ? AND slot = ? AND application = ?", key)
+        self.connection.execute(
+            "INSERT INTO activity_overlap " + ACTIVITY_OVERLAP_SELECT_SQL.format("WHERE day = ? AND slot = ? AND application = ?"),
+            key,
+        )
 
     @staticmethod
     def database_is_usable(database_path: Path) -> bool:
@@ -366,7 +412,11 @@ class ActivityStore:
                    WHERE excluded.started_at < session_starts.started_at""",
                 session_starts,
             )
-        return self.connection.total_changes - changes_before
+            changes = self.connection.total_changes - changes_before
+            if changes:
+                # In the same transaction, so the totals never see merged rows without their overlap
+                self.refresh_overlap()
+        return changes
 
     def create_local_backups(self, force: bool = False) -> list[Path]:
         """Write a dated snapshot to every backup folder and return the snapshots that now hold the history
@@ -449,6 +499,7 @@ class ActivityStore:
                        ON CONFLICT(day, application) DO UPDATE SET started_at = MIN(started_at, excluded.started_at)""",
                     (day, application, started_at),
                 )
+                self.refresh_overlap(day, slot, application)
             if receipt is not None:
                 self.connection.execute(
                     "INSERT INTO metadata (key, value) VALUES ('tracking_recovery', ?) "
@@ -458,23 +509,62 @@ class ActivityStore:
     def save_pending_activity(self, rows) -> None:
         """Preserve unsaved shutdown time if SQLite temporarily cannot accept writes."""
         path = self.database_path.with_suffix(".pending.json")
-        receipt, saved_rows = uuid.uuid4().hex, []
-        if path.exists():
-            try:
-                self.recover_pending_activity()
-            except sqlite3.Error:
-                # SQLite still refuses writes, so the older rows wait too, and the new ones join them under the older
-                # receipt: should that replay have been saved after all, nothing is counted twice
-                saved = json.loads(path.read_text(encoding="utf-8"))
-                receipt, saved_rows = saved["receipt"], saved["rows"]
+        try:
+            self.recover_pending_activity()
+        except (OSError, sqlite3.Error):
+            # Older unsaved time cannot be replayed (SQLite refuses writes, or its file cannot be read), so it waits
+            # where it is and the new time goes in a file of its own with its own receipt
+            pass
+        if self._pending_paths():
+            path = path.with_name(f"{path.stem}-{uuid.uuid4().hex}.json")
         temporary = path.with_suffix(".tmp")
-        temporary.write_text(json.dumps({"receipt": receipt, "rows": saved_rows + list(rows)}), encoding="utf-8")
+        temporary.write_text(json.dumps({"receipt": uuid.uuid4().hex, "rows": list(rows)}), encoding="utf-8")
         temporary.replace(path)
 
+    def _pending_paths(self) -> list[Path]:
+        """Every file of unsaved time, oldest first, so a replayed file whose deletion failed comes up first again"""
+        def age(path: Path) -> tuple[int, str]:
+            try:
+                return path.stat().st_mtime_ns, path.name
+            except OSError:
+                # Gone since it was listed
+                return 0, path.name
+
+        paths = self.database_path.parent.glob(f"{self.database_path.stem}.pending*.json")
+        return sorted(paths, key=age)
+
     def recover_pending_activity(self) -> None:
-        path = self.database_path.with_suffix(".pending.json")
-        if not path.exists():
-            return
+        damaged: OSError | None = None
+        replayed = self.connection.execute("SELECT value FROM metadata WHERE key = 'tracking_recovery'").fetchone()
+
+        def holds_replayed_receipt(path: Path) -> bool:
+            try:
+                return replayed is not None and json.loads(path.read_text(encoding="utf-8"))["receipt"] == replayed[0]
+            except (ValueError, KeyError, TypeError):
+                # Bad contents are dealt with when the file comes up. A file that cannot be opened stops everything
+                # here, as it might be the one that has to go first
+                return False
+
+        # The file already replayed whose deletion failed goes first whatever the file times say: the stored receipt
+        # remembers only the newest replay, so any other file replayed before it would make its rows count twice
+        for path in sorted(self._pending_paths(), key=lambda path: not holds_replayed_receipt(path)):
+            try:
+                deleted = self._replay_pending_file(path)
+            except DamagedPendingFile as error:
+                # A file with bad contents is kept for a person to look at and must not hold back the time saved after it
+                damaged = damaged or error
+                continue
+            if not deleted:
+                # The rows are in the database and the receipt says so, so the file left behind is skipped next time,
+                # and the files after it wait until it is gone: the receipt remembers only the newest replay. A file
+                # that merely cannot be opened right now stops the loop the same way (its error is not caught here),
+                # as replaying it after a newer file would let its receipt replace that file's and count its rows twice
+                break
+        if damaged is not None:
+            raise damaged
+
+    def _replay_pending_file(self, path: Path) -> bool:
+        """Replay one file of unsaved time, returning False when it could not be deleted afterwards"""
         try:
             saved = json.loads(path.read_text(encoding="utf-8"))
             receipt, rows = saved["receipt"], saved["rows"]
@@ -486,18 +576,17 @@ class ActivityStore:
                 if not isinstance(slot, int) or not 0 <= slot < 24 or not math.isfinite(seconds) or seconds <= 0 or not isinstance(application, str) or not application:
                     raise ValueError("Invalid pending activity")
         except (ValueError, TypeError, KeyError) as error:
-            raise OSError("Pending activity is unreadable; preserved for recovery") from error
+            raise DamagedPendingFile("Pending activity is unreadable; preserved for recovery") from error
         self.record_activity(rows, receipt=receipt)
         try:
             path.unlink()
         except OSError:
-            # The rows are in the database and the receipt says so, so a file left behind is skipped next time and
-            # must not stop a later save from keeping its new time
-            pass
+            return False
+        return True
 
     def total_for_day(self, day: date | None = None, application: str | None = None) -> int:
         day = day or date.today()
-        query = "SELECT COALESCE(SUM(seconds), 0) FROM activity WHERE day = ?"
+        query = "SELECT COALESCE(SUM(seconds), 0) FROM activity_hours AS activity WHERE day = ?"
         parameters: tuple = (day.strftime("%Y-%m-%d"),)
         if application is not None:
             query += " AND application = ?"
@@ -514,7 +603,7 @@ class ActivityStore:
         return date.fromisoformat(first) if first else None
 
     def total_seconds(self, application: str | None = None) -> int:
-        query = "SELECT COALESCE(SUM(seconds), 0) FROM activity"
+        query = "SELECT COALESCE(SUM(seconds), 0) FROM activity_hours AS activity"
         parameters: tuple = ()
         if application is not None:
             query += " WHERE application = ?"
@@ -523,7 +612,7 @@ class ActivityStore:
         return int(round(row[0], 6))
 
     def total_for_range(self, start: date, end: date, application: str | None = None) -> int:
-        query = "SELECT COALESCE(SUM(seconds), 0) FROM activity WHERE day BETWEEN ? AND ?"
+        query = "SELECT COALESCE(SUM(seconds), 0) FROM activity_hours AS activity WHERE day BETWEEN ? AND ?"
         parameters: tuple = (start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
         if application is not None:
             query += " AND application = ?"
@@ -546,7 +635,7 @@ class ActivityStore:
         """
         today = today or date.today()
         rows = self.connection.execute(
-            "SELECT day, SUM(seconds) FROM activity WHERE day <= ? GROUP BY day HAVING SUM(seconds) > 0",
+            "SELECT day, SUM(seconds) FROM activity_hours AS activity WHERE day <= ? GROUP BY day HAVING SUM(seconds) > 0",
             (today.strftime("%Y-%m-%d"),),
         ).fetchall()
         if not rows:
@@ -582,7 +671,7 @@ class ActivityStore:
         if past_weeks < minimum_weeks:
             return None
         rows = self.connection.execute(
-            "SELECT day, SUM(seconds) FROM activity WHERE day >= ? AND day <= ? GROUP BY day",
+            "SELECT day, SUM(seconds) FROM activity_hours AS activity WHERE day >= ? AND day <= ? GROUP BY day",
             (first_monday.isoformat(), today.isoformat()),
         ).fetchall()
         # Each past week's total over the same days of the week as this one has had so far
@@ -602,7 +691,7 @@ class ActivityStore:
         beaten, not just matched
         """
         row = self.connection.execute(
-            """SELECT day, SUM(seconds) AS total FROM activity
+            """SELECT day, SUM(seconds) AS total FROM activity_hours AS activity
                GROUP BY day HAVING total >= ?
                ORDER BY total DESC, day ASC LIMIT 1""",
             (minimum_seconds,),
@@ -619,7 +708,7 @@ class ActivityStore:
             """SELECT productivity_ratings.rating,
                       COALESCE(
                           (SELECT MIN(started_at) FROM session_starts WHERE session_starts.day = productivity_ratings.day),
-                          (SELECT printf('%02d:00', MIN(slot)) FROM activity
+                          (SELECT printf('%02d:00', MIN(slot)) FROM activity_hours AS activity
                            WHERE activity.day = productivity_ratings.day AND activity.seconds > 0
                            HAVING COUNT(*) > 0)
                       ) AS started_at
@@ -677,7 +766,7 @@ class ActivityStore:
     def calendar_streaks(self, today: date | None = None, blue_day_threshold: int = SESSION_MINIMUM_SECONDS) -> tuple[int, int]:
         today = today or date.today()
         rows = self.connection.execute(
-            "SELECT day FROM activity WHERE day <= ? GROUP BY day HAVING SUM(seconds) >= ?",
+            "SELECT day FROM activity_hours AS activity WHERE day <= ? GROUP BY day HAVING SUM(seconds) >= ?",
             (today.strftime("%Y-%m-%d"), blue_day_threshold),
         ).fetchall()
         blue_days = {date.fromisoformat(row[0]) for row in rows}
@@ -693,13 +782,14 @@ class ActivityStore:
         return week_streak, rest_day_streak
 
     def lifetime_sessions(self, minimum_seconds: int = SESSION_MINIMUM_SECONDS, application: str | None = None) -> int:
-        application_clause = " AND application = ?" if application is not None else ""
+        application_clause = " WHERE application = ?" if application is not None else ""
         parameters: tuple = ()
         if application is not None:
             parameters += (application,)
         parameters += (minimum_seconds,)
+        # No seconds > 0 filter on the rows: it would drop the negative rows that take double-held time off the sum
         row = self.connection.execute(
-            f"SELECT COUNT(*) FROM (SELECT day FROM activity WHERE seconds > 0{application_clause} GROUP BY day HAVING SUM(seconds) >= ?)",
+            f"SELECT COUNT(*) FROM (SELECT day FROM activity_hours AS activity{application_clause} GROUP BY day HAVING SUM(seconds) > 0 AND SUM(seconds) >= ?)",
             parameters,
         ).fetchone()
         return int(round(row[0], 6))
@@ -712,7 +802,7 @@ class ActivityStore:
         if application is not None:
             parameters += (application,)
         rows = self.connection.execute(
-            f"SELECT day, SUM(seconds) FROM activity WHERE day >= ? AND day < ?{application_clause} GROUP BY day",
+            f"SELECT day, SUM(seconds) FROM activity_hours AS activity WHERE day >= ? AND day < ?{application_clause} GROUP BY day",
             parameters,
         ).fetchall()
         return {date.fromisoformat(day).day: int(seconds) for day, seconds in rows}
@@ -724,7 +814,7 @@ class ActivityStore:
                           MIN(session_starts.started_at),
                           printf('%02d:00', MIN(CASE WHEN activity.seconds > 0 THEN activity.slot END))
                       )
-               FROM activity
+               FROM activity_hours AS activity
                LEFT JOIN session_starts
                  ON session_starts.day = activity.day AND session_starts.application = activity.application
                WHERE activity.day = ?
@@ -750,7 +840,7 @@ class ActivityStore:
             """SELECT activity.day,
                       COALESCE(session_starts.started_at, printf('%02d:00', MIN(activity.slot))),
                       SUM(activity.seconds)
-               FROM activity
+               FROM activity_hours AS activity
              """ + session_start_join + """
              WHERE activity.day BETWEEN ? AND ?""" + application_clause + """
              GROUP BY activity.day""" + (", activity.application" if application is not None else "") + """
@@ -768,7 +858,7 @@ class ActivityStore:
             if application is not None:
                 parameters += (application,)
             rows = self.connection.execute(
-                "SELECT slot, SUM(seconds) FROM activity WHERE day = ?" + application_clause + " GROUP BY slot",
+                "SELECT slot, SUM(seconds) FROM activity_hours AS activity WHERE day = ?" + application_clause + " GROUP BY slot",
                 parameters,
             ).fetchall()
             values = [0.0] * 24
@@ -801,7 +891,7 @@ class ActivityStore:
         if application is not None:
             parameters += (application,)
         rows = self.connection.execute(
-            "SELECT day, SUM(seconds) FROM activity WHERE day BETWEEN ? AND ?" + application_clause + " GROUP BY day",
+            "SELECT day, SUM(seconds) FROM activity_hours AS activity WHERE day BETWEEN ? AND ?" + application_clause + " GROUP BY day",
             parameters,
         ).fetchall()
         by_day = {day: float(seconds) / 60 for day, seconds in rows}
