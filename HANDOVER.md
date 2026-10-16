@@ -310,3 +310,9 @@ The owner sees the main window flash, showing what is behind it, for a split sec
 - `py tools/ui_screenshots.py before|after --only today,stats` draws just those pictures. Pictures and comparisons not named are left as they are; a run without `--only` still clears the folders first. Unknown names are refused with the list of valid ones. CLAUDE.md now tells Claude to use `--only` and never capture everything unless asked. No visual change to the app.
 - Checked with `py -m unittest discover` (311 OK) and the credential scan. The reviewer returned PASS. Its advisories, not acted on yet: no test for `--only` itself (the existing `test_ui_screenshots.py` covers only full runs), and the full-run check compares names in order, so listing all seven in another order counts as a partial run.
 - Next: optionally add a test for `--only`. Open questions: none.
+
+### 16 October 2026: status line moved here from the setup blueprint
+
+- Moved from the owner's user-level Claude Code blueprint, which keeps no project status: "download button fixed (15 October 2026). An offscreen screenshot tool exists for on-demand use; wiring it into every skill was skipped, since the owner checks the running app."
+- CLAUDE.md: the commit-message and visual-design lines were removed from Conventions, because the owner's user-level instructions now hold both for every project. Nothing else changed; no code changed.
+- Next: nothing new (PS Focus is paused). Open questions: none.

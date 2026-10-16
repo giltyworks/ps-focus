@@ -40,8 +40,6 @@ github.com/giltyworks/ps-focus. README.md describes all of this in detail.
 - Tests use `unittest` only and set `QT_QPA_PLATFORM=offscreen`. They patch `app_config` paths onto a `TemporaryDirectory` so they never touch real data, and skip if PySide6 is missing
 - Stay on `PySide6_Essentials`. Before using OpenGL, SVG, Qt networking or similar, check `excludes`/`needed_file` in `PS Focus.spec`
 - Never commit credentials (`credentials.json`, tokens, keys); CI and the build both scan for them
-- Commit messages: one short subject line
-- Don't change layout, colours or visual design without asking me first
 
 ## Definition of done
 - [ ] `py -m unittest discover` passes, with new behaviour covered by a test
