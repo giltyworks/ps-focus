@@ -680,6 +680,13 @@ class QtDockingTests(unittest.TestCase):
             docking.check_hover()
             self.assertEqual(window.glass_alpha, glass_alpha(100))
 
+    def test_nothing_is_looked_for_while_the_window_is_hidden_in_the_tray(self):
+        self.app.settings["panel_transparency"] = 100
+        # Only said to be hidden, as really hiding the window leaves the tests after this one unsteady
+        with patch.object(type(self.app.window), "isVisible", return_value=False), patch("qt.docking.QCursor.pos", return_value=QPoint(5, 5)),                 patch.object(self.app.docking, "update_glass") as update:
+            self.app.docking.check_hover()
+            update.assert_not_called()
+
     def test_nothing_is_looked_for_while_nothing_is_see_through(self):
         self.app.settings["panel_transparency"] = 0
         with patch("qt.docking.QCursor.pos", return_value=self.app.window.frameGeometry().center()), patch.object(self.app.docking, "update_glass") as update:

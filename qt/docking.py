@@ -279,8 +279,8 @@ class Docking:
         self.main_drag_members: set[str] | None = None
         self.moving_main = False
         self.save_timer = QTimer(singleShot=True, interval=SAVE_DELAY_MS, timeout=self.save_positions)
-        # Started by the app once everything is built
-        self.hover_timer = QTimer(interval=HOVER_CHECK_MS, timeout=self.check_hover)
+        # Started by the app once everything is built; the window's own, so it ends with the window
+        self.hover_timer = QTimer(self.window, interval=HOVER_CHECK_MS, timeout=self.check_hover)
         self.hover_state: tuple | None = None
 
     def check_hover(self) -> None:
@@ -291,8 +291,11 @@ class Docking:
         app = self.app
         if app.closing or (glass_alpha(app.settings.get("panel_transparency")) == 255 and not app.transparency_previewing):
             return
+        # Hidden in the tray, there is nothing on screen to turn
+        if not self.window.isVisible():
+            return
         cursor = QCursor.pos()
-        over_main = self.window.isVisible() and self.window.frameGeometry().contains(cursor)
+        over_main = self.window.frameGeometry().contains(cursor)
         over_panels = frozenset(name for name, panel in self.floating.items() if panel is not None and panel.isVisible() and panel.geometry().contains(cursor))
         state = (over_main, over_panels, self.window.user_resizing)
         if state != self.hover_state:
