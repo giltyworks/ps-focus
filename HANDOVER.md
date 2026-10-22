@@ -1,6 +1,18 @@
 # PS Focus handover
 
-Updated 15 October 2026. Read this before resuming work.
+Updated 22 October 2026. Read this before resuming work.
+
+## Resize stutter, hover fade and gaps: 22 October 2026 (1.1.27, release in progress)
+
+- **Cause of the resize stutter:** commit `030d875` (11 October, v1.1.21) made the main window frameless with a see-through background. Qt turns that combination into a layered window (`WS_EX_LAYERED`), which Windows redraws as a whole new picture at each size. The owner's screen is 3440x1440 at 240 Hz, so it was very visible. Bisected by the owner with built copies: 1.1.0 smooth; 1.1.21, 1.1.25, 1.1.26 and 1.1.27 stuttered. The app's own resize handling was identical in old and new (200 steps a second, no stalls); the cost was in Windows' drawing, so in-process timing could not show it.
+- **Fix** (`qt/window.py`): `MainWindow` is `Qt.Window` without the frameless flag, and `let_compositor_blend` calls `DwmEnableBlurBehindWindow` with an empty region so the compositor blends the see-through background per pixel. Checked: not layered, see-through blends the same. Qt then measures a frame 8 px in from the window, so the main window answers `frameGeometry`, `x`, `y`, `pos` and `move` from its geometry (Windows is told the frame takes no room); measured exact on the real window. `nativeEvent` compares `bytes(event_type)`, and `_slide` waits for the header. Floating panels are still frameless layered windows; they were not part of the complaint.
+- **Hover fade:** Windows does not reliably send "mouse entered" to this window (from the right and below never, from the left late), so the fade waited for the one-second tick. `Docking.check_hover` runs every 30 ms (`HOVER_CHECK_MS`) and calls `update_glass` only when the mouse goes onto or off a window; it does nothing while nothing is see-through. The window also stays solid while its edge is dragged (`user_resizing`).
+- **Flicker fix removed:** the earlier "paint each size while dragging" change (`a2e4bd2`) made resizing worse (every step painted twice), so it was taken out.
+- **Gaps:** `MODULE_GAP` 4 to 2 px, with the website demo's matching CSS and `demo.js` (cache tag `?v=1.1.27`). The 4 px bottom strip and the Settings `PANEL_GAP` are unchanged.
+- **Lag report:** the owner also reported general lag after the first local install of 1.1.27; it was the flicker fix. No other lag could be reproduced: the installed app answered every window message within 12 ms over 25 minutes, and the tick, hovering, resizing and dragging were the same speed as 1.1.26.
+- **Test note:** the offscreen platform nudges a client-positioned window by its fake 2 px frame, so `test_places_are_kept_between_runs` reads the place back instead of expecting (0, 0).
+- **Owner decisions this session:** ship 1.1.27 with these fixes; gap 2 px. Earlier owner decisions (no release-note warning about updating every PC; skipped final audit of the unsaved-time fix) still stand.
+- Not done: the session hook says task `2026-10-18-reel-panel` has no Status line in the claude-handoff details folder (unrelated to PS Focus's code).
 
 ## Parked: 15 October 2026
 
