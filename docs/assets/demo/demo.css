@@ -152,10 +152,10 @@
 /* Blocks: the program panel and the modules */
 .psf-blocks { padding-bottom: 4px; }
 /* The gap above each block, and below the last, in the window's background */
-.psf-blocks > * { box-shadow: 0 -4px 0 rgba(var(--psf-background), var(--a)); }
-.psf-blocks > :last-child { box-shadow: 0 -4px 0 rgba(var(--psf-background), var(--a)), 0 4px 0 rgba(var(--psf-background), var(--a)); }
+.psf-blocks > * { box-shadow: 0 -2px 0 rgba(var(--psf-background), var(--a)); }
+.psf-blocks > :last-child { box-shadow: 0 -2px 0 rgba(var(--psf-background), var(--a)), 0 4px 0 rgba(var(--psf-background), var(--a)); }
 /* A block's name strip and body are one background, the strip's darker band painted in it, not over it */
-.psf-block { --strip: 27px; margin-top: 4px; background: linear-gradient(rgba(var(--psf-background), var(--a)) var(--strip), rgba(var(--psf-panel), var(--a)) var(--strip)); border: 1px solid rgba(var(--psf-border), max(var(--a), .43)); position: relative; }
+.psf-block { --strip: 27px; margin-top: 2px; background: linear-gradient(rgba(var(--psf-background), var(--a)) var(--strip), rgba(var(--psf-panel), var(--a)) var(--strip)); border: 1px solid rgba(var(--psf-border), max(var(--a), .43)); position: relative; }
 .psf-strip { height: 27px; display: flex; align-items: center; padding: 0 8px; font-weight: 600; font-size: 13.333px; border-bottom: 1px solid rgba(var(--psf-border), max(var(--a), .43)); cursor: grab; touch-action: none; }
 .psf-strip:hover { background: rgba(16, 16, 16, max(var(--a), .3)); }
 .psf-strip .psf-spacer { flex: 1; }
@@ -163,7 +163,7 @@
 .psf-dock { width: 18px; height: 18px; display: none; }
 .psf-floating .psf-dock { display: grid; }
 /* The space a panel will dock into, as the app's: a blue outline, lightly filled in */
-.psf-placeholder { margin-top: 4px; border: 2px solid var(--psf-blue); background: rgba(61, 92, 230, .24); }
+.psf-placeholder { margin-top: 2px; border: 2px solid var(--psf-blue); background: rgba(61, 92, 230, .24); }
 
 .psf-today { --strip: 32px; }
 .psf-today .psf-strip { font-weight: 400; font-size: 16px; color: var(--psf-muted); height: 32px; }
@@ -330,7 +330,7 @@
 
 /* Landscape: the program panels and modules side by side in one wide strip */
 .psf-window.psf-landscape { width: auto; }
-.psf-landscape .psf-blocks { display: flex; align-items: stretch; gap: 4px; }
+.psf-landscape .psf-blocks { display: flex; align-items: stretch; gap: 2px; }
 .psf-landscape .psf-blocks > * { width: 300px; flex: none; box-sizing: border-box; margin-top: 0; }
 .psf-landscape .psf-friend-list { max-height: none; }
 

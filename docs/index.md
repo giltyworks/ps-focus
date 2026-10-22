@@ -64,8 +64,8 @@ Each release lists a SHA-256 checksum for checking your download.
   <p class="caption">Sample data and made-up friends; nothing you do here is sent anywhere. Painting: Joaquín Sorolla, <em>Strolling along the Seashore</em> (1909), public domain.</p>
   <noscript><p class="caption">The demo needs JavaScript.</p></noscript>
 </section>
-<link rel="stylesheet" href="{{ '/assets/demo/demo.css' | relative_url }}?v=1.1.26">
-<script src="{{ '/assets/demo/demo.js' | relative_url }}?v=1.1.26" defer></script>
+<link rel="stylesheet" href="{{ '/assets/demo/demo.css' | relative_url }}?v=1.1.27">
+<script src="{{ '/assets/demo/demo.js' | relative_url }}?v=1.1.27" defer></script>
 
 <figure class="wide-shot">
   <img src="{{ '/assets/screenshot-landscape.png' | relative_url }}" width="1495" height="228" alt="PS Focus in landscape: today's time in Photoshop, then friends and their hours, the hours graph and the October calendar side by side in one wide, short window">

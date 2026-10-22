@@ -52,7 +52,7 @@ MODULE_CONTENT_MARGIN = 0
 MODULE_CANVAS_WIDTH = TODAY_PANEL_WIDTH - 2 - 2 * MODULE_CONTENT_MARGIN
 # Space below each program panel and above each module
 PANEL_GAP = 4
-MODULE_GAP = 4
+MODULE_GAP = 2
 # Space above and below a line of text in the closely packed rows
 LINE_PADDING = 2
 # Space left under the checkbox row when the window is at its smallest, and when no module is open

@@ -1128,7 +1128,7 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
     const least = headerAlone() ? 1 : 0;
     // Measured where the blocks stand without the space shown for the panel, so showing that space, which pushes the
     // blocks after it along, does not move the slot and the space with it back and forth
-    const room = holder ? (state.landscape ? holder.offsetWidth : holder.offsetHeight + 4) : 0;
+    const room = holder ? (state.landscape ? holder.offsetWidth : holder.offsetHeight + 2) : 0;
     const after = (child) => holder && children.indexOf(child) > children.indexOf(holder);
     let slot = docked.length;
     docked.forEach((child, index) => {
