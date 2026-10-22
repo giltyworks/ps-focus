@@ -38,6 +38,8 @@ TOUCH_TOLERANCE = 4
 GRAB_OFFSET = QPoint(30, 12)
 # How long the window and panels have to stay still before their positions are saved
 SAVE_DELAY_MS = 350
+# How often the mouse is looked for over the see-through windows, see Docking.check_hover
+HOVER_CHECK_MS = 30
 # How see-through a panel is while it would dock if let go; and how strongly the space it will take is filled in
 DOCKING_OPACITY = 0.7
 PREVIEW_FILL_ALPHA = 60
@@ -277,6 +279,25 @@ class Docking:
         self.main_drag_members: set[str] | None = None
         self.moving_main = False
         self.save_timer = QTimer(singleShot=True, interval=SAVE_DELAY_MS, timeout=self.save_positions)
+        # Started by the app once everything is built
+        self.hover_timer = QTimer(interval=HOVER_CHECK_MS, timeout=self.check_hover)
+        self.hover_state: tuple | None = None
+
+    def check_hover(self) -> None:
+        """Turn the windows solid or see-through the moment the mouse comes onto them or leaves. Windows does not
+        reliably tell a window the mouse has come on or off it, from some sides not at all, so the mouse is looked for
+        here, and update_glass run only when it has gone onto or off a window. With nothing see-through there is
+        nothing to turn"""
+        app = self.app
+        if app.closing or (glass_alpha(app.settings.get("panel_transparency")) == 255 and not app.transparency_previewing):
+            return
+        cursor = QCursor.pos()
+        over_main = self.window.isVisible() and self.window.frameGeometry().contains(cursor)
+        over_panels = frozenset(name for name, panel in self.floating.items() if panel is not None and panel.isVisible() and panel.geometry().contains(cursor))
+        state = (over_main, over_panels, self.window.user_resizing)
+        if state != self.hover_state:
+            self.hover_state = state
+            self.update_glass()
 
     def _reset_drag(self) -> None:
         if getattr(self, "source", None) is not None:
@@ -436,7 +457,8 @@ class Docking:
             over = any(self.floating[name].geometry().contains(cursor) for name in members)
             if with_main:
                 over = over or self.window.frameGeometry().contains(cursor)
-            solid = over or dragging or (with_main and (app.settings_shown or not self.window.isVisible()))
+            # The edge being dragged keeps the window solid, though the mouse leaves it as the window changes size
+            solid = over or dragging or (with_main and (app.settings_shown or not self.window.isVisible() or self.window.user_resizing))
             # While the transparency slider is open everything shows the transparency being chosen, the mouse over
             # the window or not
             if app.transparency_previewing:

@@ -7,7 +7,7 @@ import os
 from ctypes import wintypes
 from typing import Callable
 
-from PySide6.QtCore import QEvent, Qt
+from PySide6.QtCore import QEvent, QPoint, QRect, Qt
 from PySide6.QtGui import QCloseEvent, QIcon, QMoveEvent, QPainter, QPaintEvent, QResizeEvent
 from PySide6.QtWidgets import QWidget
 
@@ -42,6 +42,28 @@ def _keep_window_behaviour(window: QWidget) -> None:
     style = (user32.GetWindowLongW(handle, -16) & 0xFFFFFFFF & ~WS_POPUP) | WINDOW_STYLES
     user32.SetWindowLongW(handle, -16, ctypes.c_long(style - (1 << 32) if style >= 1 << 31 else style).value)
     user32.SetWindowPos(handle, None, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0010 | 0x0020)
+
+def let_compositor_blend(window: QWidget) -> None:
+    """Have Windows' desktop compositor blend the window's see-through background with what is behind it, as it does
+    for an ordinary window. Qt turns any frameless window with a see-through background into a layered one, which
+    Windows redraws as a whole new picture at each size while the edge is dragged, so resizing stutters; the classic
+    empty blur region (DWM_BB_ENABLE | DWM_BB_BLURREGION, a region of nothing) gives the same blending without that"""
+    if os.name != "nt":
+        return
+
+    class BlurBehind(ctypes.Structure):
+        _fields_ = [("flags", wintypes.DWORD), ("enable", wintypes.BOOL), ("region", wintypes.HRGN), ("transition", wintypes.BOOL)]
+
+    gdi32 = ctypes.windll.gdi32
+    gdi32.CreateRectRgn.restype = wintypes.HRGN
+    gdi32.DeleteObject.argtypes = [wintypes.HGDIOBJ]
+    dwmapi = ctypes.WinDLL("dwmapi")
+    dwmapi.DwmEnableBlurBehindWindow.argtypes = [wintypes.HWND, ctypes.POINTER(BlurBehind)]
+    empty_region = gdi32.CreateRectRgn(0, 0, -1, -1)
+    behind = BlurBehind(0x1 | 0x2, True, empty_region, False)
+    dwmapi.DwmEnableBlurBehindWindow(wintypes.HWND(int(window.winId())), ctypes.byref(behind))
+    gdi32.DeleteObject(empty_region)
+
 
 # Space between the header and the module checkboxes under it
 HEADER_GAP = 2
@@ -110,7 +132,8 @@ class MainWindow(QWidget):
     ) -> None:
         # Without Windows' frame, which cannot have a see-through background behind it: the window draws its own title
         # bar and edges, and its background turns to glass as a floating panel's does
-        super().__init__(None, Qt.WindowType.Window | Qt.WindowType.FramelessWindowHint)
+        # Not Qt's frameless flag, which would make the see-through window a layered one, see let_compositor_blend
+        super().__init__(None, Qt.WindowType.Window)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         # Tooltips show while another program is in front, as PS Focus sits beside the art app the user works in
         self.setAttribute(Qt.WidgetAttribute.WA_AlwaysShowToolTips)
@@ -154,10 +177,30 @@ class MainWindow(QWidget):
         # The edge the window is resized by: the bottom in portrait, the right in landscape
         self.grip = EdgeGrip(self)
         _keep_window_behaviour(self)
+        let_compositor_blend(self)
+
+    # Windows is told the frame takes no room (see nativeEvent), so the window is exactly what Qt calls its geometry.
+    # Qt still measures a frame for a window that isn't frameless, 8 pixels in from it, and moves and reports the window
+    # by that, so these answer from the geometry instead, as for a frameless window
+    def frameGeometry(self) -> QRect:
+        return self.geometry()
+
+    def x(self) -> int:
+        return self.geometry().x()
+
+    def y(self) -> int:
+        return self.geometry().y()
+
+    def pos(self) -> QPoint:
+        return self.geometry().topLeft()
+
+    def move(self, *position) -> None:
+        point = position[0] if len(position) == 1 else QPoint(*position)
+        self.setGeometry(QRect(point, self.size()))
 
     def nativeEvent(self, event_type, message):
         # The whole window is the app's to draw: Windows is told its frame takes no room, so none is drawn
-        if event_type == b"windows_generic_MSG":
+        if bytes(event_type) == b"windows_generic_MSG":
             msg = wintypes.MSG.from_address(int(message))
             if msg.message == WM_NCCALCSIZE and msg.wParam:
                 return True, 0
@@ -352,7 +395,8 @@ class MainWindow(QWidget):
     def _slide(self) -> None:
         """Shrinking first hides the blocks after the anchor panel behind the window's far edge; once the edge
         reaches that panel the blocks slide instead, hiding those before it under the header or off the left"""
-        if self.settings_page is not None:
+        # An ordinary window is sized as Windows creates it, before the app has given it its header
+        if self.settings_page is not None or not hasattr(self, "header"):
             return
         self.viewport.resize(max(1, self.width() - self.viewport.x()), max(1, self.height() - self.viewport.y()))
         anchored = self.anchor is not None and self.anchor in self.blocks
@@ -405,10 +449,6 @@ class MainWindow(QWidget):
                 and self.width() != self.requested_width and self.on_resized_by_user is not None):
             self.requested_width = self.width()
             self.on_resized_by_user(self.width())
-        # The window is see-through, so each new size shows what is behind it until it is painted: painting now, before
-        # Windows goes on to show the size, rather than at the next idle moment, keeps that from flashing as it is dragged
-        if self.user_resizing and self.isVisible():
-            self.repaint()
 
     def moveEvent(self, event: QMoveEvent) -> None:
         super().moveEvent(event)

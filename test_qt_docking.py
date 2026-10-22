@@ -387,12 +387,15 @@ class QtDockingTests(unittest.TestCase):
         # Inside the offscreen platform's 800 by 600 screen, so the place is not pulled back onto it
         self.app.window.move(0, 0)
         self.application.processEvents()
+        # The offscreen platform nudges a window a pixel or two from the corner it was asked for, so the place is read
+        # back; and the window is taller than its screen, so its top comes back to the screen's top
+        left_at = self.app.window.pos()
         self.app.docking.save_positions()
         self.saved_settings = dict(self.app.settings)
         self.app.window_hidden()
         restarted = self._start()
         restarted.docking.restore()
-        self.assertEqual(restarted.window.pos(), QPoint(0, 0))
+        self.assertEqual(restarted.window.pos(), QPoint(left_at.x(), 0))
         self.assertTrue(restarted.docking.is_floating("stats"))
         self.assertEqual(restarted.docking.floating["stats"].pos(), original)
 
@@ -585,17 +588,6 @@ class QtDockingTests(unittest.TestCase):
         window.resize(400, window.height())
         self.assertEqual(self.app.landscape_width, 400)
 
-    def test_dragging_the_window_edge_paints_each_size_at_once(self):
-        window = self.app.window
-        window.show()
-        self.application.processEvents()
-        with patch.object(type(window), "repaint") as repaint:
-            window.resize(window.width(), window.height() - 1)
-            repaint.assert_not_called()
-            window.user_resizing = True
-            window.resize(window.width(), window.height() - 1)
-            repaint.assert_called()
-
     def test_floating_panels_turn_to_glass_away_from_the_mouse(self):
         from qt.docking import GLASS_MIN_ALPHA, glass_alpha
 
@@ -644,6 +636,67 @@ class QtDockingTests(unittest.TestCase):
         with patch("qt.docking.QCursor.pos", return_value=self.app.window.frameGeometry().center()):
             self.app.update_glass()
         self.assertEqual(parts(), (255,) * 5)
+
+    def test_the_mouse_is_looked_for_over_see_through_windows_so_they_turn_solid_at_once(self):
+        from qt.docking import glass_alpha
+
+        self.app.settings["panel_transparency"] = 100
+        faded = glass_alpha(100)
+        docking, window = self.app.docking, self.app.window
+        with patch("qt.docking.QCursor.pos", return_value=QPoint(5, 5)):
+            docking.check_hover()
+            self.assertEqual(window.glass_alpha, faded)
+        # Onto the window from any side, with no enter event sent: solid as soon as the mouse is looked for
+        with patch("qt.docking.QCursor.pos", return_value=window.frameGeometry().center()):
+            docking.check_hover()
+            self.assertEqual(window.glass_alpha, 255)
+        with patch("qt.docking.QCursor.pos", return_value=QPoint(5, 5)):
+            docking.check_hover()
+            self.assertEqual(window.glass_alpha, faded)
+        # The windows are worked out again only when the mouse has gone onto or off one
+        with patch("qt.docking.QCursor.pos", return_value=QPoint(5, 5)), patch.object(docking, "update_glass") as update:
+            docking.check_hover()
+            docking.check_hover()
+            update.assert_not_called()
+            with patch("qt.docking.QCursor.pos", return_value=window.frameGeometry().center()):
+                docking.check_hover()
+                docking.check_hover()
+            update.assert_called_once()
+
+    def test_the_window_stays_solid_while_its_edge_is_dragged(self):
+        from qt.docking import glass_alpha
+
+        self.app.settings["panel_transparency"] = 100
+        window, docking = self.app.window, self.app.docking
+        # The mouse is off the window, as it is when the edge is dragged past where the window ends
+        with patch("qt.docking.QCursor.pos", return_value=QPoint(5, 5)):
+            docking.check_hover()
+            self.assertEqual(window.glass_alpha, glass_alpha(100))
+            window.user_resizing = True
+            docking.check_hover()
+            self.assertEqual(window.glass_alpha, 255)
+            # Let go of the edge, and it fades again with nothing else to say so
+            window.user_resizing = False
+            docking.check_hover()
+            self.assertEqual(window.glass_alpha, glass_alpha(100))
+
+    def test_nothing_is_looked_for_while_nothing_is_see_through(self):
+        self.app.settings["panel_transparency"] = 0
+        with patch("qt.docking.QCursor.pos", return_value=self.app.window.frameGeometry().center()), patch.object(self.app.docking, "update_glass") as update:
+            self.app.docking.check_hover()
+            update.assert_not_called()
+
+    def test_the_window_is_an_ordinary_see_through_window_measured_by_its_geometry(self):
+        window = self.app.window
+        # Not frameless, which Qt would turn into a layered window that stutters as its edge is dragged
+        self.assertFalse(window.windowFlags() & Qt.WindowType.FramelessWindowHint)
+        self.assertTrue(window.testAttribute(Qt.WidgetAttribute.WA_TranslucentBackground))
+        # Moved, placed and reported by where it is, not by a frame Qt measures a little out from it
+        for move, target in ((lambda point: window.move(point.x(), point.y()), QPoint(300, 120)), (window.move, QPoint(330, 150))):
+            move(target)
+            self.assertEqual(window.geometry().topLeft(), target)
+            self.assertEqual((window.pos(), window.x(), window.y()), (target, target.x(), target.y()))
+            self.assertEqual(window.frameGeometry(), window.geometry())
 
     def test_glass_pictures_match_the_background_and_icons_have_no_square(self):
         from PySide6.QtGui import QColor

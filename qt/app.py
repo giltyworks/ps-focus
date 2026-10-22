@@ -202,6 +202,7 @@ class PSFocusQt:
         self.focus_timer.start()
         self.poll_timer = QTimer(interval=150, timeout=self._poll_signals)
         self.poll_timer.start()
+        self.docking.hover_timer.start()
         self._send_pending_feedback()
         # A copy on its own data folder, run from source or as a test, is not the installed release, so only the real
         # app looks for a newer version
@@ -866,6 +867,7 @@ class PSFocusQt:
         self.tick_timer.stop()
         self.focus_timer.stop()
         self.poll_timer.stop()
+        self.docking.hover_timer.stop()
         self.backup_timer.stop()
         self.update_timer.stop()
         try:
