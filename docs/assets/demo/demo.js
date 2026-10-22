@@ -179,6 +179,8 @@
   };
 
   let menu = null, menuAnchor = null, closedFrom = null;
+  // While the window's edge is being dragged it stays solid, though the pointer leaves it as it changes size
+  let resizing = false;
   const closeMenu = () => {
     menuAnchor?.classList.remove("psf-open"); menu?.remove(); menu = null; menuAnchor = null;
     if (transparencyOpen) { transparencyOpen = false; updateGlass(); }
@@ -294,7 +296,7 @@
   const settingsButton = el("button", { type: "button", class: "psf-icon-button psf-settings", title: "Settings", onclick: () => toggleSettings() }, "···");
   const level = el("div", { class: "psf-level" }, "Level", levelBadge);
   // In Settings the header shows the version and the credit in place of the level and account
-  const credit = el("div", { class: "psf-credit", hidden: true }, el("span", { class: "psf-version" }, "Version 1.1.26"), el("span", { class: "psf-by" }, "by giltyworks"));
+  const credit = el("div", { class: "psf-credit", hidden: true }, el("span", { class: "psf-version" }, "Version 1.1.27"), el("span", { class: "psf-by" }, "by giltyworks"));
   const header = el("div", { class: "psf-header" }, level, account, credit, settingsButton);
   const iconButtons = {};
   // At the left end of the row, as the app: the transparency icon, opening a small slider under it. While it is open
@@ -1455,6 +1457,8 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
   grip.addEventListener("pointerdown", (event) => {
     if (event.button !== 0) return;
     event.stopPropagation();
+    resizing = true;
+    updateGlass();
     const start = { x: event.clientX, y: event.clientY, width: win.offsetWidth, height: win.offsetHeight };
     // Never smaller than the header with the first program panel under it, as the app keeps it in view
     const least = state.landscape ? 300 : titlebar.offsetHeight + header.offsetHeight + icons.offsetHeight + todayBlock.offsetHeight + 12;
@@ -1467,7 +1471,7 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
       if (state.size >= most) state.size = null;
       applySize();
     };
-    const up = () => { grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up); };
+    const up = () => { resizing = false; updateGlass(); grip.removeEventListener("pointermove", move); grip.removeEventListener("pointerup", up); grip.removeEventListener("pointercancel", up); };
     grip.addEventListener("pointermove", move);
     grip.addEventListener("pointerup", up);
     grip.addEventListener("pointercancel", up);
@@ -1602,7 +1606,7 @@ Member since ${friend.since.getDate()} ${MONTHS[friend.since.getMonth()]} ${frie
       const group = groupOf(start);
       group.forEach((node) => done.add(node));
       const withMain = group.has(win);
-      const solid = transparencyOpen ? false : touch.matches ? !stageAway : [...group].some(inside) || (withMain && !!menu);
+      const solid = transparencyOpen ? false : touch.matches ? !stageAway : [...group].some(inside) || (withMain && (!!menu || resizing));
       if (withMain) mainSolid = solid;
       group.forEach((node) => set(node, solid));
     }
