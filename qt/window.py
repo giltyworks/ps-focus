@@ -8,7 +8,7 @@ from ctypes import wintypes
 from typing import Callable
 
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt
-from PySide6.QtGui import QCloseEvent, QIcon, QMoveEvent, QPainter, QPaintEvent, QResizeEvent
+from PySide6.QtGui import QCloseEvent, QGuiApplication, QIcon, QMoveEvent, QPainter, QPaintEvent, QResizeEvent
 from PySide6.QtWidgets import QWidget
 
 from app_config import APP_NAME, COMPACT_BOTTOM_SPACE, MODULE_GAP, TODAY_PANEL_WIDTH, WINDOW_MARGIN, resource_path
@@ -48,7 +48,9 @@ def let_compositor_blend(window: QWidget) -> None:
     for an ordinary window. Qt turns any frameless window with a see-through background into a layered one, which
     Windows redraws as a whole new picture at each size while the edge is dragged, so resizing stutters; the classic
     empty blur region (DWM_BB_ENABLE | DWM_BB_BLURREGION, a region of nothing) gives the same blending without that"""
-    if os.name != "nt":
+    # Only a window Windows made: the offscreen platform the tests run on gives it an id that is no handle, which
+    # Windows must not be asked about
+    if os.name != "nt" or QGuiApplication.platformName() != "windows":
         return
 
     class BlurBehind(ctypes.Structure):
