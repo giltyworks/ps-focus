@@ -439,6 +439,20 @@ class QtSettingsTests(unittest.TestCase):
         self.assertEqual(overview.pos(), start + QPoint(40, 25))
         overview.deleteLater()
 
+    def test_releasing_the_mouse_after_a_click_leaves_a_popups_cursor_alone(self):
+        from datetime import date
+        from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+        from PySide6.QtWidgets import QApplication
+        from qt.day_overview import DayOverview
+
+        overview = DayOverview(self.app.window, self.app.fonts, self.app.store, date.today(), lambda _day, _rating: None)
+        overview.setCursor(Qt.CursorShape.PointingHandCursor)
+        point = QPoint(40, overview.height() - 10)
+        QApplication.sendEvent(overview, QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(point), QPointF(overview.mapToGlobal(point)), Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+        self.assertEqual(overview.cursor().shape(), Qt.CursorShape.PointingHandCursor)
+        overview.deleteLater()
+
     def test_a_day_with_time_tracked_can_be_shared_as_a_story(self):
         from PySide6.QtCore import QEvent, QPointF, Qt
         from PySide6.QtGui import QMouseEvent

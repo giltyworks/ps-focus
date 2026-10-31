@@ -4,6 +4,8 @@ every measurement there is a share of the card's width, so the card paints the s
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt
 from PySide6.QtGui import (
     QColor, QFont, QFontMetricsF, QImage, QLinearGradient, QPainter, QPainterPath, QPainterPathStroker, QPen, QPixmap,
@@ -45,6 +47,8 @@ PADDING = 7.0
 DIM = 0.10
 SCRIM = ((0.0, 0.42), (0.24, 0.08), (0.40, 0.0), (0.54, 0.30), (1.0, 0.36))
 TEXT_COLOR = "#e6e8eb"
+# The program line and the stat labels: white, half see-through, so the photo shows through them
+SOFT_TEXT_COLOR = "#ffffff"
 NUMBER_COLOR = "#ffffff"
 LOGO_SIZE = 8.0
 LOGO_OPACITY = 0.35
@@ -52,8 +56,8 @@ LOGO_GAP = 3.0
 # Each kind of text: size, weight (one Segoe UI has: 400, 600 or 700), letter spacing (in ems) and opacity
 DATE_FONT = (2.5, 600, 0.12, 1.0)
 TITLE_FONT = (5.3, 700, -0.01, 1.0)
-PROGRAM_FONT = (4.25, 600, 0.0, 0.85)
-LABEL_FONT = (3.8, 600, 0.0, 0.92)
+PROGRAM_FONT = (4.25, 600, 0.0, 0.5)
+LABEL_FONT = (3.8, 600, 0.0, 0.5)
 NUMBER_FONT = (12.4, 700, -0.045, 1.0)
 # How much heavier the small text (not the title or the big numbers, which are heavy enough) is drawn than Qt's plain
 # drawing, as the width of an added outline in ems of the text
@@ -174,9 +178,10 @@ def draw_heavy_text(painter: QPainter, point: QPointF, text: str, font: QFont, c
     painter.fillPath(letters.united(stroker.createStroke(letters)), color)
 
 
+@lru_cache(maxsize=1)
 def hollow_logo() -> QImage:
     """The app's logo as white only: its black stroke and the space around the disc become see-through, so the photo
-    shows through them. A null image if the logo cannot be read"""
+    shows through them. A null image if the logo cannot be read. Made once, and only drawn from"""
     logo = QImage(str(resource_path("assets/icons/PSFocus_256x256.png")))
     if logo.isNull():
         return logo
@@ -248,7 +253,7 @@ def render_card(width: int, photo: QImage | None, text: StoryText) -> QImage:
     program_metrics = QFontMetricsF(program_font)
     programs = program_metrics.elidedText(text.programs, Qt.TextElideMode.ElideRight, width - 2 * padding)
     draw_heavy_text(painter, QPointF(padding, top + program_metrics.ascent()), programs, program_font,
-                    _text_color(TEXT_COLOR, PROGRAM_FONT[3]))
+                    _text_color(SOFT_TEXT_COLOR, PROGRAM_FONT[3]))
 
     # Bottom left, one column: Records when earned, Focus time, Started
     stats = []
@@ -268,7 +273,7 @@ def render_card(width: int, photo: QImage | None, text: StoryText) -> QImage:
     top = height - padding - len(stats) * stat_height - (len(stats) - 1) * STAT_GAP * unit
     for label, value, with_award in stats:
         draw_heavy_text(painter, QPointF(padding, top + label_metrics.ascent()), label, label_font,
-                        _text_color(TEXT_COLOR, LABEL_FONT[3]))
+                        _text_color(SOFT_TEXT_COLOR, LABEL_FONT[3]))
         number_top = top + label_line + LABEL_GAP * unit
         draw_heavy_text(painter, QPointF(padding, _baseline(number_top, number_line, number_metrics)), value, number_font,
                         QColor(NUMBER_COLOR), NUMBER_EMBOLDEN)

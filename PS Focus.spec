@@ -35,10 +35,8 @@ a = Analysis(
         ('assets/icons/PSFocus.ico', 'assets/icons'),
         ('assets/icons/PSFocus_Settings_64.png', 'assets/icons'),
         ('assets/sounds/celebration.wav', 'assets/sounds'),
-        # The session story card: its logo and typeface, with the typeface's licence
+        # The session story card's logo
         ('assets/icons/PSFocus_256x256.png', 'assets/icons'),
-        ('assets/fonts/Archivo-Variable.ttf', 'assets/fonts'),
-        ('assets/fonts/OFL.txt', 'assets/fonts'),
     ] + oauth_datas,
     hiddenimports=[], hookspath=[], hooksconfig={}, runtime_hooks=[],
     excludes=[

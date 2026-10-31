@@ -1,0 +1,376 @@
+<title>Story Card Tuner</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<style>
+/* Layout: a sticky live preview of the story beside grouped sliders; the copyable constants sit under the sliders */
+:root {
+  --bg: #f3f4f7;
+  --panel: #ffffff;
+  --border: #d9dce5;
+  --fg: #181b26;
+  --muted: #61667a;
+  --accent: #3d5ce6;
+  --accent-fg: #ffffff;
+  --changed: #e6a817;
+  --ui-font: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --mono-font: ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #12141b; --panel: #1b1e28; --border: #2e3242; --fg: #e8eaf2; --muted: #9096ad;
+    --accent: #7f95ff; --accent-fg: #0f1220; --changed: #f0be3c; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #12141b; --panel: #1b1e28; --border: #2e3242; --fg: #e8eaf2; --muted: #9096ad;
+  --accent: #7f95ff; --accent-fg: #0f1220; --changed: #f0be3c; color-scheme: dark;
+}
+body {
+  background: var(--bg); color: var(--fg); font-family: var(--ui-font); font-size: 14px; line-height: 1.45;
+  padding-block: 20px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+h1 { font-size: 20px; margin: 0 0 4px; font-weight: 650; }
+h2 { font-size: 12px; margin: 0 0 10px; font-weight: 650; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.lede { margin: 0 0 18px; color: var(--muted); max-width: 70ch; }
+.layout { display: grid; grid-template-columns: minmax(280px, 360px) minmax(0, 1fr); gap: 24px; align-items: start; max-width: 1100px; }
+@media (max-width: 820px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.preview-col { position: sticky; top: 12px; display: flex; flex-direction: column; gap: 14px; }
+@media (max-width: 820px) { .preview-col { position: static; } }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 14px; }
+.controls { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+
+/* The story: 9:16, all sizes in percent of its own width (cqw), as the app paints it */
+.story-frame { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+.story { container-type: inline-size; position: relative; width: 100%; aspect-ratio: 9 / 16; overflow: hidden; background: #222; border-radius: 4px; isolation: isolate; }
+.story-bg { position: absolute; inset: 0; background-image: var(--photo); background-size: cover; background-position: center; transform: scale(1.25); filter: blur(calc(var(--storyBlur) * 0.0926cqw)); }
+.story-dark { position: absolute; inset: 0; background: rgba(0, 0, 0, var(--storyDarken)); }
+.shadow, .card {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: calc(var(--cardShare) * 100cqw); height: calc(var(--cardShare) * var(--cardAspect) * 100cqw);
+  border-radius: calc(var(--cardRadius) * 100cqw);
+}
+.shadow { background: rgba(0, 0, 0, var(--shadowAlpha)); filter: blur(calc(var(--shadowBlur) * 0.0463cqw)); }
+.card { --awardSize: 0.66; container-type: inline-size; overflow: hidden; box-shadow: 0 0 0 calc(var(--edgeWidth) * 0.0926cqw) rgba(255, 255, 255, var(--edgeAlpha)); color: #e6e8eb; font-family: "Segoe UI", system-ui, sans-serif; }
+.card-bg { position: absolute; inset: 0; background-image: var(--photo); background-size: cover; background-position: center; }
+.card-scrim { position: absolute; inset: 0; background:
+  linear-gradient(to bottom, rgba(0,0,0,.42) 0%, rgba(0,0,0,.08) 24%, rgba(0,0,0,0) 40%, rgba(0,0,0,.30) 54%, rgba(0,0,0,.36) 100%),
+  rgba(0, 0, 0, var(--dim)); }
+.card-body { position: absolute; inset: 0; padding: calc(var(--padding) * 1cqw); display: flex; flex-direction: column; justify-content: space-between; }
+.logo { position: absolute; top: calc(var(--padding) * 1cqw); right: calc(var(--padding) * 1cqw); width: calc(var(--logoSize) * 1cqw); height: calc(var(--logoSize) * 1cqw); opacity: var(--logoOpacity); }
+.top { display: flex; flex-direction: column; align-items: flex-start; }
+.pill {
+  font-size: calc(var(--dateSize) * 1cqw); font-weight: var(--dateWeight); letter-spacing: calc(var(--dateSpacing) * 1em); text-transform: none;
+  padding: 0.3em calc(var(--pillPadX) * 1em); margin-block: 0.1em; line-height: 1.33; border-radius: 999px;
+  background: rgba(255, 255, 255, var(--pillWhite)); backdrop-filter: blur(1.2cqw); white-space: nowrap;
+}
+.title { margin-top: calc(var(--pillGap) * 1cqw); font-size: calc(var(--titleSize) * 1cqw); font-weight: var(--titleWeight); letter-spacing: calc(var(--titleSpacing) * 1em); line-height: 1.1; white-space: nowrap; }
+.program { color: #fff; margin-top: calc(var(--titleGap) * 1cqw); font-size: calc(var(--programSize) * 1cqw); font-weight: var(--programWeight); line-height: 1.33; opacity: var(--programOpacity); white-space: nowrap; }
+.stats { display: flex; flex-direction: column; gap: calc(var(--statGap) * 1cqw); }
+.stat-label { color: #fff; font-size: calc(var(--labelSize) * 1cqw); font-weight: var(--labelWeight); line-height: 1.33; opacity: var(--labelOpacity); }
+.stat-value { margin-top: calc(var(--labelGap) * 1cqw); display: flex; align-items: center; gap: 0.18em; font-size: calc(var(--numberSize) * 1cqw); font-weight: var(--numberWeight); letter-spacing: calc(var(--numberSpacing) * 1em); line-height: 0.95; color: #fff; font-variant-numeric: tabular-nums; }
+.award { width: calc(var(--awardSize) * 1em); height: calc(var(--awardSize) * 1em); flex: none; }
+
+/* Controls */
+.row { display: grid; grid-template-columns: minmax(0, 9.5em) minmax(0, 1fr) 4.6em 1.8em; gap: 8px; align-items: center; padding-block: 3px; }
+@media (max-width: 480px) { .row { grid-template-columns: minmax(0, 1fr) 4.6em 1.8em; } .row label { grid-column: 1 / -1; } .row input[type=range] { grid-column: 1 / 3; } }
+.row label { color: var(--fg); }
+.row.changed label { color: var(--changed); font-weight: 600; }
+input[type=range] { width: 100%; accent-color: var(--accent); min-width: 0; }
+input[type=number], input[type=text], select {
+  font: inherit; color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; min-width: 0; width: 100%;
+}
+select { padding: 4px; }
+button {
+  font: inherit; color: var(--fg); background: var(--panel); border: 1px solid var(--border); border-radius: 6px; padding: 5px 12px; cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button.primary { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); font-weight: 600; }
+button.reset { padding: 2px 0; width: 1.8em; height: 1.8em; line-height: 1; color: var(--muted); visibility: hidden; }
+.row.changed button.reset { visibility: visible; color: var(--changed); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.field { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 8px; align-items: center; padding-block: 3px; }
+.btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.hint { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+textarea {
+  width: 100%; min-height: 15em; resize: vertical; font-family: var(--mono-font); font-size: 12.5px; line-height: 1.5;
+  color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 10px; box-sizing: border-box;
+}
+.status { color: var(--accent); font-weight: 600; min-height: 1.4em; }
+</style>
+
+<h1>Story Card Tuner</h1>
+<p class="lede">Move the sliders and watch the card. Values you change turn amber. When it looks right, press Copy values and paste them to Claude. The card is drawn here in your browser's Segoe UI, so spacing can differ slightly from the app's own drawing; the shadow and blur are approximate.</p>
+
+<div class="layout">
+  <div class="preview-col">
+    <div class="story-frame">
+      <div class="story" id="story">
+        <div class="story-bg"></div>
+        <div class="story-dark"></div>
+        <div class="shadow"></div>
+        <div class="card">
+          <div class="card-bg"></div>
+          <div class="card-scrim"></div>
+          <svg class="logo" viewBox="0 0 100 100" aria-hidden="true"><path fill="#fff" fill-rule="evenodd" d="M50 2a48 48 0 1 0 0 96a48 48 0 1 0 0-96z M50 22c-12 0-19 8-19 19 0 7 3 11 8 14l-3 20h28l-3-20c5-3 8-7 8-14 0-11-7-19-19-19z"/></svg>
+          <div class="card-body">
+            <div class="top">
+              <div class="pill" id="outDate">31 OCT 2026</div>
+              <div class="title" id="outTitle">Sat Lunch Session</div>
+              <div class="program" id="outProgram">Photoshop · Krita</div>
+            </div>
+            <div class="stats">
+              <div id="recordsStat">
+                <div class="stat-label">Records</div>
+                <div class="stat-value"><span id="outRecords">1</span>
+                  <svg class="award" viewBox="0 0 100 100" aria-hidden="true"><path d="M30 60 L18 96 L38 86 Z M70 60 L82 96 L62 86 Z" fill="#f0c33c"/><circle cx="50" cy="38" r="30" fill="#f0c33c"/></svg>
+                </div>
+              </div>
+              <div>
+                <div class="stat-label">Time</div>
+                <div class="stat-value" id="outTime">1h 52m</div>
+              </div>
+              <div>
+                <div class="stat-label">Started</div>
+                <div class="stat-value" id="outStarted">1:14pm</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>Preview content</h2>
+      <div class="field"><label for="inDate">Date</label><input type="text" id="inDate" value="31 OCT 2026"></div>
+      <div class="field"><label for="inTitle">Title</label><input type="text" id="inTitle" value="Sat Lunch Session"></div>
+      <div class="field"><label for="inProgram">Programs</label><input type="text" id="inProgram" value="Photoshop · Krita"></div>
+      <div class="field"><label for="inTime">Time</label><input type="text" id="inTime" value="1h 52m"></div>
+      <div class="field"><label for="inStarted">Started</label><input type="text" id="inStarted" value="1:14pm"></div>
+      <div class="field"><label for="inRecords">Show Records</label><input type="checkbox" id="inRecords" checked style="justify-self:start"></div>
+      <div class="btns" style="margin-top:10px">
+        <button type="button" id="photoBtn">Choose photo…</button>
+        <button type="button" id="samplePhotoBtn">Use sample scene</button>
+        <input type="file" id="photoFile" accept="image/*" hidden>
+      </div>
+      <p class="hint">The photo stays in your browser. These texts only change the preview, not the app.</p>
+    </div>
+  </div>
+
+  <div class="controls">
+    <div id="groups"></div>
+    <div class="panel">
+      <h2>Values to send back</h2>
+      <textarea id="output" readonly aria-label="Constants for story_card.py"></textarea>
+      <div class="btns" style="margin-top:10px">
+        <button type="button" class="primary" id="copyBtn">Copy values</button>
+        <button type="button" id="resetAll">Reset everything</button>
+        <span class="status" id="status" role="status"></span>
+      </div>
+      <p class="hint">Paste the copied block into the chat. They are the same names the app's card code uses, so Claude can apply them directly.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+// Each setting: key (also the CSS variable name), label, range, default and whether it is a whole number. Defaults are the card as it stands in the app.
+const WEIGHTS = [300, 350, 400, 600, 700, 900];
+const GROUPS = [
+  { name: "Date pill", items: [
+    { k: "dateSize", label: "Text size", min: 1.5, max: 5, step: 0.05, def: 2.5 },
+    { k: "dateWeight", label: "Weight", weight: true, def: 600 },
+    { k: "dateSpacing", label: "Letter spacing", min: 0, max: 0.2, step: 0.005, def: 0.12 },
+    { k: "pillPadX", label: "Pill side padding", min: 0.2, max: 1.6, step: 0.05, def: 1.1 },
+    { k: "pillWhite", label: "Pill brightness", min: 0, max: 0.6, step: 0.01, def: 0.28 },
+  ]},
+  { name: "Title", items: [
+    { k: "titleSize", label: "Text size", min: 3, max: 9, step: 0.05, def: 5.3 },
+    { k: "titleWeight", label: "Weight", weight: true, def: 700 },
+    { k: "titleSpacing", label: "Letter spacing", min: -0.05, max: 0.05, step: 0.005, def: -0.01 },
+    { k: "pillGap", label: "Gap under pill", min: 0, max: 8, step: 0.1, def: 3.0 },
+  ]},
+  { name: "Program line", items: [
+    { k: "programSize", label: "Text size", min: 2, max: 7, step: 0.05, def: 4.25 },
+    { k: "programWeight", label: "Weight", weight: true, def: 600 },
+    { k: "programOpacity", label: "Opacity", min: 0.3, max: 1, step: 0.01, def: 0.5 },
+    { k: "titleGap", label: "Gap under title", min: 0, max: 5, step: 0.1, def: 1.1 },
+  ]},
+  { name: "Stats", items: [
+    { k: "labelSize", label: "Label size", min: 2, max: 7, step: 0.05, def: 3.8 },
+    { k: "labelWeight", label: "Label weight", weight: true, def: 600 },
+    { k: "labelOpacity", label: "Label opacity", min: 0.3, max: 1, step: 0.01, def: 0.5 },
+    { k: "numberSize", label: "Number size", min: 8, max: 20, step: 0.1, def: 12.4 },
+    { k: "numberWeight", label: "Number weight", weight: true, def: 700 },
+    { k: "numberSpacing", label: "Number spacing", min: -0.08, max: 0.04, step: 0.005, def: -0.045 },
+    { k: "labelGap", label: "Label to number", min: 0, max: 3, step: 0.1, def: 0.0 },
+    { k: "statGap", label: "Gap between stats", min: 0, max: 10, step: 0.1, def: 4.5 },
+  ]},
+  { name: "Card", items: [
+    { k: "cardAspect", label: "Height ÷ width", min: 1.2, max: 1.9, step: 0.01, def: 1.58 },
+    { k: "cardShare", label: "Width in story", min: 0.6, max: 1, step: 0.01, def: 0.81 },
+    { k: "cardRadius", label: "Corner radius", min: 0, max: 0.12, step: 0.005, def: 0.05 },
+    { k: "padding", label: "Inner padding", min: 3, max: 12, step: 0.1, def: 7.0 },
+    { k: "dim", label: "Photo darkening", min: 0, max: 0.5, step: 0.01, def: 0.10 },
+    { k: "logoSize", label: "Logo size", min: 4, max: 14, step: 0.1, def: 8.0 },
+    { k: "logoOpacity", label: "Logo opacity", min: 0.05, max: 1, step: 0.01, def: 0.35 },
+  ]},
+  { name: "Around the card", items: [
+    { k: "storyBlur", label: "Background blur", min: 0, max: 120, step: 1, def: 54, int: true },
+    { k: "storyDarken", label: "Background darkening", min: 0, max: 0.8, step: 0.01, def: 0.28 },
+    { k: "shadowAlpha", label: "Shadow strength", min: 0, max: 0.8, step: 0.01, def: 0.12 },
+    { k: "shadowBlur", label: "Shadow softness", min: 20, max: 300, step: 5, def: 100, int: true },
+    { k: "edgeAlpha", label: "Outline strength", min: 0, max: 0.4, step: 0.005, def: 0.05 },
+    { k: "edgeWidth", label: "Outline width", min: 0, max: 8, step: 1, def: 3, int: true },
+  ]},
+];
+const ALL = GROUPS.flatMap(g => g.items);
+const STORE_KEY = "story-card-tuner-v2";
+const state = {};
+ALL.forEach(d => { state[d.k] = d.def; });
+try {
+  const saved = JSON.parse(localStorage.getItem(STORE_KEY) || "{}");
+  ALL.forEach(d => { if (typeof saved[d.k] === "number" && isFinite(saved[d.k])) state[d.k] = saved[d.k]; });
+} catch (e) { /* storage may be unavailable; the page works without it */ }
+
+const story = document.getElementById("story");
+const rows = {};
+const SAMPLE = "linear-gradient(165deg, #a6cf86 0%, #5d8f62 38%, #2b5578 100%)";
+story.style.setProperty("--photo", SAMPLE);
+
+function round(v) { return Math.round(v * 1000) / 1000; }
+function apply() {
+  ALL.forEach(d => {
+    story.style.setProperty("--" + d.k, state[d.k]);
+    const row = rows[d.k];
+    row.classList.toggle("changed", round(state[d.k]) !== d.def);
+    row.range.value = state[d.k];
+    row.num.value = state[d.k];
+  });
+  document.getElementById("output").value = buildOutput();
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* optional */ }
+}
+
+function buildGroups() {
+  const host = document.getElementById("groups");
+  GROUPS.forEach(g => {
+    const panel = document.createElement("div");
+    panel.className = "panel";
+    panel.style.marginBottom = "14px";
+    const h = document.createElement("h2");
+    h.textContent = g.name;
+    panel.appendChild(h);
+    g.items.forEach(d => {
+      const row = document.createElement("div");
+      row.className = "row";
+      const id = "c-" + d.k;
+      const label = document.createElement("label");
+      label.htmlFor = id; label.textContent = d.label;
+      row.appendChild(label);
+      let range, num;
+      if (d.weight) {
+        range = document.createElement("select");
+        WEIGHTS.forEach(w => { const o = document.createElement("option"); o.value = w; o.textContent = w + (w === 400 ? " Regular" : w === 600 ? " Semibold" : w === 700 ? " Bold" : w === 350 ? " Semilight" : w === 300 ? " Light" : " Black"); range.appendChild(o); });
+        range.id = id;
+        range.addEventListener("change", () => { state[d.k] = +range.value; apply(); });
+        num = document.createElement("span");
+        num.style.display = "none";
+        Object.defineProperty(num, "value", { set() {}, get() { return ""; } });
+        row.appendChild(range);
+        range.style.gridColumn = "2 / 4";
+      } else {
+        range = document.createElement("input");
+        range.type = "range"; range.min = d.min; range.max = d.max; range.step = d.step; range.id = id;
+        range.addEventListener("input", () => { state[d.k] = +range.value; apply(); });
+        num = document.createElement("input");
+        num.type = "number"; num.min = d.min; num.max = d.max; num.step = d.step;
+        num.setAttribute("aria-label", d.label + " value");
+        num.addEventListener("change", () => { const v = parseFloat(num.value); if (isFinite(v)) { state[d.k] = Math.min(d.max * 2, Math.max(d.min / 2, v)); } apply(); });
+        row.appendChild(range); row.appendChild(num);
+      }
+      const reset = document.createElement("button");
+      reset.type = "button"; reset.className = "reset"; reset.textContent = "↺";
+      reset.title = "Back to " + d.def; reset.setAttribute("aria-label", "Reset " + d.label);
+      reset.addEventListener("click", () => { state[d.k] = d.def; apply(); });
+      row.appendChild(reset);
+      rows[d.k] = { range, num, classList: row.classList };
+      panel.appendChild(row);
+    });
+    host.appendChild(panel);
+  });
+}
+
+function f(k) {
+  const d = ALL.find(x => x.k === k);
+  const v = round(state[k]);
+  if (d.int || d.weight) return String(Math.round(v));
+  const s = String(v);
+  return s.includes(".") ? s : s + ".0";
+}
+function buildOutput() {
+  return [
+    "# Date pill",
+    `DATE_FONT = (${f("dateSize")}, ${f("dateWeight")}, ${f("dateSpacing")}, 1.0)`,
+    `PILL_PADDING = (${f("pillPadX")}, 0.4)`,
+    `PILL_WHITE = ${f("pillWhite")}`,
+    "# Title and program",
+    `TITLE_FONT = (${f("titleSize")}, ${f("titleWeight")}, ${f("titleSpacing")}, 1.0)`,
+    `PROGRAM_FONT = (${f("programSize")}, ${f("programWeight")}, 0.0, ${f("programOpacity")})`,
+    `PILL_GAP = ${f("pillGap")}`,
+    `TITLE_GAP = ${f("titleGap")}`,
+    "# Stats",
+    `LABEL_FONT = (${f("labelSize")}, ${f("labelWeight")}, 0.0, ${f("labelOpacity")})`,
+    `NUMBER_FONT = (${f("numberSize")}, ${f("numberWeight")}, ${f("numberSpacing")}, 1.0)`,
+    `LABEL_GAP = ${f("labelGap")}`,
+    `STAT_GAP = ${f("statGap")}`,
+    "# Card",
+    `CARD_ASPECT = ${f("cardAspect")}`,
+    `STORY_CARD_SHARE = ${f("cardShare")}`,
+    `STORY_CARD_RADIUS = ${f("cardRadius")}`,
+    `PADDING = ${f("padding")}`,
+    `DIM = ${f("dim")}`,
+    `LOGO_SIZE = ${f("logoSize")}`,
+    `LOGO_OPACITY = ${f("logoOpacity")}`,
+    "# Around the card",
+    `STORY_BLUR = ${f("storyBlur")}`,
+    `STORY_DARKEN = ${f("storyDarken")}`,
+    `SHADOW_ALPHA = ${f("shadowAlpha")}`,
+    `SHADOW_BLUR = ${f("shadowBlur")}`,
+    `EDGE_ALPHA = ${f("edgeAlpha")}`,
+    `EDGE_WIDTH = ${f("edgeWidth")}`,
+  ].join("\n");
+}
+
+// Preview texts
+const bind = (inputId, outId) => {
+  const input = document.getElementById(inputId), out = document.getElementById(outId);
+  input.addEventListener("input", () => { out.textContent = input.value; });
+};
+bind("inDate", "outDate"); bind("inTitle", "outTitle"); bind("inProgram", "outProgram"); bind("inTime", "outTime"); bind("inStarted", "outStarted");
+document.getElementById("inRecords").addEventListener("change", e => { document.getElementById("recordsStat").hidden = !e.target.checked; });
+
+// Photo
+const fileInput = document.getElementById("photoFile");
+document.getElementById("photoBtn").addEventListener("click", () => fileInput.click());
+document.getElementById("samplePhotoBtn").addEventListener("click", () => story.style.setProperty("--photo", SAMPLE));
+fileInput.addEventListener("change", () => {
+  const file = fileInput.files && fileInput.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => story.style.setProperty("--photo", "url(" + JSON.stringify(reader.result) + ")");
+  reader.readAsDataURL(file);
+});
+
+// Copy and reset
+const status = document.getElementById("status");
+function say(text) { status.textContent = text; setTimeout(() => { if (status.textContent === text) status.textContent = ""; }, 2500); }
+document.getElementById("copyBtn").addEventListener("click", () => {
+  const box = document.getElementById("output");
+  const fallback = () => { box.focus(); box.select(); say("Press Ctrl+C to copy the selected text"); };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(box.value).then(() => say("Copied"), fallback);
+  } else { fallback(); }
+});
+document.getElementById("resetAll").addEventListener("click", () => { ALL.forEach(d => { state[d.k] = d.def; }); apply(); say("Back to the app's current values"); });
+
+buildGroups();
+apply();
+</script>

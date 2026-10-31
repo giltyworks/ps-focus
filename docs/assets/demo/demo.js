@@ -580,7 +580,7 @@
       // As in the app, a day with time tracked offers its session as a story card; the demo only says what it does
       seconds ? el("button", { type: "button", class: "psf-share", onclick: () => appWindow("Share session", "Share session",
         "psf-day-overview", el("div", { class: "psf-overview-empty" },
-          "In the app, this opens the session's story card: pick a photo, change any text, then copy or save a 1080 x 1920 image to post."))
+          "In the app, this opens the session's story card: pick a photo, then copy or save a 1080 x 1920 image, to a file, iCloud Photos or Google Drive, to post."))
       }, "Share as story") : "");
   }
 

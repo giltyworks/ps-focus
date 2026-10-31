@@ -4,6 +4,9 @@ iCloud Photos or Google Drive to post from a phone. The card itself is painted b
 
 from __future__ import annotations
 
+import ctypes
+import os
+import string
 from datetime import date
 from pathlib import Path
 
@@ -28,14 +31,15 @@ PADDING = 3
 # The preview: the story at a quarter of its size, so 270 by 480; a click shows it larger
 PREVIEW_SCALE = 0.25
 PREVIEW_RADIUS = 6
-COLUMN_GAP = 3
 ROW_GAP = 9
 BUTTON_PADX, BUTTON_PADY = 12, 6
 ICON_BUTTON_WIDTH = 34
+# Space before the words of a button that has them, which are cut short if they would not otherwise fit
+TEXT_BUTTON_PADX = 8
 # The space above and below the buttons under the preview
 BUTTON_GAP = 3
 # The most lines below the buttons for what the last save said
-STATUS_LINES = 2
+STATUS_LINES = 3
 # The enlarged preview takes this share of the screen's height, the Windows title bar included
 LARGE_PREVIEW_HEIGHT = 0.9
 TITLE_BAR_ALLOWANCE = 40
@@ -59,10 +63,21 @@ def icloud_uploads_folder() -> Path | None:
     return None
 
 
+def fixed_drive_letters() -> str:
+    """The letters of the drives that are part of the PC, as Windows lists them. Removable and network drives, which can
+    stall for seconds when looked at while nothing answers, are left out; Google Drive's own drive counts as fixed"""
+    if os.name != "nt":
+        return ""
+    kernel32 = ctypes.windll.kernel32
+    present = kernel32.GetLogicalDrives()
+    # DRIVE_FIXED
+    return "".join(letter for index, letter in enumerate(string.ascii_uppercase) if present >> index & 1 and kernel32.GetDriveTypeW(f"{letter}:\\") == 3)
+
+
 def google_drive_folder() -> Path | None:
     """A PS Focus Stories folder inside My Drive, as Google Drive for desktop shows it, or None when it isn't set up.
     Drive for desktop makes My Drive a drive letter of its own, or a folder in the user's home"""
-    candidates = [Path(f"{letter}:/") / "My Drive" for letter in "DEFGHIJKLMNOPQRSTUVWXYZ"]
+    candidates = [Path(f"{letter}:/") / "My Drive" for letter in fixed_drive_letters()]
     candidates += [Path.home() / "Google Drive" / "My Drive", Path.home() / "Google Drive"]
     for mine in candidates:
         if mine.is_dir():
@@ -75,15 +90,16 @@ def default_file_name(session_day: date) -> str:
 
 
 class LeftTextButton(PaintedButton):
-    """A button whose words start at its left edge, so those of the buttons stacked in a column line up"""
+    """A button whose words start at its left edge, a little in; they are cut short if the button has been made too
+    narrow for them"""
 
     def paint(self, painter: QPainter) -> None:
         words, self.text = self.text, ""
         super().paint(painter)
         self.text = words
         draw_text(
-            painter, self.left + BUTTON_PADX, self.top + (self.height - line_height(self.font)) // 2, words,
-            color(self.text_color if self.enabled else "muted"), self.font,
+            painter, self.left + TEXT_BUTTON_PADX, self.top + (self.height - line_height(self.font)) // 2,
+            fit_text(words, self.font, self.width - 2 * TEXT_BUTTON_PADX), color(self.text_color if self.enabled else "muted"), self.font,
         )
 
 
@@ -380,8 +396,7 @@ class StoryDialog(AppPopup):
         title = fit_text(self.windowTitle(), self.fonts.small, close.left() - self.title_reserve - 6 - name_left)
         draw_text(painter, name_left, (self.title_height - line_height(self.fonts.small)) // 2, title, color("text"), self.fonts.small)
         self.paint_close(painter)
-        painter.setPen(color("border"))
-        painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
+        self.paint_outline(painter)
 
     def title_control_at(self, point: QPoint) -> bool:
         return self.photo_button.contains(point)

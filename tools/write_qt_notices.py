@@ -24,11 +24,8 @@ RELEASE_HEADER = (
     'PS Focus includes the following third-party software. Each is provided under its own licence, reproduced below.\n'
     'Qt and Qt for Python (PySide6, Shiboken) are used under the GNU Lesser General Public License version 3. Their '
     'source code is available from https://download.qt.io and https://code.qt.io, and PySide6 from '
-    'https://pypi.org/project/PySide6. Python\'s source code is available from https://www.python.org. The Archivo '
-    'typeface, used on the session story card, is used under the SIL Open Font License 1.1.'
+    'https://pypi.org/project/PySide6. Python\'s source code is available from https://www.python.org.'
 )
-# Bundled files under their own licences, beside the Qt packages: (name, licence file)
-BUNDLED = (('Archivo typeface', ROOT / 'assets/fonts/OFL.txt'),)
 
 
 def write_notices(header: str = RELEASE_HEADER, output: Path | None = None) -> Path:
@@ -56,8 +53,6 @@ def write_notices(header: str = RELEASE_HEADER, output: Path | None = None) -> P
         license_fields = '\n'.join(line for line in metadata.splitlines() if line.startswith(('License:', 'License-Expression:', 'License-File:', 'Project-URL:')))
         sections.append(f'===== {package} {PySide6.__version__} =====\n{license_fields}')
         sections.extend(f'----- {name} -----\n{text}' for name, text in documents)
-    for name, licence in BUNDLED:
-        sections.append(f'===== {name} =====\n{licence.read_text(encoding="utf-8")}')
     output = output or ROOT / 'build/qt-preview/Third-Party Notices.txt'
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text('\n\n'.join(sections), encoding='utf-8')

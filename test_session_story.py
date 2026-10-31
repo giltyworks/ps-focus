@@ -288,11 +288,89 @@ class StoryDialogTests(unittest.TestCase):
         from unittest.mock import patch
         from qt.story_dialog import google_drive_folder
 
-        # Only G:\My Drive exists
-        with patch.object(Path, "is_dir", lambda path: path == Path("G:/My Drive")):
+        # Only G:\My Drive exists, and only C and G are drives of the PC
+        with patch("qt.story_dialog.fixed_drive_letters", return_value="CG"), patch.object(Path, "is_dir", lambda path: path == Path("G:/My Drive")):
             self.assertEqual(google_drive_folder(), Path("G:/My Drive/PS Focus Stories"))
-        with patch.object(Path, "is_dir", lambda path: False):
+        with patch("qt.story_dialog.fixed_drive_letters", return_value="CG"), patch.object(Path, "is_dir", lambda path: False):
             self.assertIsNone(google_drive_folder())
+        # A My Drive on a drive that is not a fixed one, such as a network drive, is not looked at
+        with patch("qt.story_dialog.fixed_drive_letters", return_value="C"), patch.object(Path, "is_dir", lambda path: path == Path("G:/My Drive")):
+            self.assertIsNone(google_drive_folder())
+
+    def test_only_the_pcs_own_drives_are_looked_for_google_drive(self):
+        from qt.story_dialog import fixed_drive_letters
+
+        letters = fixed_drive_letters()
+        if os.name == "nt":
+            self.assertIn("C", letters)
+        self.assertEqual(letters, "".join(sorted(set(letters))))
+
+    def test_a_save_message_makes_the_window_taller_and_clearing_it_makes_it_shorter_again(self):
+        resting = self.dialog.height()
+        self.dialog.status = ("Saved to iCloud Photos. It reaches your devices once iCloud syncs", "accent")
+        self.assertGreater(self.dialog.height(), resting)
+        self.dialog.status = ("", "muted")
+        self.assertEqual(self.dialog.height(), resting)
+
+    def test_a_very_long_save_message_takes_no_more_than_the_lines_it_is_given(self):
+        from qt.story_dialog import STATUS_LINES
+        from qt.theme import line_height
+
+        resting = self.dialog.height()
+        self.dialog.status = ("word " * 200, "red")
+        self.assertLessEqual(self.dialog.height() - resting, 3 + STATUS_LINES * line_height(self.dialog.fonts.small))
+
+    def test_dragging_the_share_windows_title_row_moves_it(self):
+        from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+
+        dialog = self.dialog
+        dialog.move(100, 100)
+        start = dialog.pos()
+        grab = QPoint(60, 10)
+        QApplication.sendEvent(dialog, QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(grab), QPointF(dialog.mapToGlobal(grab)), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+        QApplication.sendEvent(dialog, QMouseEvent(QEvent.Type.MouseMove, QPointF(grab), QPointF(dialog.mapToGlobal(grab) + QPoint(30, 20)), Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+        self.assertEqual(dialog.pos(), start + QPoint(30, 20))
+
+    def test_escape_closes_the_share_window(self):
+        from PySide6.QtCore import QEvent, Qt
+        from PySide6.QtGui import QKeyEvent
+
+        self.dialog.show()
+        QApplication.sendEvent(self.dialog, QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Escape, Qt.KeyboardModifier.NoModifier))
+        self.assertFalse(self.dialog.isVisible())
+
+    def test_the_photo_button_in_the_title_row_is_pressed_and_not_dragged(self):
+        from unittest.mock import patch
+        from PySide6.QtCore import QEvent, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+
+        dialog = self.dialog
+        point = dialog.photo_button.left + dialog.photo_button.width // 2, dialog.photo_button.top + dialog.photo_button.height // 2
+        local = QPointF(*point)
+        with patch.object(dialog, "choose_photo") as chosen:
+            dialog.photo_button.command = dialog.choose_photo
+            for kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
+                QApplication.sendEvent(dialog, QMouseEvent(kind, local, QPointF(dialog.mapToGlobal(local.toPoint())), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+        chosen.assert_called_once()
+        self.assertIsNone(dialog.drag_offset)
+
+    def test_the_four_buttons_under_the_preview_fill_its_width_exactly(self):
+        dialog = self.dialog
+        row = [dialog.icloud_button, dialog.drive_button, dialog.copy_button, dialog.save_button]
+        self.assertEqual(row[0].left, dialog.preview.left())
+        self.assertEqual(row[-1].right, dialog.preview.right())
+
+    def test_rounding_a_window_needs_a_handle_and_does_nothing_without_one(self):
+        from windows_startup import round_window_corners
+
+        round_window_corners(None)
+        round_window_corners(0)
+
+    def test_the_logo_is_made_hollow_once(self):
+        from qt.story_card import hollow_logo
+
+        self.assertIs(hollow_logo(), hollow_logo())
 
     def test_copying_puts_the_story_on_the_clipboard(self):
         self.dialog.copy_image()

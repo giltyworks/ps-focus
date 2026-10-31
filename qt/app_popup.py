@@ -6,7 +6,7 @@ the title row moves the popup"""
 
 from __future__ import annotations
 
-from PySide6.QtCore import QPoint, QPointF, QRect, Qt
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt
 from PySide6.QtGui import QColor, QGuiApplication, QKeyEvent, QMouseEvent, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
@@ -22,6 +22,8 @@ TITLE_HEIGHT = 30
 TITLE_LEFT = 19
 # Half the length of each stroke of the ×
 CLOSE_ARM = 4.5
+# The radius of the corners Windows 11 rounds a window to
+CORNER_RADIUS = 8
 
 
 class AppPopup(QWidget):
@@ -75,8 +77,16 @@ class AppPopup(QWidget):
         title = fit_text(self.windowTitle(), self.fonts.bold, close.left() - 6 - TITLE_LEFT - self.title_reserve)
         draw_anchored(painter, TITLE_LEFT, self.title_height / 2, "w", title, color("text"), self.fonts.bold)
         self.paint_close(painter)
+        self.paint_outline(painter)
+
+    def paint_outline(self, painter: QPainter) -> None:
+        """The thin outline, following the rounded corners Windows 11 gives the window, so they do not cut it off"""
+        painter.save()
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         painter.setPen(color("border"))
-        painter.drawRect(self.rect().adjusted(0, 0, -1, -1))
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawRoundedRect(QRectF(self.rect()).adjusted(0.5, 0.5, -0.5, -0.5), CORNER_RADIUS - 0.5, CORNER_RADIUS - 0.5)
+        painter.restore()
 
     def paint_close(self, painter: QPainter) -> None:
         """The close button, red under the mouse as Windows shows it, with a thin ×"""
@@ -114,7 +124,8 @@ class AppPopup(QWidget):
             self.content_pressed(event)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
-        if event.button() == Qt.MouseButton.LeftButton:
+        # Only the end of a drag changes the cursor; a release after a click on the content leaves it as it was
+        if event.button() == Qt.MouseButton.LeftButton and self.drag_offset is not None:
             self.drag_offset = None
             # Back to the open hand when the pointer is still over the title row, as a block's handle does
             over_title = self.rect().contains(event.position().toPoint()) and event.position().y() < self.title_height
