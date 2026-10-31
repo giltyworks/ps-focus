@@ -249,15 +249,17 @@ class StoryDialogTests(unittest.TestCase):
             self.assertFalse(self.dialog.save_to_icloud())
         self.assertEqual(self.dialog.status[1], "red")
 
-    def test_clicking_the_preview_opens_a_larger_one_that_a_click_closes(self):
-        from PySide6.QtCore import QEvent, Qt
+    def test_the_enlarge_button_opens_a_larger_preview_that_a_click_closes(self):
+        from PySide6.QtCore import QEvent, QPointF, Qt
         from PySide6.QtGui import QMouseEvent
         from qt.story_dialog import LargePreview
 
         def click(widget, point):
             QApplication.sendEvent(widget, QMouseEvent(QEvent.Type.MouseButtonPress, point, point, Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
 
-        click(self.dialog, self.dialog.preview.center())
+        button = self.dialog.enlarge_button
+        click(self.dialog, QPointF(button.left + button.width / 2, button.top + button.height / 2))
+        QApplication.sendEvent(self.dialog, QMouseEvent(QEvent.Type.MouseButtonRelease, QPointF(button.left + 5, button.top + 5), QPointF(button.left + 5, button.top + 5), Qt.MouseButton.LeftButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
         large = self.dialog.findChildren(LargePreview)
         self.assertEqual(len(large), 1)
         # Larger than the small preview, in the story's 9:16 shape
@@ -265,6 +267,40 @@ class StoryDialogTests(unittest.TestCase):
         self.assertAlmostEqual(large[0].width() / large[0].height(), 9 / 16, places=2)
         click(large[0], large[0].rect().center().toPointF())
         self.assertFalse(large[0].isVisible())
+
+    def test_clicking_the_preview_asks_for_a_photo_and_does_not_enlarge_it(self):
+        from unittest.mock import patch
+        from PySide6.QtCore import QEvent, Qt
+        from PySide6.QtGui import QMouseEvent
+        from qt.story_dialog import LargePreview
+
+        centre = self.dialog.preview.center()
+        with patch.object(self.dialog, "choose_photo") as chosen:
+            QApplication.sendEvent(self.dialog, QMouseEvent(QEvent.Type.MouseButtonPress, centre, centre, Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+        chosen.assert_called_once()
+        self.assertEqual(self.dialog.findChildren(LargePreview), [])
+
+    def test_hovering_the_preview_and_the_expand_button_shows_what_each_does(self):
+        from PySide6.QtCore import QEvent, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+
+        def hover(point):
+            QApplication.sendEvent(self.dialog, QMouseEvent(QEvent.Type.MouseMove, point, point, Qt.MouseButton.NoButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+
+        button = self.dialog.enlarge_button
+        hover(self.dialog.preview.center())
+        self.assertEqual(self.dialog.toolTip(), "Choose a photo…")
+        hover(QPointF(button.left + button.width / 2, button.top + button.height / 2))
+        self.assertEqual(self.dialog.toolTip(), "Expand")
+        hover(QPointF(self.dialog.width() / 2, self.dialog.height() - 1))
+        self.assertEqual(self.dialog.toolTip(), "")
+
+    def test_the_enlarge_button_sits_over_the_previews_top_right_corner(self):
+        button, preview = self.dialog.enlarge_button, self.dialog.preview
+        self.assertLessEqual(button.right, preview.right())
+        self.assertGreaterEqual(button.top, preview.top())
+        self.assertLess(preview.right() - button.right, 12)
+        self.assertLess(button.top - preview.top(), 12)
 
     def test_saving_to_google_drive_puts_a_png_in_the_folder_without_overwriting(self):
         from PySide6.QtGui import QImage

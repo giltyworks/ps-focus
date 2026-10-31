@@ -1,6 +1,6 @@
 """The session story window, opened from a day's overview: a preview of the story card for that day's session, which a
-click shows larger, a photo to put behind it, and buttons to copy the 1080x1920 image, save it as a PNG or save it to
-iCloud Photos or Google Drive to post from a phone. The card itself is painted by story_card"""
+click chooses a photo for and a button over its corner shows larger, and buttons to copy the 1080x1920 image, save it as a
+PNG or save it to iCloud Photos or Google Drive to post from a phone. The card itself is painted by story_card"""
 
 from __future__ import annotations
 
@@ -28,7 +28,11 @@ from .title_bar import ICON_SIZE, TITLE_BAR_HEIGHT
 
 WINDOW_TITLE = "Share session"
 PADDING = 3
-# The preview: the story at a quarter of its size, so 270 by 480; a click shows it larger
+# The preview: the story at a quarter of its size, so 270 by 480; a click on it chooses a photo. The button over its top
+# right corner, which shows it larger, its size, its distance from the corner and how solid it is
+ENLARGE_BUTTON_SIZE = (26, 24)
+ENLARGE_BUTTON_MARGIN = 5
+ENLARGE_BUTTON_ALPHA = 200
 PREVIEW_SCALE = 0.25
 PREVIEW_RADIUS = 6
 ROW_GAP = 9
@@ -133,6 +137,11 @@ class IconButton(PaintedButton):
             painter.drawRoundedRect(QRectF(x - 6, y - 7, 9, 10), 1.5, 1.5)
             painter.setClipping(False)
             painter.drawRoundedRect(QRectF(x - 3, y - 3, 9, 10), 1.5, 1.5)
+        elif self.glyph == "expand":
+            # Four corner brackets of a square
+            for sign_x, sign_y in ((-1, -1), (1, -1), (-1, 1), (1, 1)):
+                corner = QPointF(x + sign_x * 5.5, y + sign_y * 5.5)
+                painter.drawPolyline([QPointF(corner.x() - sign_x * 4, corner.y()), corner, QPointF(corner.x(), corner.y() - sign_y * 4)])
         elif self.glyph == "photo":
             # A picture, a sun and a hill in a frame, with a plus in its top right corner where the frame is cut away
             corner = QPointF(x + 7, y - 6)
@@ -208,7 +217,10 @@ class StoryDialog(AppPopup):
         self.save_button = IconButton("download", "Save image…", self.save_image, fonts, text_color="accent", fill="accent_dark", solid=True)
         self.icloud_button = LeftTextButton("Save to iCloud", self.save_to_icloud, fonts, BUTTON_PADX, BUTTON_PADY, text_color="text")
         self.drive_button = LeftTextButton("Save to G Drive", self.save_to_google_drive, fonts, BUTTON_PADX, BUTTON_PADY, text_color="text")
-        self.buttons = [self.photo_button, self.drive_button, self.icloud_button, self.copy_button, self.save_button]
+        # Over the preview's top right corner, a little see-through so the picture shows round it
+        self.enlarge_button = IconButton("expand", "Expand", self.enlarge_preview, fonts, solid=True)
+        self.enlarge_button.alpha = ENLARGE_BUTTON_ALPHA
+        self.buttons = [self.photo_button, self.enlarge_button, self.drive_button, self.icloud_button, self.copy_button, self.save_button]
         self._lay_out()
 
     def _lay_out(self) -> None:
@@ -223,6 +235,8 @@ class StoryDialog(AppPopup):
         self.title_reserve = ICON_BUTTON_WIDTH + BUTTON_GAP
         preview_top = self.title_height + BUTTON_GAP
         self.preview = QRectF(PADDING, preview_top, preview_width, preview_height)
+        self.enlarge_button.width, self.enlarge_button.height = ENLARGE_BUTTON_SIZE
+        self.enlarge_button.place(round(self.preview.right()) - self.enlarge_button.width - ENLARGE_BUTTON_MARGIN, preview_top + ENLARGE_BUTTON_MARGIN)
         bottom = preview_top + preview_height
         # Under the preview, as wide as it: the records, if the session set any, then one row of buttons, left to
         # right: iCloud, G Drive, copy and download, the first two as wide as the wider and no wider than the row allows;
@@ -408,7 +422,8 @@ class StoryDialog(AppPopup):
         if any([button.press(point) for button in self.buttons]):
             self.update()
         elif self.preview.contains(point):
-            self.enlarge_preview()
+            # Clicking the picture is how a photo is put behind it
+            self.choose_photo()
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
         super().mouseReleaseEvent(event)
@@ -420,7 +435,8 @@ class StoryDialog(AppPopup):
         point = event.position().toPoint()
         if PaintedButton.update_hover(self.buttons, point):
             self.update()
-        self.setToolTip(next((button.tooltip for button in self.buttons if isinstance(button, IconButton) and button.contains(point)), ""))
+        tip = next((button.tooltip for button in self.buttons if isinstance(button, IconButton) and button.contains(point)), "")
+        self.setToolTip(tip or ("Choose a photo…" if self.preview.contains(point) else ""))
         super().mouseMoveEvent(event)
 
     def content_moved(self, event: QMouseEvent) -> None:

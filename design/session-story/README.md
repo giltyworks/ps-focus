@@ -55,7 +55,7 @@ longest session in the main program counts separately.
 
 Opened from a day's overview. It has the app's own title row (Windows' close button, rounded corners on Windows 11,
 dragged by the title), with the name of the chosen photo in the title and an icon button for choosing one. The preview
-is a quarter of the story, and a click shows it as large as the screen allows. Under it, one row the preview's width:
+is a quarter of the story, and a click on it chooses a photo, and an expand button over its top right corner shows it as large as the screen allows. Under it, one row the preview's width:
 **Save to iCloud** (the `iCloudPhotos\Photos` folder iCloud for Windows syncs), **Save to G Drive** (a `PS Focus
 Stories` folder in My Drive, for Google Drive for desktop), copy to the clipboard, and save as a PNG. A message about
 the last save shows below the row, which makes the window taller only while it is there. The text on the card cannot
