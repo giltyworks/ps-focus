@@ -3,7 +3,7 @@ records. The words and numbers only; qt/story_card.py draws them. The design is 
 
 from __future__ import annotations
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import date, datetime
 
 from stat_lines import DAY_ABBREVIATIONS
@@ -34,9 +34,6 @@ class StoryText:
     def record_count(self) -> int:
         return len(self.record_names)
 
-    def edited(self, **changes: str) -> "StoryText":
-        return replace(self, **changes)
-
 
 def part_of_day(hour: int) -> str:
     return next(name for before, name in PARTS_OF_DAY if hour < before)
@@ -56,8 +53,8 @@ def format_start(started_at: str) -> str:
 
 
 def format_date(day: date) -> str:
-    """Such as '31 OCTOBER 2026', in capitals as the card's date pill shows it"""
-    return f"{day.day} {MONTH_NAMES[day.month - 1]} {day.year}".upper()
+    """Such as '31 OCT 2026', in capitals as the card's date pill shows it"""
+    return f"{day.day} {MONTH_NAMES[day.month - 1][:3]} {day.year}".upper()
 
 
 def record_name(kind: str, day: date, program: str) -> str:

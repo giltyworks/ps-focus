@@ -415,6 +415,30 @@ class QtSettingsTests(unittest.TestCase):
         self.assertEqual(overview.width(), portrait)
         overview.deleteLater()
 
+    def test_the_day_overview_moves_when_its_title_is_dragged(self):
+        from datetime import date
+        from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+        from PySide6.QtWidgets import QApplication
+        from qt.app_popup import TITLE_HEIGHT
+        from qt.day_overview import DayOverview
+
+        def send(kind, point, button=Qt.MouseButton.LeftButton):
+            QApplication.sendEvent(overview, QMouseEvent(kind, QPointF(point), QPointF(overview.mapToGlobal(point)), button, button, Qt.KeyboardModifier.NoModifier))
+
+        overview = DayOverview(self.app.window, self.app.fonts, self.app.store, date.today(), lambda _day, _rating: None)
+        overview.move(100, 100)
+        start = overview.pos()
+        grab = QPoint(60, TITLE_HEIGHT // 2)
+        send(QEvent.Type.MouseButtonPress, grab)
+        # The window follows the pointer, which has moved 40 right and 25 down from where it took hold
+        QApplication.sendEvent(overview, QMouseEvent(QEvent.Type.MouseMove, QPointF(grab), QPointF(overview.mapToGlobal(grab) + QPoint(40, 25)), Qt.MouseButton.NoButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+        self.assertEqual(overview.pos(), start + QPoint(40, 25))
+        send(QEvent.Type.MouseButtonRelease, grab)
+        QApplication.sendEvent(overview, QMouseEvent(QEvent.Type.MouseMove, QPointF(grab), QPointF(overview.mapToGlobal(grab) + QPoint(90, 90)), Qt.MouseButton.NoButton, Qt.MouseButton.NoButton, Qt.KeyboardModifier.NoModifier))
+        self.assertEqual(overview.pos(), start + QPoint(40, 25))
+        overview.deleteLater()
+
     def test_a_day_with_time_tracked_can_be_shared_as_a_story(self):
         from PySide6.QtCore import QEvent, QPointF, Qt
         from PySide6.QtGui import QMouseEvent

@@ -6,7 +6,7 @@ from __future__ import annotations
 from PySide6.QtGui import QPainter, QPaintEvent
 from PySide6.QtWidgets import QWidget
 
-from .app_popup import CLOSE_MARGIN, CLOSE_SIZE, TITLE_HEIGHT, TITLE_LEFT, AppPopup
+from .app_popup import CLOSE_WIDTH, TITLE_HEIGHT, TITLE_LEFT, AppPopup
 from .theme import color, draw_text, line_height, text_width
 
 
@@ -18,7 +18,7 @@ class FriendDetails(AppPopup):
         width = max(
             220,
             max((text_width(fonts.normal, line) for line in self.lines), default=0) + 2 * TITLE_LEFT,
-            TITLE_LEFT + text_width(fonts.bold, name) + 6 + CLOSE_SIZE + CLOSE_MARGIN,
+            TITLE_LEFT + text_width(fonts.bold, name) + 6 + CLOSE_WIDTH,
         )
         self.setFixedSize(width, TITLE_HEIGHT + len(self.lines) * height + 12)
 

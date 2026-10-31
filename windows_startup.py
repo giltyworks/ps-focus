@@ -68,6 +68,20 @@ def set_title_bar_colors_for_handle(window_handle: int | None) -> None:
         set_attribute(window_handle, attribute, ctypes.byref(value), ctypes.sizeof(value))
 
 
+def round_window_corners(window_handle: int | None) -> None:
+    """Ask Windows 11 to round the corners of the top-level window with this handle, as it does an ordinary window's; a
+    window without a frame of its own is left square otherwise. Windows 10 has no such setting and leaves it as it is"""
+    if os.name != "nt" or not window_handle:
+        return
+    dwmapi = ctypes.WinDLL("dwmapi", use_last_error=True)
+    set_attribute = dwmapi.DwmSetWindowAttribute
+    set_attribute.argtypes = [ctypes.c_void_p, ctypes.c_uint, ctypes.c_void_p, ctypes.c_uint]
+    set_attribute.restype = ctypes.c_long
+    # DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND
+    rounded = ctypes.c_int(2)
+    set_attribute(window_handle, 33, ctypes.byref(rounded), ctypes.sizeof(rounded))
+
+
 def set_startup(enabled: bool, minimized: bool) -> None:
     if os.name != "nt":
         raise OSError("Windows startup integration is available only on Windows")

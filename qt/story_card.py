@@ -4,12 +4,11 @@ every measurement there is a share of the card's width, so the card paints the s
 
 from __future__ import annotations
 
-from functools import lru_cache
-
 from PySide6.QtCore import QPointF, QRectF, QSize, Qt
 from PySide6.QtGui import (
-    QColor, QFont, QFontDatabase, QFontMetricsF, QImage, QLinearGradient, QPainter, QPainterPath, QPen,
+    QColor, QFont, QFontMetricsF, QImage, QLinearGradient, QPainter, QPainterPath, QPainterPathStroker, QPen, QPixmap,
 )
+from PySide6.QtWidgets import QGraphicsBlurEffect, QGraphicsPixmapItem, QGraphicsScene
 
 from app_config import resource_path
 from session_story import StoryText
@@ -17,25 +16,27 @@ from session_story import StoryText
 from .icons import icon
 
 STORY_SIZE = QSize(1080, 1920)
-# The card is 9:16, as the story is; in the story it takes this share of the width, centred, with rounded corners
-CARD_ASPECT = 16 / 9
-STORY_CARD_SHARE = 0.82
-STORY_CARD_RADIUS = 0.045
+# The card is shaped as Runna's shared card is, about 1 wide to 1.58 tall; in the story it takes this share of the
+# width, centred, with rounded corners
+CARD_ASPECT = 1.58
+STORY_CARD_SHARE = 0.81
+STORY_CARD_RADIUS = 0.05
 # Around the card in the story: the photo enlarged so its blurred edges fall outside the frame, blurred, then darkened
 STORY_PHOTO_ZOOM = 1.25
 STORY_BLUR = 54
 STORY_DARKEN = 0.28
-# The card's soft shadow in the story, in story pixels: how far down it falls, how soft it is, how far inside the
-# card's edges it starts and how dark; and the faint light edge around the card
-SHADOW_DROP = 43
-SHADOW_BLUR = 108
-SHADOW_INSET = 32
-SHADOW_ALPHA = 0.6
+# The card's diffuse shadow in the story, in story pixels: how soft it is and how dark. It sits straight behind the
+# card, not dropped below it; and the faint light edge around the card
+SHADOW_BLUR = 100
+SHADOW_ALPHA = 0.12
 EDGE_WIDTH = 3
-EDGE_ALPHA = 0.1
+EDGE_ALPHA = 0.05
 # With no photo picked, the card shows the app's own near-black, lifted a little at the top
 NO_PHOTO_TOP = "#2b2f2e"
 NO_PHOTO_BOTTOM = "#0c0c0c"
+
+# The card's typeface, the same as the rest of PS Focus
+FAMILY = "Segoe UI"
 
 # Measurements below are percent of the card's width, as the mock-up's cqw units
 PADDING = 7.0
@@ -46,23 +47,29 @@ SCRIM = ((0.0, 0.42), (0.24, 0.08), (0.40, 0.0), (0.54, 0.30), (1.0, 0.36))
 TEXT_COLOR = "#e6e8eb"
 NUMBER_COLOR = "#ffffff"
 LOGO_SIZE = 8.0
-LOGO_OPACITY = 0.55
+LOGO_OPACITY = 0.35
 LOGO_GAP = 3.0
-# Each kind of text: size, weight, width (percent), letter spacing (in ems) and opacity
-DATE_FONT = (3.05, 450, 100, 0.08, 1.0)
-TITLE_FONT = (6.6, 750, 100, -0.01, 1.0)
-PROGRAM_FONT = (4.1, 500, 100, 0.0, 0.85)
-LABEL_FONT = (3.9, 600, 100, 0.0, 0.92)
-NUMBER_FONT = (15.0, 660, 96, -0.025, 1.0)
+# Each kind of text: size, weight (one Segoe UI has: 400, 600 or 700), letter spacing (in ems) and opacity
+DATE_FONT = (2.5, 600, 0.12, 1.0)
+TITLE_FONT = (5.3, 700, -0.01, 1.0)
+PROGRAM_FONT = (4.25, 600, 0.0, 0.85)
+LABEL_FONT = (3.8, 600, 0.0, 0.92)
+NUMBER_FONT = (12.4, 700, -0.045, 1.0)
+# How much heavier the small text (not the title or the big numbers, which are heavy enough) is drawn than Qt's plain
+# drawing, as the width of an added outline in ems of the text
+EMBOLDEN = 0.03
+NUMBER_EMBOLDEN = 0.0
 # The date's frosted pill: its padding in ems of the date, the white over the blurred photo, and how soft the blur is
-PILL_PADDING = (0.85, 0.4)
+PILL_PADDING = (1.1, 0.4)
+# How much shorter the pill is than the box the text is laid out in, trimmed from its top and bottom, in ems of the date
+PILL_TRIM = 0.1
 PILL_WHITE = 0.28
 PILL_BLUR = 3.0
 # Gaps: under the pill, under the title, between a label and its number, and between stats
-PILL_GAP = 3.2
-TITLE_GAP = 1.0
-LABEL_GAP = 0.6
-STAT_GAP = 4.4
+PILL_GAP = 3.0
+TITLE_GAP = 1.1
+LABEL_GAP = 0.0
+STAT_GAP = 4.5
 # Line heights in ems, as the mock-up's CSS gave them
 TITLE_LINE = 1.1
 NUMBER_LINE = 0.95
@@ -71,21 +78,12 @@ AWARD_SIZE = 0.66
 AWARD_GAP = 0.18
 
 
-@lru_cache(maxsize=None)
-def story_family() -> str:
-    """The card's typeface, Archivo, loaded from the app's own copy; Segoe UI if it cannot be"""
-    font_id = QFontDatabase.addApplicationFont(str(resource_path("assets/fonts/Archivo-Variable.ttf")))
-    families = QFontDatabase.applicationFontFamilies(font_id) if font_id >= 0 else []
-    return families[0] if families else "Segoe UI"
-
-
 def story_font(unit: float, spec: tuple, scale: float = 1.0, tabular: bool = False) -> QFont:
-    size, weight, width, spacing, _opacity = spec
+    size, weight, spacing, _opacity = spec
     pixels = size * unit * scale
-    result = QFont(story_family())
+    result = QFont(FAMILY)
     result.setPixelSize(max(1, round(pixels)))
-    result.setVariableAxis(QFont.Tag("wght"), weight)
-    result.setVariableAxis(QFont.Tag("wdth"), width)
+    result.setWeight(QFont.Weight(weight))
     result.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, spacing * pixels)
     # Large text drawn to an image to be scaled again by the phone, so no snapping to the pixel grid
     result.setHintingPreference(QFont.HintingPreference.PreferNoHinting)
@@ -95,15 +93,29 @@ def story_font(unit: float, spec: tuple, scale: float = 1.0, tabular: bool = Fal
 
 
 def blurred(image: QImage, radius: float) -> QImage:
-    """A soft blur: shrunk so each pixel averages its neighbours, then grown back in two smooth steps, which hides
-    the blocks one big stretch would leave"""
+    """A smooth Gaussian blur, done by Qt's own blur effect. The image is first padded by stretching its edges, so the
+    blur does not fade to see-through at the borders, and the padding is cut off again afterwards"""
     width, height = image.width(), image.height()
-    factor = max(1.0, radius / 3)
-    small = image.scaled(max(1, round(width / factor)), max(1, round(height / factor)),
-                         Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
-    middle = small.scaled(max(1, round(width / factor ** 0.5)), max(1, round(height / factor ** 0.5)),
-                          Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
-    return middle.scaled(width, height, Qt.AspectRatioMode.IgnoreAspectRatio, Qt.TransformationMode.SmoothTransformation)
+    margin = round(radius * 2)
+    padded = QImage(width + 2 * margin, height + 2 * margin, QImage.Format.Format_ARGB32_Premultiplied)
+    painter = QPainter(padded)
+    painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+    painter.drawImage(padded.rect(), image)
+    painter.drawImage(margin, margin, image)
+    painter.end()
+    item = QGraphicsPixmapItem(QPixmap.fromImage(padded))
+    effect = QGraphicsBlurEffect()
+    effect.setBlurRadius(radius)
+    effect.setBlurHints(QGraphicsBlurEffect.BlurHint.QualityHint)
+    item.setGraphicsEffect(effect)
+    scene = QGraphicsScene()
+    scene.addItem(item)
+    result = QImage(padded.size(), QImage.Format.Format_ARGB32_Premultiplied)
+    result.fill(Qt.GlobalColor.transparent)
+    painter = QPainter(result)
+    scene.render(painter, QRectF(result.rect()), QRectF(padded.rect()))
+    painter.end()
+    return result.copy(margin, margin, width, height)
 
 
 def covered(photo: QImage, size: QSize, zoom: float = 1.0) -> QImage:
@@ -147,8 +159,41 @@ def _baseline(top: float, line: float, metrics: QFontMetricsF) -> float:
     return top + (line - metrics.ascent() - metrics.descent()) / 2 + metrics.ascent()
 
 
+def draw_heavy_text(painter: QPainter, point: QPointF, text: str, font: QFont, color: QColor, embolden: float = EMBOLDEN) -> None:
+    """Text drawn a touch heavier than Qt's plain drawing, which leaves light text on a photo thinner than a browser
+    shows it. The letters' outline is thickened and filled once, so a see-through colour does not darken where the
+    two overlap"""
+    letters = QPainterPath()
+    letters.addText(point, font, text)
+    if embolden <= 0:
+        painter.fillPath(letters, color)
+        return
+    stroker = QPainterPathStroker()
+    stroker.setWidth(embolden * font.pixelSize())
+    stroker.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
+    painter.fillPath(letters.united(stroker.createStroke(letters)), color)
+
+
+def hollow_logo() -> QImage:
+    """The app's logo as white only: its black stroke and the space around the disc become see-through, so the photo
+    shows through them. A null image if the logo cannot be read"""
+    logo = QImage(str(resource_path("assets/icons/PSFocus_256x256.png")))
+    if logo.isNull():
+        return logo
+    # On black, the logo's brightness is how much white to keep
+    flat = QImage(logo.size(), QImage.Format.Format_ARGB32_Premultiplied)
+    flat.fill(Qt.GlobalColor.black)
+    painter = QPainter(flat)
+    painter.drawImage(0, 0, logo)
+    painter.end()
+    result = QImage(logo.size(), QImage.Format.Format_ARGB32_Premultiplied)
+    result.fill(Qt.GlobalColor.white)
+    result.setAlphaChannel(flat.convertToFormat(QImage.Format.Format_Grayscale8))
+    return result
+
+
 def render_card(width: int, photo: QImage | None, text: StoryText) -> QImage:
-    """The card on its own, as wide as asked and 9:16"""
+    """The card on its own, as wide as asked, in the story card's shape"""
     height = round(width * CARD_ASPECT)
     unit = width / 100
     padding = PADDING * unit
@@ -162,7 +207,7 @@ def render_card(width: int, photo: QImage | None, text: StoryText) -> QImage:
     painter.fillRect(image.rect(), scrim)
 
     # Top right: the logo, faint, as Runna's
-    logo = QImage(str(resource_path("assets/icons/PSFocus_256x256.png")))
+    logo = hollow_logo()
     logo_size = LOGO_SIZE * unit
     if not logo.isNull():
         painter.setOpacity(LOGO_OPACITY)
@@ -176,8 +221,10 @@ def render_card(width: int, photo: QImage | None, text: StoryText) -> QImage:
         date_font = story_font(unit, DATE_FONT)
         metrics = QFontMetricsF(date_font)
         em = date_font.pixelSize()
-        pill = QRectF(padding, top, metrics.horizontalAdvance(text.date) + 2 * PILL_PADDING[0] * em,
-                      metrics.ascent() + metrics.descent() + 2 * PILL_PADDING[1] * em)
+        box = QRectF(padding, top, metrics.horizontalAdvance(text.date) + 2 * PILL_PADDING[0] * em,
+                     metrics.ascent() + metrics.descent() + 2 * PILL_PADDING[1] * em)
+        # The pill is a little shorter than the box the text and the rest of the card are laid out by
+        pill = box.adjusted(0, PILL_TRIM * em, 0, -PILL_TRIM * em)
         path = QPainterPath()
         path.addRoundedRect(pill, pill.height() / 2, pill.height() / 2)
         # Frosted: what is behind the pill, blurred, then lightened
@@ -189,28 +236,25 @@ def render_card(width: int, photo: QImage | None, text: StoryText) -> QImage:
         painter.drawImage(behind.topLeft(), frost)
         painter.fillPath(path, QColor(255, 255, 255, round(PILL_WHITE * 255)))
         painter.restore()
-        painter.setFont(date_font)
-        painter.setPen(_text_color(TEXT_COLOR, DATE_FONT[4]))
-        painter.drawText(QPointF(pill.left() + PILL_PADDING[0] * em, pill.top() + PILL_PADDING[1] * em + metrics.ascent()), text.date)
-        top = pill.bottom() + PILL_GAP * unit
+        draw_heavy_text(painter, QPointF(box.left() + PILL_PADDING[0] * em, box.top() + PILL_PADDING[1] * em + metrics.ascent()),
+                        text.date, date_font, _text_color(TEXT_COLOR, DATE_FONT[3]))
+        top = box.bottom() + PILL_GAP * unit
     title_font = _fitted_font(unit, TITLE_FONT, text.title, room)
     title_line = TITLE_LINE * TITLE_FONT[0] * unit
-    painter.setFont(title_font)
-    painter.setPen(_text_color(TEXT_COLOR, TITLE_FONT[4]))
-    painter.drawText(QPointF(padding, _baseline(top, title_line, QFontMetricsF(title_font))), text.title)
+    draw_heavy_text(painter, QPointF(padding, _baseline(top, title_line, QFontMetricsF(title_font))), text.title,
+                    title_font, _text_color(TEXT_COLOR, TITLE_FONT[3]), 0.0)
     top += title_line + TITLE_GAP * unit
     program_font = story_font(unit, PROGRAM_FONT)
     program_metrics = QFontMetricsF(program_font)
-    painter.setFont(program_font)
-    painter.setPen(_text_color(TEXT_COLOR, PROGRAM_FONT[4]))
     programs = program_metrics.elidedText(text.programs, Qt.TextElideMode.ElideRight, width - 2 * padding)
-    painter.drawText(QPointF(padding, top + program_metrics.ascent()), programs)
+    draw_heavy_text(painter, QPointF(padding, top + program_metrics.ascent()), programs, program_font,
+                    _text_color(TEXT_COLOR, PROGRAM_FONT[3]))
 
     # Bottom left, one column: Records when earned, Focus time, Started
     stats = []
     if text.record_count:
         stats.append(("Records", str(text.record_count), True))
-    stats.append(("Focus time", text.focus_time, False))
+    stats.append(("Time", text.focus_time, False))
     if text.started:
         stats.append(("Started", text.started, False))
     label_font = story_font(unit, LABEL_FONT)
@@ -223,13 +267,11 @@ def render_card(width: int, photo: QImage | None, text: StoryText) -> QImage:
     stat_height = label_line + LABEL_GAP * unit + number_line
     top = height - padding - len(stats) * stat_height - (len(stats) - 1) * STAT_GAP * unit
     for label, value, with_award in stats:
-        painter.setFont(label_font)
-        painter.setPen(_text_color(TEXT_COLOR, LABEL_FONT[4]))
-        painter.drawText(QPointF(padding, top + label_metrics.ascent()), label)
+        draw_heavy_text(painter, QPointF(padding, top + label_metrics.ascent()), label, label_font,
+                        _text_color(TEXT_COLOR, LABEL_FONT[3]))
         number_top = top + label_line + LABEL_GAP * unit
-        painter.setFont(number_font)
-        painter.setPen(QColor(NUMBER_COLOR))
-        painter.drawText(QPointF(padding, _baseline(number_top, number_line, number_metrics)), value)
+        draw_heavy_text(painter, QPointF(padding, _baseline(number_top, number_line, number_metrics)), value, number_font,
+                        QColor(NUMBER_COLOR), NUMBER_EMBOLDEN)
         if with_award:
             # The app's own award, as the Stats block and the day overview show it, beside the count
             award_size = max(1, round(AWARD_SIZE * number_size))
@@ -241,11 +283,9 @@ def render_card(width: int, photo: QImage | None, text: StoryText) -> QImage:
     return image
 
 
-def render_story(photo: QImage | None, text: StoryText, framed: bool = True) -> QImage:
-    """The 1080x1920 story. Framed, the card sits in the middle over a blurred, darkened copy of its photo, as Runna's
-    shared cards do; otherwise the card fills the story edge to edge"""
-    if not framed:
-        return render_card(STORY_SIZE.width(), photo, text).copy(0, 0, STORY_SIZE.width(), STORY_SIZE.height())
+def render_story(photo: QImage | None, text: StoryText) -> QImage:
+    """The 1080x1920 story: the card sits in the middle over a blurred, darkened copy of its photo, as Runna's shared
+    cards do"""
     story = QImage(STORY_SIZE, QImage.Format.Format_ARGB32_Premultiplied)
     painter = QPainter(story)
     painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
@@ -259,14 +299,14 @@ def render_story(photo: QImage | None, text: StoryText, framed: bool = True) -> 
     frame = QRectF((STORY_SIZE.width() - card.width()) / 2, (STORY_SIZE.height() - card.height()) // 2, card.width(), card.height())
     radius = STORY_CARD_RADIUS * STORY_SIZE.width()
 
-    # The shadow: a dark rounded box a little inside the card and lower, blurred soft
+    # The shadow: a dark rounded box the card's size, blurred soft
     shadow = QImage(STORY_SIZE, QImage.Format.Format_ARGB32_Premultiplied)
     shadow.fill(Qt.GlobalColor.transparent)
     shadow_painter = QPainter(shadow)
     shadow_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     shadow_painter.setPen(Qt.PenStyle.NoPen)
     shadow_painter.setBrush(QColor(0, 0, 0, round(SHADOW_ALPHA * 255)))
-    shadow_painter.drawRoundedRect(frame.adjusted(SHADOW_INSET, SHADOW_INSET, -SHADOW_INSET, -SHADOW_INSET).translated(0, SHADOW_DROP), radius, radius)
+    shadow_painter.drawRoundedRect(frame, radius, radius)
     shadow_painter.end()
     painter.drawImage(0, 0, blurred(shadow, SHADOW_BLUR / 2))
 

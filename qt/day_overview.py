@@ -201,6 +201,7 @@ class DayOverview(AppPopup):
             self._rate(value)
 
     def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        super().mouseReleaseEvent(event)
         if event.button() == Qt.MouseButton.LeftButton and any([button.release(event.position().toPoint()) for button in self.buttons]):
             self.update()
 

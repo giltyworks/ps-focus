@@ -93,7 +93,7 @@ class StoryTextTests(StoreTestCase):
         self.assertEqual(format_focus_time(30), "0m")
         self.assertEqual(format_start("13:14"), "1:14pm")
         self.assertEqual(format_start("00:05"), "12:05am")
-        self.assertEqual(format_date(date(2026, 10, 31)), "31 OCTOBER 2026")
+        self.assertEqual(format_date(date(2026, 10, 31)), "31 OCT 2026")
         self.assertEqual([part_of_day(hour) for hour in (2, 9, 12, 15, 19, 22)],
                          ["Late Night", "Morning", "Lunch", "Afternoon", "Evening", "Late Night"])
 
@@ -112,18 +112,17 @@ class StoryTextTests(StoreTestCase):
         with self.store.connection:
             self.store.connection.execute("INSERT INTO session_starts (day, application, started_at) VALUES ('2026-10-31', 'Photoshop', '13:14')")
         text = story_text(self.store, date(2026, 10, 31))
-        self.assertEqual(text.date, "31 OCTOBER 2026")
+        self.assertEqual(text.date, "31 OCT 2026")
         # Saturday, started at 1:14 pm
         self.assertEqual(text.title, "Sat Lunch Session")
         self.assertEqual(text.programs, "Photoshop · Krita")
         self.assertEqual(text.focus_time, "1h 20m")
         self.assertEqual(text.started, "1:14pm")
         self.assertEqual(text.record_count, 2)
-        self.assertEqual(text.edited(title="Gun pose study").title, "Gun pose study")
 
 
 def sample_text(records: tuple[str, ...] = ("Longest session ever",)) -> StoryText:
-    return StoryText("31 OCTOBER 2026", "Sat Lunch Session", "Photoshop", "1h 52m", "1:14pm", records)
+    return StoryText("31 OCT 2026", "Sat Lunch Session", "Photoshop", "1h 52m", "1:14pm", records)
 
 
 @unittest.skipIf(QApplication is None, "PySide6 is not installed")
@@ -146,20 +145,20 @@ class StoryImageTests(unittest.TestCase):
         image.save(str(path))
         return path
 
-    def test_the_card_uses_its_own_typeface(self):
-        from qt.story_card import story_family
+    def test_the_card_uses_the_apps_typeface(self):
+        from qt.story_card import FAMILY
 
-        self.assertEqual(story_family(), "Archivo")
+        self.assertEqual(FAMILY, "Segoe UI")
 
     def test_stories_are_story_sized_with_or_without_a_photo(self):
         from PySide6.QtGui import QImage
         from qt.story_card import STORY_SIZE, render_card, render_story
 
         photo = QImage(str(self.photo()))
-        for image in (render_story(photo, sample_text()), render_story(photo, sample_text(), framed=False), render_story(None, sample_text(()))):
+        for image in (render_story(photo, sample_text()), render_story(None, sample_text(()))):
             self.assertEqual(image.size(), STORY_SIZE)
         card = render_card(450, photo, sample_text())
-        self.assertEqual((card.width(), card.height()), (450, 800))
+        self.assertEqual((card.width(), card.height()), (450, 711))
 
     def test_framed_story_shows_the_blurred_photo_around_the_card(self):
         from PySide6.QtGui import QColor, QImage
@@ -181,7 +180,8 @@ class StoryImageTests(unittest.TestCase):
 
         title = "A very long title for a session that would never fit on one line of the card"
         font = _fitted_font(10.8, TITLE_FONT, title, 800)
-        self.assertLessEqual(QFontMetricsF(font).horizontalAdvance(title), 800 * 1.02)
+        # The headless test platform has no fonts installed, so its stand-in font does not scale smoothly: allow a little over
+        self.assertLessEqual(QFontMetricsF(font).horizontalAdvance(title), 800 * 1.05)
 
 
 @unittest.skipIf(QApplication is None, "PySide6 is not installed")
@@ -200,14 +200,10 @@ class StoryDialogTests(unittest.TestCase):
         self.dialog = StoryDialog(None, Fonts(), date(2026, 10, 31), sample_text())
         self.addCleanup(self.dialog.deleteLater)
 
-    def test_every_piece_of_text_can_be_changed(self):
-        self.dialog.fields["title"].setText("Gun pose study")
-        self.dialog.fields["title"].textEdited.emit("Gun pose study")
-        self.dialog.fields["started"].setText("7:00pm")
-        self.dialog.fields["started"].textEdited.emit("7:00pm")
-        self.assertEqual(self.dialog.text.title, "Gun pose study")
-        self.assertEqual(self.dialog.text.started, "7:00pm")
-        self.assertEqual(set(self.dialog.fields), {"title", "date", "programs", "focus_time", "started"})
+    def test_the_text_is_not_editable(self):
+        from PySide6.QtWidgets import QLineEdit
+
+        self.assertEqual(self.dialog.findChildren(QLineEdit), [])
 
     def test_a_photo_goes_behind_the_card_and_a_bad_file_says_so(self):
         from PySide6.QtGui import QColor, QImage
@@ -217,6 +213,8 @@ class StoryDialogTests(unittest.TestCase):
         image.save(str(self.folder / "red.jpg"))
         self.assertTrue(self.dialog.choose_photo(str(self.folder / "red.jpg")))
         self.assertEqual(self.dialog.photo_name, "red.jpg")
+        # The photo's name is shown in the title bar
+        self.assertEqual(self.dialog.windowTitle(), "Share session - red.jpg")
         corner = self.dialog.story.pixelColor(10, 960)
         self.assertGreater(corner.red(), corner.green())
         (self.folder / "broken.jpg").write_bytes(b"not a picture")
@@ -233,18 +231,72 @@ class StoryDialogTests(unittest.TestCase):
         self.assertEqual((saved.width(), saved.height()), (1080, 1920))
         self.assertEqual(self.dialog.status, ("Saved story.png", "accent"))
 
+    def test_saving_to_icloud_puts_a_png_in_the_upload_folder_without_overwriting(self):
+        from PySide6.QtGui import QImage
+
+        uploads = self.folder / "iCloudPhotos" / "Photos"
+        self.assertTrue(self.dialog.save_to_icloud(uploads))
+        self.assertTrue(self.dialog.save_to_icloud(uploads))
+        names = sorted(path.name for path in uploads.iterdir())
+        self.assertEqual(names, ["PS Focus session 2026-10-31 (2).png", "PS Focus session 2026-10-31.png"])
+        self.assertEqual(QImage(str(uploads / names[1])).size().width(), 1080)
+        self.assertEqual(self.dialog.status[1], "accent")
+
+    def test_saving_to_icloud_says_so_when_icloud_is_not_set_up(self):
+        from unittest.mock import patch
+
+        with patch("qt.story_dialog.icloud_uploads_folder", return_value=None):
+            self.assertFalse(self.dialog.save_to_icloud())
+        self.assertEqual(self.dialog.status[1], "red")
+
+    def test_clicking_the_preview_opens_a_larger_one_that_a_click_closes(self):
+        from PySide6.QtCore import QEvent, Qt
+        from PySide6.QtGui import QMouseEvent
+        from qt.story_dialog import LargePreview
+
+        def click(widget, point):
+            QApplication.sendEvent(widget, QMouseEvent(QEvent.Type.MouseButtonPress, point, point, Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+
+        click(self.dialog, self.dialog.preview.center())
+        large = self.dialog.findChildren(LargePreview)
+        self.assertEqual(len(large), 1)
+        # Larger than the small preview, in the story's 9:16 shape
+        self.assertGreater(large[0].height(), self.dialog.preview.height())
+        self.assertAlmostEqual(large[0].width() / large[0].height(), 9 / 16, places=2)
+        click(large[0], large[0].rect().center().toPointF())
+        self.assertFalse(large[0].isVisible())
+
+    def test_saving_to_google_drive_puts_a_png_in_the_folder_without_overwriting(self):
+        from PySide6.QtGui import QImage
+
+        folder = self.folder / "My Drive" / "PS Focus Stories"
+        self.assertTrue(self.dialog.save_to_google_drive(folder))
+        self.assertTrue(self.dialog.save_to_google_drive(folder))
+        names = sorted(path.name for path in folder.iterdir())
+        self.assertEqual(names, ["PS Focus session 2026-10-31 (2).png", "PS Focus session 2026-10-31.png"])
+        self.assertEqual(QImage(str(folder / names[1])).size().width(), 1080)
+        self.assertEqual(self.dialog.status[1], "accent")
+
+    def test_saving_to_google_drive_says_so_when_drive_is_not_set_up(self):
+        from unittest.mock import patch
+
+        with patch("qt.story_dialog.google_drive_folder", return_value=None):
+            self.assertFalse(self.dialog.save_to_google_drive())
+        self.assertEqual(self.dialog.status[1], "red")
+
+    def test_the_google_drive_folder_is_found_inside_my_drive(self):
+        from unittest.mock import patch
+        from qt.story_dialog import google_drive_folder
+
+        # Only G:\My Drive exists
+        with patch.object(Path, "is_dir", lambda path: path == Path("G:/My Drive")):
+            self.assertEqual(google_drive_folder(), Path("G:/My Drive/PS Focus Stories"))
+        with patch.object(Path, "is_dir", lambda path: False):
+            self.assertIsNone(google_drive_folder())
+
     def test_copying_puts_the_story_on_the_clipboard(self):
         self.dialog.copy_image()
         self.assertEqual(QApplication.clipboard().image().size(), self.dialog.story.size())
-
-    def test_the_card_can_fill_the_story_without_the_blurred_frame(self):
-        from PySide6.QtCore import QEvent, QPointF, Qt
-        from PySide6.QtGui import QMouseEvent
-
-        left, top, right, bottom = self.dialog.option_area
-        point = QPointF((left + right) / 2, (top + bottom) / 2)
-        QApplication.sendEvent(self.dialog, QMouseEvent(QEvent.Type.MouseButtonPress, point, point, Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
-        self.assertFalse(self.dialog.framed)
 
 
 if __name__ == "__main__":

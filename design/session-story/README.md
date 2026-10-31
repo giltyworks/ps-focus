@@ -6,27 +6,27 @@ export follows these values.
 
 ## Layout
 
-- A 9:16 card. Top left: the date in a frosted pill, the session title under it ("Sat Lunch Session": short
+- A card shaped as Runna's, about 1 wide to 1.58 tall. Top left: the date in a frosted pill, the session title under it ("Sat Lunch Session": short
   weekday, part of day from the start time, "Session"), and the programs under that ("Photoshop · Krita").
-  Top right: the PS Focus logo at 55% opacity
-- Bottom left, one column, 48px between stats: **Records** (only when the session earned one), **Focus time**,
+  Top right: the PS Focus logo at 35% opacity, white only, its black stroke hollowed out
+- Bottom left, one column, 48px between stats: **Records** (only when the session earned one), **Time**,
   **Started**. No streak, level or finish time, so every session stands on its own
 - Exported as a 1080x1920 story: the card at 82% of the width, centred, with rounded corners, a faint 1px light
-  edge and a soft shadow, over a blurred, enlarged and darkened copy of the same photo (as Runna's shared cards are)
+  edge and a diffuse shadow straight behind it (no drop), over a blurred, enlarged and darkened copy of the same photo (as Runna's shared cards are)
 
 ## Type
 
-Archivo (variable weight and width, SIL Open Font Licence). Sizes are px on a card 1080 wide; they scale with the
-card.
+Segoe UI, the same as the rest of PS Focus; it has only the Regular, Semibold and Bold weights. Sizes are px on a card
+1080 wide; they scale with the card.
 
-| Text | Size | Weight | Width | Other |
-|---|---|---|---|---|
-| Date | 33px | 450 | 100% | uppercase, letter-spacing 0.08em, in a frosted pill (padding 0.4em 0.85em; 24% white over the blurred photo, slightly brighter and more saturated; no outline) |
-| Session title | 71px | 750 | 100% | letter-spacing -0.01em, line-height 1.1, one line |
-| Program | 44px | 500 | 100% | 85% opacity |
-| Stat labels | 42px | 600 | 100% | 92% opacity |
-| Big numbers | 162px | 660 | 96% | letter-spacing -0.025em, line-height 0.95, tabular figures |
-| Record names (optional, off) | 50px | 600 | 100% | line-height 1.3, 90% opacity |
+| Text | Size | Weight | Other |
+|---|---|---|---|
+| Date | 27px | 600 | uppercase, letter-spacing 0.12em, in a frosted pill (text box padding 0.4em 1.1em, the pill itself 0.1em shorter top and bottom; 28% white over the blurred photo, softly blurred; no outline) |
+| Session title | 57px | 700 | letter-spacing -0.01em, line-height 1.1, one line |
+| Program | 46px | 600 | 85% opacity |
+| Stat labels | 41px | 600 | 92% opacity |
+| Big numbers | 134px | 700 | letter-spacing -0.045em, line-height 0.95, tabular figures |
+| Record names (optional, off) | 50px | 600 | line-height 1.3, 90% opacity |
 
 ## Colour and effects
 
