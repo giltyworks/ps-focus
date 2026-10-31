@@ -1,5 +1,6 @@
 """The day overview, opened from a calendar day: the time in each program, and the day's productivity rating. A small
-popup over PS Focus, titled with the date, closed by a click anywhere else, see app_popup"""
+popup over PS Focus, titled with the date, closed by a click anywhere else, see app_popup. A day with time tracked
+also offers to share its session as a story card, see story_dialog"""
 
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ from tracker import ActivityStore
 from .app_popup import TITLE_HEIGHT, AppPopup
 from .header import fit_text
 from .icons import icon
+from .module import PaintedButton
 from .theme import Fonts, color, draw_outline_text, draw_text, line_height, text_width
 
 # Laid out as the Tk dialog was packed, see ui_calendar._open_day_overview. A Tk label kept its text this far from
@@ -32,11 +34,13 @@ STAR = "\U00002b50"
 UNRATED_STAR = "#5c5c5c"
 # How long the chosen rating shows before the overview closes by itself
 CLOSE_AFTER_RATING_MS = 150
+SHARE_PADX, SHARE_PADY = 10, 5
 
 
 class DayOverview(AppPopup):
     def __init__(
-        self, parent: QWidget, fonts: Fonts, store: ActivityStore, session_day: date, on_rated: Callable[[date, int], None]
+        self, parent: QWidget, fonts: Fonts, store: ActivityStore, session_day: date, on_rated: Callable[[date, int], None],
+        on_share: Callable[[date], None] | None = None,
     ) -> None:
         # The date is carried by the title alone, such as "Thu, 1 Oct 2026", to keep the window compact
         super().__init__(parent, fonts, f"{DAY_ABBREVIATIONS[session_day.weekday()]}, {session_day.day} {session_day.strftime('%b %Y')}")
@@ -51,6 +55,9 @@ class DayOverview(AppPopup):
         # Set once a star is chosen: the second click of a double-click, or any click before the overview closes,
         # would otherwise choose the same star again, which clears the rating just given
         self.rated = False
+        self.on_share = on_share
+        self.share_button = PaintedButton("Share as story", self._share, fonts, SHARE_PADX, SHARE_PADY, text_color="accent", fill="accent_dark")
+        self.buttons: list[PaintedButton] = []
         self._lay_out()
 
     def _lay_out(self) -> None:
@@ -130,6 +137,11 @@ class DayOverview(AppPopup):
         step = (width - 2 * 15 - star_width) / (STAR_COUNT - 1)
         self.star_areas = [(round(15 + index * step), top, star_width, star_height) for index in range(STAR_COUNT)]
         top += star_height + 12
+        # Sharing needs something to share: a day with time tracked
+        if breakdown and self.on_share is not None:
+            self.buttons = [self.share_button]
+            self.share_button.place(width - 16 - self.share_button.width, top - 4)
+            top += self.share_button.height + 8
         self.setFixedSize(width, top)
 
     def paintEvent(self, _event: QPaintEvent) -> None:
@@ -152,7 +164,14 @@ class DayOverview(AppPopup):
             draw_outline_text(
                 painter, left + 2, top + LABEL_INSET, STAR, color("gold") if filled else QColor(UNRATED_STAR), self.fonts.rating_star,
             )
+        for button in self.buttons:
+            button.paint(painter)
         painter.end()
+
+    def _share(self) -> None:
+        # The overview steps aside for the story window, as a menu closes once an item is picked
+        self.close()
+        self.on_share(self.session_day)
 
     def _star_at(self, point: QPoint) -> int | None:
         return next(
@@ -171,17 +190,33 @@ class DayOverview(AppPopup):
         QTimer.singleShot(CLOSE_AFTER_RATING_MS, self, self.close)
 
     def content_pressed(self, event: QMouseEvent) -> None:
-        value = self._star_at(event.position().toPoint())
-        if event.button() == Qt.MouseButton.LeftButton and value is not None:
+        point = event.position().toPoint()
+        if event.button() != Qt.MouseButton.LeftButton:
+            return
+        if any([button.press(point) for button in self.buttons]):
+            self.update()
+            return
+        value = self._star_at(point)
+        if value is not None:
             self._rate(value)
 
+    def mouseReleaseEvent(self, event: QMouseEvent) -> None:
+        if event.button() == Qt.MouseButton.LeftButton and any([button.release(event.position().toPoint()) for button in self.buttons]):
+            self.update()
+
     def content_moved(self, event: QMouseEvent) -> None:
-        star = self._star_at(event.position().toPoint())
-        self.setCursor(Qt.CursorShape.PointingHandCursor if star is not None else Qt.CursorShape.ArrowCursor)
+        point = event.position().toPoint()
+        star = self._star_at(point)
+        over_button = any(button.contains(point) for button in self.buttons)
+        self.setCursor(Qt.CursorShape.PointingHandCursor if star is not None or over_button else Qt.CursorShape.ArrowCursor)
+        if PaintedButton.update_hover(self.buttons, point):
+            self.update()
         self._hover_star(star)
 
     def leaveEvent(self, event) -> None:
         super().leaveEvent(event)
+        if PaintedButton.update_hover(self.buttons, None):
+            self.update()
         self._hover_star(None)
 
     def _hover_star(self, star: int | None) -> None:

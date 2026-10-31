@@ -698,6 +698,45 @@ class ActivityStore:
         ).fetchone()
         return (date.fromisoformat(row[0]), int(row[1])) if row else None
 
+    def session_records(self, day: date, minimum_seconds: int = SESSION_MINIMUM_SECONDS) -> list[str]:
+        """The records a day's session set when it was tracked, for the story card: "ever", "year" or "month" for the
+        longest session of all, of its year or of its month (only the biggest of the three), then "program" for the
+        longest session in the day's main program
+
+        A record has to beat every earlier session in its period, so the first session of a period sets none: a
+        record means something only once there was something to beat. A tie keeps the earlier day's record, as
+        `longest_session` does. The program record is left out while only one program was ever tracked, where it
+        would only repeat the overall one
+        """
+        def totals(application: str | None) -> dict[date, int]:
+            application_clause = " AND application = ?" if application is not None else ""
+            parameters: tuple = (day.strftime("%Y-%m-%d"),) + ((application,) if application is not None else ()) + (minimum_seconds,)
+            rows = self.connection.execute(
+                f"SELECT day, SUM(seconds) FROM activity_hours AS activity WHERE day <= ?{application_clause} GROUP BY day HAVING SUM(seconds) >= ?",
+                parameters,
+            ).fetchall()
+            return {date.fromisoformat(row_day): int(round(seconds, 6)) for row_day, seconds in rows}
+
+        def beats_earlier(by_day: dict[date, int], in_period) -> bool:
+            earlier = [seconds for other, seconds in by_day.items() if other < day and in_period(other)]
+            return day in by_day and bool(earlier) and by_day[day] > max(earlier)
+
+        records = []
+        overall = totals(None)
+        for kind, in_period in (
+            ("ever", lambda other: True),
+            ("year", lambda other: other.year == day.year),
+            ("month", lambda other: (other.year, other.month) == (day.year, day.month)),
+        ):
+            if beats_earlier(overall, in_period):
+                records.append(kind)
+                break
+        breakdown = self.day_application_totals(day)
+        programs = self.connection.execute("SELECT COUNT(DISTINCT application) FROM activity WHERE seconds > 0").fetchone()[0]
+        if breakdown and programs > 1 and beats_earlier(totals(breakdown[0][0]), lambda other: True):
+            records.append("program")
+        return records
+
     def best_start_time(self) -> tuple[str, int] | None:
         """Return the start time (HH:MM) of the highest-rated day and that rating, or None when no day is rated
 

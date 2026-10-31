@@ -35,6 +35,7 @@ from app_config import (
     user_level,
 )
 from feedback import FeedbackOutbox
+from session_story import story_text
 from tracker import ActivityStore, activity_slices, tracking_clock, foreground_application, user_is_active, running_applications
 from unpack_cleanup import remove_stale_unpack_folders
 from update_check import UPDATE_CHECK_INTERVAL_MS, available_update, is_safe_download_url
@@ -60,6 +61,7 @@ from .friends_module import FriendsModule
 from .friends_sync import FriendsSync
 from .header import Header, ModuleControls
 from .stats_module import StatsModule
+from .story_dialog import StoryDialog
 from .status_menu import PopupMenu
 from .settings_page import SettingsPage
 from .theme import Fonts
@@ -531,7 +533,14 @@ class PSFocusQt:
             self.stats.refresh(self.calendar.view, self.calendar.month)
 
     def _open_day_overview(self, session_day: date) -> None:
-        DayOverview(self.window, self.fonts, self.store, session_day, self._set_productivity_rating).show_centred_on(self.window)
+        DayOverview(
+            self.window, self.fonts, self.store, session_day, self._set_productivity_rating, self._open_story,
+        ).show_centred_on(self.window)
+
+    def _open_story(self, session_day: date) -> None:
+        text = story_text(self.store, session_day)
+        if text is not None:
+            StoryDialog(self.window, self.fonts, session_day, text).show_centred_on(self.window)
 
     def _set_productivity_rating(self, session_day: date, rating: int) -> None:
         """Rate a day from 1 to 10; choosing the rating it already has clears it"""

@@ -415,6 +415,33 @@ class QtSettingsTests(unittest.TestCase):
         self.assertEqual(overview.width(), portrait)
         overview.deleteLater()
 
+    def test_a_day_with_time_tracked_can_be_shared_as_a_story(self):
+        from PySide6.QtCore import QEvent, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+        from PySide6.QtWidgets import QApplication
+        from qt.day_overview import DayOverview
+        from qt.story_dialog import StoryDialog
+
+        day = date(2026, 10, 31)
+        # Nothing tracked, nothing to share
+        overview = DayOverview(self.app.window, self.app.fonts, self.app.store, day, lambda _day, _rating: None, self.app._open_story)
+        self.assertEqual(overview.buttons, [])
+        overview.deleteLater()
+        with self.app.store.connection:
+            self.app.store.connection.execute("INSERT INTO activity (day, slot, seconds, application) VALUES ('2026-10-31', 13, 4000, 'Photoshop')")
+        overview = DayOverview(self.app.window, self.app.fonts, self.app.store, day, lambda _day, _rating: None, self.app._open_story)
+        button = overview.share_button
+        self.assertEqual(overview.buttons, [button])
+        self.assertLessEqual(button.top + button.height, overview.height())
+        point = QPointF(button.left + button.width / 2, button.top + button.height / 2)
+        for kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
+            QApplication.sendEvent(overview, QMouseEvent(kind, point, point, Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
+        stories = self.app.window.findChildren(StoryDialog)
+        self.assertEqual(len(stories), 1)
+        self.assertEqual(stories[0].text.title, "Sat Lunch Session")
+        self.assertEqual(stories[0].text.focus_time, "1h 06m")
+        stories[0].close()
+
     def test_double_clicking_a_star_keeps_the_rating(self):
         from datetime import date
         from PySide6.QtCore import QEvent, QPoint, QPointF, Qt

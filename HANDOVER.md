@@ -1,6 +1,15 @@
 # PS Focus handover
 
-Updated 22 October 2026. Read this before resuming work.
+Updated 31 October 2026. Read this before resuming work.
+
+## Session story card: 31 October 2026 (branch `claude/session-story`, not merged, not built or installed)
+
+- **What:** the owner designed (with Claude, in a browser mock-up) a shareable 9:16 "story" image of one session, styled like Runna's run cards, and asked for it to be exportable from PS Focus. Calendar day → day overview → **Share as story** opens a window with a live preview, **Choose photo…**, five editable text fields (title, date, programs, focus time, started), a "Blurred photo around the card" option, **Copy image** and **Save image…** (1080x1920 PNG, default name `PS Focus session <date>.png` in Pictures).
+- **Design:** `design/session-story/README.md` holds every approved value (sizes, weights, colours, layout); `mockup.html` is the mock-up (the owner's own drawing was left out of the repo; it opens on a grey placeholder). The owner's decisions: one session stands alone (no streak, level or finish time); records only when earned, as a count beside the app's own award icon, top of the stat stack; Runna-style frosted date pill; light grey text with pure white big numbers; no text shadows; card shadow kept.
+- **Code:** `session_story.py` (the card's words), `ActivityStore.session_records` in tracker.py (records as they stood on the day: beat every earlier session of 15 min+ in the period; ever > year > month, only the biggest; plus the main program's record once more than one program has been tracked), `qt/story_card.py` (painting, blur, frame), `qt/story_dialog.py`, a share button in `qt/day_overview.py`, `_open_story` in `qt/app.py`. A "session" is a day, as everywhere else in the app.
+- **Build:** bundles `assets/fonts/Archivo-Variable.ttf` (SIL OFL 1.1, from google/fonts; uses Qt's variable-font axes for weight and width), `assets/fonts/OFL.txt` and `assets/icons/PSFocus_256x256.png`; keeps Qt's `qjpeg.dll` and `qwebp.dll` image plugins so phone photos open (HEIC does not). `tools/write_qt_notices.py` appends the font's licence to the third-party notices (not run end to end: it needs the Windows Python layout).
+- **Tests:** `test_session_story.py` (20 tests) and a share test in `test_qt_settings.py`. Run on Linux (offscreen) only: all new tests pass; the full suite has the same 10 Windows-only failures as before the change (uninstall, two friend dialogs, docking places).
+- **Not done / for the owner:** check it in the running app on Windows (fonts with DirectWrite's variable axes, the native file dialogs, clipboard paste into other apps); `py tools/build_release.py`, silent reinstall, relaunch; a release (APP_VERSION, release notes, Code.gs). The website demo shows the new link (cache tag `?v=1.1.28`), which only explains the feature. Open questions: whether to remember the last photo; whether to offer this from the Today panel too; whether real sittings (gaps of 20 min+) should replace whole days later.
 
 ## 1.1.27 released: 22 October 2026
 

@@ -393,6 +393,8 @@
 .psf-stars { display: flex; justify-content: space-between; padding: 0 13px; }
 .psf-star { border: 0; background: none; color: #5c5c5c; font-size: 20px; line-height: 1; padding: 2px 1px; cursor: pointer; font-family: "Segoe UI Symbol", "Segoe UI", sans-serif; }
 .psf-star.psf-lit { color: var(--psf-gold); }
+.psf-share { display: block; margin: 8px 16px 0 auto; border: 0; background: none; color: var(--psf-accent, #79d6bd); font: 12px inherit; font-family: inherit; padding: 5px 10px; border-radius: 4px; cursor: pointer; }
+.psf-share:hover { background: #284e45; }
 
 /* Phones and narrow screens: the painting fills the scene behind the window, and panels stay in it */
 @media (max-width: 760px), (pointer: coarse) {

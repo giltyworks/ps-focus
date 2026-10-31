@@ -35,6 +35,10 @@ a = Analysis(
         ('assets/icons/PSFocus.ico', 'assets/icons'),
         ('assets/icons/PSFocus_Settings_64.png', 'assets/icons'),
         ('assets/sounds/celebration.wav', 'assets/sounds'),
+        # The session story card: its logo and typeface, with the typeface's licence
+        ('assets/icons/PSFocus_256x256.png', 'assets/icons'),
+        ('assets/fonts/Archivo-Variable.ttf', 'assets/fonts'),
+        ('assets/fonts/OFL.txt', 'assets/fonts'),
     ] + oauth_datas,
     hiddenimports=[], hookspath=[], hooksconfig={}, runtime_hooks=[],
     excludes=[
@@ -58,7 +62,8 @@ a = Analysis(
 a.binaries = [entry for entry in a.binaries if not (entry[0].lower().startswith('api-ms-win-') or entry[0].lower() == 'ucrtbase.dll')]
 
 
-# The interface is painted with QPainter, uses PNG and ICO images, English text and Windows' WinHTTP. Qt's broad hooks
+# The interface is painted with QPainter, uses PNG and ICO images (and reads JPEG and WebP photos for the story card),
+# English text and Windows' WinHTTP. Qt's broad hooks
 # also collect graphics and network plugins it never loads, and Python brings OpenSSL
 def needed_file(name):
     normalized = name.replace('\\', '/').lower()
@@ -72,7 +77,8 @@ def needed_file(name):
         # The offscreen platform is kept for the build's own start-up check
         return normalized.endswith((
             '/platforms/qwindows.dll', '/platforms/qoffscreen.dll',
-            '/imageformats/qico.dll', '/styles/qmodernwindowsstyle.dll',
+            '/imageformats/qico.dll', '/imageformats/qjpeg.dll', '/imageformats/qwebp.dll',
+            '/styles/qmodernwindowsstyle.dll',
         ))
     return True
 

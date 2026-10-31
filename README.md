@@ -53,6 +53,12 @@ Lifetime tracked time across all programs sets a level from 1 to 99, shown besid
 
 The Stats module lists each figure as a label on the left and its value in a column on the right: this week's total, the 7- and 30-day daily averages with their change against the period before, the best weekday, the longest session, the best start time once a day has been rated, and a count of the sessions in the month or year the calendar shows. When this week ranks in your top 10, 25 or 50 percent of weeks, a gold, silver or bronze medal appears beside its total with the percentile underneath. The week so far is compared with the same days of each of the past 52 weeks, from Monday up to today, so a week in progress is not measured against finished ones and a busy stretch more than a year ago stops setting the bar. No rank is shown until there are four weeks of history (`ActivityStore.week_rank`).
 
+## Share a session
+
+Click a calendar day with time tracked, then **Share as story**, to make an image of that session for an Instagram story or similar, styled like a running app's run summary. The card shows the date, a title from the weekday and the hour the session started (such as "Sat Lunch Session"), the programs used, the focus time, the start time and, only when the session set one, how many records it set beside the app's award. It never shows a streak or level, so a short session is as easy to post as a long one. Pick a photo to go behind the card (your artwork, your desk), change any of the text, and choose whether the card sits over a blurred copy of the photo or fills the image. **Copy image** puts the 1080 x 1920 image on the clipboard; **Save image…** saves it as a PNG. Nothing is uploaded.
+
+A record is counted as it stood on the day: the session's total beat every earlier session of at least 15 minutes in its period. The longest session ever outranks the longest of its year, which outranks the longest of its month, so only the biggest of those counts, and the longest session in the day's main program counts too once more than one program has been tracked (`ActivityStore.session_records`). The design, with every size and colour, is in `design/session-story/`; the card uses the Archivo typeface, bundled in `assets/fonts/` under the SIL Open Font License.
+
 ## Uninstall
 
 Choose PS Focus under **Settings > Apps > Installed apps** and then **Uninstall**. This runs the app itself as `PS Focus.exe --uninstall`, which opens a dialog; there is no separate uninstaller program. It runs as the current user without administrator rights, because everything it removes belongs to that user.
@@ -84,7 +90,7 @@ See [PRIVACY.md](PRIVACY.md) for the full policy. The tracker checks the foregro
 
 ## Source layout
 
-- `qt/`: the app, built with Qt. `app.py` runs it: the tracking loop, the tray icon, Settings, backups, feedback, updates and level-ups. `window.py` lays the blocks out by hand, in portrait or landscape; it is an ordinary Windows window that the desktop compositor blends when see-through, not Qt's frameless one, which would be a layered window that stutters as its edge is dragged. Each block paints itself: `today_panel.py` (a program's panel), `chart.py`, `calendar_module.py`, `stats_module.py`, with what they share in `module.py` (the name strip, buttons and glass). `header.py` and `settings_page.py` are the other parts of the interface, the small click-away popups (`day_overview.py`, `friend_details.py`) build on `app_popup.py`, and the dialogs (`feedback_dialog.py`, `uninstall_window.py`) on `app_dialog.py`; `theme.py` holds the colours, fonts and text measuring, laid out by Windows' own font metrics
+- `qt/`: the app, built with Qt. `app.py` runs it: the tracking loop, the tray icon, Settings, backups, feedback, updates and level-ups. `window.py` lays the blocks out by hand, in portrait or landscape; it is an ordinary Windows window that the desktop compositor blends when see-through, not Qt's frameless one, which would be a layered window that stutters as its edge is dragged. Each block paints itself: `today_panel.py` (a program's panel), `chart.py`, `calendar_module.py`, `stats_module.py`, with what they share in `module.py` (the name strip, buttons and glass). `header.py` and `settings_page.py` are the other parts of the interface, the small click-away popups (`day_overview.py`, `friend_details.py`) build on `app_popup.py`, and the dialogs (`feedback_dialog.py`, `uninstall_window.py`, `story_dialog.py`) on `app_dialog.py`; `theme.py` holds the colours, fonts and text measuring, laid out by Windows' own font metrics
 - `qt/docking.py` and `qt/block_drag.py`: floating panels. A block's title strip puts it in a new order, or out of the window into a window of its own; anything else moves the window or panel with everything snapped to it. Windows move together in one step, and see-through glass is worked out per group of snapped windows, and the mouse is looked for every 30 ms because Windows does not reliably say when it comes onto a window
 - `qt/friends_module.py` and `qt/friends_sync.py`: the Friends module, and its check-ins with the friends server about every ten minutes and when drawing starts or stops
 - `qt/google_sync.py`: Google sign-in, settings upload and activity backups for the app, run on background threads with the results handled on the interface's own
@@ -92,6 +98,7 @@ See [PRIVACY.md](PRIVACY.md) for the full policy. The tracker checks the foregro
 - `app_config.py`: paths, constants, colours, and default settings
 - `tracker.py`: activity database and foreground-window detection. The database keeps a write-ahead log, so recording each second is a short append; backups are plain single files
 - `stat_lines.py`: the Stats module's figures
+- `session_story.py`, `qt/story_card.py` and `qt/story_dialog.py`: the session story card: what it says, how it is painted, and the window that copies or saves it
 - `google_drive.py`, `feedback.py`, `update_check.py`: Google Drive sync, the feedback outbox, and the daily check for a newer version
 - `friends.py` and `friends_server/`: the app's side of Friends, and the Cloudflare Worker that passes figures between friends; see `friends_server/README.md` for deploying it
 - `web.py`: HTTPS through Windows' own WinHTTP, so the app needs no copy of OpenSSL
@@ -141,4 +148,4 @@ Binaries committed before October 2026 contained OAuth Desktop credentials, incl
 
 ## Licence
 
-PS Focus is free software under the GNU General Public License, version 3; see [LICENSE](LICENSE). The PS Focus name and logo are not covered by it: give a changed version you share its own name and logo ([TERMS.md](TERMS.md), section 2).
+PS Focus is free software under the GNU General Public License, version 3; see [LICENSE](LICENSE). The PS Focus name and logo are not covered by it: give a changed version you share its own name and logo ([TERMS.md](TERMS.md), section 2). The Archivo typeface in `assets/fonts/` is under the SIL Open Font License 1.1 ([OFL.txt](assets/fonts/OFL.txt)).
