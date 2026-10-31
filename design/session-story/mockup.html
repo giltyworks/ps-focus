@@ -1,0 +1,239 @@
+<title>PS Focus Session Story</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..900&display=swap">
+<style>
+/* Layout: the app's near-black bench, one 9:16 story card beside a short control panel; stacks on a phone */
+:root {
+  --bg: #080808;
+  --panel: #111312;
+  --line: #232725;
+  --text: #eef3f1;
+  --muted: #8d9a98;
+  --accent: #79d6bd;
+  --display: "Archivo", "Segoe UI", system-ui, sans-serif;
+  color-scheme: dark;
+}
+body { background: var(--bg); color: var(--text); font-family: var(--display); }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 28px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; grid-template-columns: minmax(0, 380px) minmax(0, 380px) minmax(0, 1fr); gap: 28px; align-items: start; }
+@media (max-width: 1100px) { .page { grid-template-columns: repeat(2, minmax(0, 1fr)); } .side { grid-column: 1 / -1; } }
+@media (max-width: 720px) { .page { grid-template-columns: minmax(0, 1fr); } .phone { max-width: 380px; margin: 0 auto; width: 100%; } .card { max-width: 420px; margin: 0 auto; width: 100%; } }
+.side { display: grid; gap: 16px; min-width: 0; }
+.side h1 { font-size: 26px; font-weight: 800; font-stretch: 88%; margin: 0; letter-spacing: -0.01em; }
+.side p { color: var(--muted); margin: 0; line-height: 1.5; font-size: 14px; }
+.controls { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; }
+.controls label { display: grid; gap: 4px; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); min-width: 0; }
+.controls input { font: 14px var(--display); color: var(--text); background: var(--bg); border: 1px solid var(--line); border-radius: 7px; padding: 7px 9px; min-width: 0; }
+.controls input:focus-visible, .btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.wide { grid-column: 1 / -1; }
+.btn { font: 600 13px var(--display); color: var(--text); background: transparent; border: 1px solid var(--line); border-radius: 7px; padding: 8px 12px; cursor: pointer; justify-self: start; }
+
+/* The card: sized in container units so it scales like a real 1080x1920 story */
+.card { container-type: inline-size; position: relative; aspect-ratio: 9 / 16; width: 100%; max-width: 100%; border-radius: 14px; overflow: hidden; background: #777 center / cover no-repeat; color: #e6e8eb; box-shadow: 0 20px 50px -20px rgba(0,0,0,.8); }
+.scrim { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(180deg, rgba(0,0,0,.42) 0%, rgba(0,0,0,.08) 24%, rgba(0,0,0,0) 40%, rgba(0,0,0,.3) 54%, rgba(0,0,0,.36) 100%), rgba(0,0,0,var(--dim,.1)); }
+.in { position: absolute; inset: 0; padding: 7cqw; display: flex; flex-direction: column; }
+.top { display: flex; justify-content: space-between; align-items: flex-start; gap: 3cqw; }
+.head { display: grid; gap: 1cqw; min-width: 0; }
+.date { font-size: calc(var(--size-date, 3.05) * 1cqw); font-weight: 450; letter-spacing: .08em; text-transform: uppercase; margin-bottom: 2.2cqw; justify-self: start; padding: .4em .85em; border-radius: 99px; background: rgba(255,255,255,.24); backdrop-filter: blur(3cqw) saturate(1.5) brightness(1.1); -webkit-backdrop-filter: blur(3cqw) saturate(1.5) brightness(1.1); }
+.title { font-size: calc(var(--size-title, 6.6) * 1cqw); font-weight: 750; letter-spacing: -0.01em; line-height: 1.1; }
+.sub { font-size: calc(var(--size-sub, 4.1) * 1cqw); font-weight: 500; opacity: .85; }
+.logo { width: 8cqw; height: 8cqw; border-radius: 50%; flex: none; opacity: .55; }
+.stats { margin-top: auto; display: grid; gap: 4.4cqw; }
+.stat { display: grid; gap: .6cqw; }
+.label { font-size: calc(var(--size-label, 3.9) * 1cqw); font-weight: 600; opacity: .92; }
+.big { color: #fff; font-size: calc(var(--size-big, 15) * 1cqw); font-weight: 660; font-stretch: 96%; letter-spacing: -0.025em; line-height: .95; font-variant-numeric: tabular-nums; }
+.records { display: grid; gap: .6cqw; order: -1; }
+.records .label { display: flex; align-items: center; gap: 1.6cqw; }
+.record { display: flex; align-items: center; gap: 2.4cqw; font-size: calc(var(--size-record, 4.6) * 1cqw); font-weight: 650; line-height: 1.15; }
+.medal { flex: none; width: 1.13em; height: 1.13em; border-radius: 50%; }
+.medal.gold { background: radial-gradient(circle at 35% 30%, #fff4c8, #f0c33c 55%, #9c7514); }
+.medal.silver { background: radial-gradient(circle at 35% 30%, #ffffff, #c3cbd1 55%, #737d84); }
+.medal.bronze { background: radial-gradient(circle at 35% 30%, #ffe0c2, #d0874a 55%, #7d4a20); }
+.check { display: flex !important; grid-template-columns: none; align-items: center; gap: 8px; text-transform: none !important; letter-spacing: 0 !important; font-size: 13px !important; color: var(--text) !important; }
+.check input { width: 16px; height: 16px; accent-color: var(--accent); }
+.group-title { grid-column: 1 / -1; font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+.size output { float: right; color: var(--text); font-variant-numeric: tabular-nums; letter-spacing: 0; }
+.records .count { display: flex; align-items: center; gap: .18em; }
+.rosette { width: .66em; height: .66em; flex: none; }
+.record-names { white-space: pre-line; display: block; line-height: 1.3; gap: .8cqw; margin-top: 1.4cqw; font-size: calc(var(--size-record, 4.6) * 1cqw); font-weight: 600; opacity: .9; }
+[contenteditable] { outline: none; cursor: text; }
+[contenteditable]:hover { box-shadow: 0 0 0 .5cqw rgba(255,255,255,.25); }
+[contenteditable]:focus { box-shadow: 0 0 0 .5cqw rgba(121,214,189,.9); }
+[contenteditable][data-edited] { text-decoration: underline dotted rgba(121,214,189,.0); }
+.record-names:empty { display: none; }
+/* The phone preview: the card as it sits in a story, over a blurred, enlarged copy of its own photo */
+.preview { display: grid; gap: 10px; min-width: 0; }
+.preview-label { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.phone { position: relative; aspect-ratio: 9 / 19.5; width: 100%; max-width: 100%; border-radius: 34px; overflow: hidden; background: #000; border: 6px solid #1b1d1c; container-type: inline-size; }
+.phone .blur { position: absolute; inset: -8%; background: #555 center / cover no-repeat; filter: blur(5cqw) brightness(.72) saturate(1.1); transform: scale(1.1); }
+.phone .slot { position: absolute; left: 9%; right: 9%; top: 15.5%; }
+.phone .slot .card { border-radius: 4.5cqw; box-shadow: 0 0 0 1px rgba(255,255,255,.1), 0 4cqw 10cqw -3cqw rgba(0,0,0,.6); }
+.phone .slot [contenteditable] { pointer-events: none; }
+.chrome { position: absolute; inset: 0; pointer-events: none; color: #fff; font-family: -apple-system, "Segoe UI", system-ui, sans-serif; }
+.bars { position: absolute; top: 7.5%; left: 2%; right: 2%; display: flex; gap: 1cqw; }
+.bars i { flex: 1; height: .6cqw; border-radius: 1cqw; background: rgba(255,255,255,.35); }
+.bars i:first-child { background: linear-gradient(90deg, #fff 30%, rgba(255,255,255,.35) 30%); }
+.who { position: absolute; top: 9.6%; left: 4%; right: 4%; display: flex; align-items: center; gap: 3cqw; font-size: 4.2cqw; font-weight: 600; }
+.who .avatar { width: 9cqw; height: 9cqw; border-radius: 50%; background: linear-gradient(135deg, #8a8f8d, #3c403f); flex: none; }
+.who .ago { opacity: .7; font-weight: 400; }
+.who .x { margin-left: auto; font-size: 7cqw; font-weight: 300; line-height: 1; }
+.status { position: absolute; top: 2.2%; left: 7%; right: 7%; display: flex; justify-content: space-between; font-size: 4cqw; font-weight: 600; }
+.reply { position: absolute; bottom: 4.5%; left: 4%; right: 4%; display: flex; align-items: center; gap: 3cqw; }
+.reply .box { flex: 1; border: 1px solid rgba(255,255,255,.55); border-radius: 99px; padding: 2.6cqw 4cqw; font-size: 3.8cqw; opacity: .85; }
+.reply svg { width: 7cqw; height: 7cqw; flex: none; }
+</style>
+
+<div class="page">
+  <div class="card" id="card"><div class="scrim"></div><div class="in">
+    <div class="top">
+      <div class="head"><div class="date" id="o-date" contenteditable="plaintext-only" spellcheck="false"></div><div class="title" id="o-title" contenteditable="plaintext-only" spellcheck="false"></div><div class="sub" id="o-apps" contenteditable="plaintext-only" spellcheck="false"></div></div>
+      <img class="logo" alt="PS Focus" src="data:image/png;base64,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">
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="label" contenteditable="plaintext-only" spellcheck="false">Focus time</div><div class="big" id="o-total" contenteditable="plaintext-only" spellcheck="false"></div></div>
+      <div class="stat"><div class="label" contenteditable="plaintext-only" spellcheck="false">Started</div><div class="big" id="o-start" contenteditable="plaintext-only" spellcheck="false"></div></div>
+      <div class="records" id="o-records" hidden><div class="label" contenteditable="plaintext-only" spellcheck="false">Records</div><div class="big count"><span id="o-rec-count" contenteditable="plaintext-only" spellcheck="false"></span><span id="o-rosette"></span></div><div class="record-names" id="o-rec-names" contenteditable="plaintext-only" spellcheck="false"></div></div>
+    </div>
+  </div></div>
+
+  <div class="preview">
+    <div class="preview-label">As a story</div>
+    <div class="phone" id="phone">
+      <div class="blur" id="phone-blur"></div>
+      <div class="slot" id="phone-slot"></div>
+      <div class="chrome" aria-hidden="true">
+        <div class="status"><span>10:27</span><span>●●● 19</span></div>
+        <div class="bars"><i></i><i></i></div>
+        <div class="who"><span class="avatar"></span>Your story <span class="ago">12h</span><span class="x">×</span></div>
+        <div class="reply"><span class="box">Say something…</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8"><path d="M12 20s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 10c0 5.6-7 10-7 10z"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linejoin="round"><path d="M21 3 3 10.5l7 2.5 2.5 7z M10 13l11-10"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="side">
+    <h1>Session story</h1>
+    <p>One session on its own: no streak or level, so a short session is still worth posting. Tap any text on the card to change it.</p>
+    <button class="btn" type="button" id="f-reset" hidden>Undo my text edits</button>
+    <form class="controls" id="controls" autocomplete="off">
+      <label>Photoshop minutes<input id="f-ps" type="number" min="0" value="112"></label>
+      <label>Krita minutes<input id="f-krita" type="number" min="0" value="0"></label>
+      <label>Started<input id="f-start" type="time" value="13:14"></label>
+      <label>Day<input id="f-day" type="date" value="2026-10-31"></label>
+      <div class="group-title">Text sizes (px on a 1080-wide story)</div>
+      <label class="size">Date <output id="o-size-date"></output><input id="f-size-date" data-size="date" type="range" min="2" max="7" step="0.05" value="3.05"></label>
+      <label class="size">Session title <output id="o-size-title"></output><input id="f-size-title" data-size="title" type="range" min="4" max="10" step="0.1" value="6.6"></label>
+      <label class="size">Program <output id="o-size-sub"></output><input id="f-size-sub" data-size="sub" type="range" min="2.5" max="7" step="0.1" value="4.1"></label>
+      <label class="size">Stat labels <output id="o-size-label"></output><input id="f-size-label" data-size="label" type="range" min="2.5" max="7" step="0.1" value="3.9"></label>
+      <label class="size">Big numbers <output id="o-size-big"></output><input id="f-size-big" data-size="big" type="range" min="9" max="22" step="0.1" value="15"></label>
+      <label class="size">Records <output id="o-size-record"></output><input id="f-size-record" data-size="record" type="range" min="3" max="7" step="0.1" value="4.6"></label>
+      <div class="group-title">Records this session set</div>
+      <label class="check wide"><input type="checkbox" id="f-names">Also list what the records are</label>
+      <label class="check wide"><input type="checkbox" id="r-ever" data-medal="gold" data-text="Longest session ever">Longest session ever</label>
+      <label class="check wide"><input type="checkbox" id="r-program" data-medal="gold" data-text="Longest {program} session" checked>Longest session in this program</label>
+      <label class="check wide"><input type="checkbox" id="r-year" data-medal="silver" data-text="Longest session this year">Longest session this year</label>
+      <label class="check wide"><input type="checkbox" id="r-month" data-medal="bronze" data-text="Longest session this month" checked>Longest session this month</label>
+      <label class="wide">Darken photo<input id="f-dim" type="range" min="0" max="60" value="10"></label>
+      <label class="btn wide" for="f-photo" style="text-transform:none;letter-spacing:0;font-size:13px;color:var(--text)">Try another photo</label>
+      <input id="f-photo" type="file" accept="image/*" hidden>
+    </form>
+  </div>
+</div>
+
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const background = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='16'><defs><linearGradient id='g' x2='0' y2='1'><stop offset='0' stop-color='%23555'/><stop offset='1' stop-color='%23999'/></linearGradient></defs><rect width='9' height='16' fill='url(%23g)'/></svg>";
+  let photoUrl = null;
+  const duration = m => m >= 60 ? `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, "0")}m` : `${m}m`;
+  const clock = minutes => {
+    const h = Math.floor(minutes / 60) % 24, m = minutes % 60;
+    return `${(h % 12) || 12}:${String(m).padStart(2, "0")}${h < 12 ? "am" : "pm"}`;
+  };
+  const partOfDay = h => h < 5 ? "Late Night" : h < 12 ? "Morning" : h < 14 ? "Lunch" : h < 17 ? "Afternoon" : h < 21 ? "Evening" : "Late Night";
+
+  // Text the user typed on the card wins over the automatic text until they undo their edits
+  const put = (id, text) => { const el = $(id); if (!el.hasAttribute("data-edited")) el.textContent = text; };
+  const card = $("card");
+  card.addEventListener("input", e => {
+    const el = e.target.closest("[contenteditable]");
+    if (el) { el.setAttribute("data-edited", ""); $("f-reset").hidden = false; mirror(); }
+  });
+  card.addEventListener("keydown", e => {
+    // Enter finishes a one-line field; the record names may take several lines
+    if (e.key === "Enter" && e.target.id !== "o-rec-names") { e.preventDefault(); e.target.blur(); }
+  });
+  const labels = [...card.querySelectorAll(".label[contenteditable]")].map(el => [el, el.textContent]);
+  $("f-reset").addEventListener("click", () => {
+    card.querySelectorAll("[data-edited]").forEach(el => el.removeAttribute("data-edited"));
+    labels.forEach(([el, text]) => { el.textContent = text; });
+    $("f-reset").hidden = true;
+    render();
+  });
+
+  function render() {
+    const ps = Math.max(0, +$("f-ps").value || 0), krita = Math.max(0, +$("f-krita").value || 0);
+    const total = ps + krita;
+    const [sh, sm] = ($("f-start").value || "13:14").split(":").map(Number);
+    const start = sh * 60 + sm;
+    const day = new Date(($("f-day").value || "2026-10-31") + "T12:00");
+    const programs = [["Photoshop", ps], ["Krita", krita]].filter(p => p[1] > 0).sort((a, b) => b[1] - a[1]);
+    put("o-title", `${day.toLocaleDateString("en-AU", { weekday: "short" })} ${partOfDay(sh)} Session`);
+    put("o-date", day.toLocaleDateString("en-AU", { day: "numeric", month: "long", year: "numeric" }));
+    put("o-apps", programs.map(p => p[0]).join(" · ") || "No programs");
+    put("o-total", duration(total));
+    put("o-start", clock(start));
+    // Only the biggest records show: "ever" outranks the year, which outranks the month, so the card never lists both
+    const earned = [...document.querySelectorAll("[data-medal]")].filter(box => box.checked);
+    const shown = [];
+    for (const box of earned) {
+      if (box.id === "r-year" && $("r-ever").checked) continue;
+      if (box.id === "r-month" && ($("r-ever").checked || $("r-year").checked)) continue;
+      shown.push(box);
+    }
+    const records = $("o-records");
+    records.hidden = shown.length === 0;
+    // Hevy's look: a count beside a gold rosette, with the names underneath only if asked for
+    // The app's own award icon (qt/icons.py): a flat disc over two swallowtail tails, with a gap cut between them
+    const rosette = `<svg class="rosette" viewBox="0 0 100 100" aria-hidden="true">
+      <defs><mask id="award-gap"><rect width="100" height="100" fill="#fff"/><circle cx="50" cy="34" r="39.5" fill="#000"/></mask></defs>
+      <g fill="#f0c33c" mask="url(#award-gap)">
+        <polygon points="47,50 25,50 13,96 24,89 35,100"/><polygon points="53,50 75,50 87,96 76,89 65,100"/>
+      </g>
+      <circle cx="50" cy="34" r="32" fill="#f0c33c"/></svg>`;
+    const program = programs[0] ? programs[0][0] : "";
+    $("o-rosette").innerHTML = rosette;
+    put("o-rec-count", String(shown.length));
+    put("o-rec-names", $("f-names").checked ? shown.map(box => box.dataset.text.replace("{program}", program)).join("\n") : "");
+    document.querySelectorAll("[data-size]").forEach(slider => {
+      card.style.setProperty(`--size-${slider.dataset.size}`, slider.value);
+      $(`o-size-${slider.dataset.size}`).textContent = `${Math.round(slider.value * 10.8)}px`;
+    });
+    card.style.setProperty("--dim", ($("f-dim").value / 100).toFixed(2));
+    card.style.backgroundImage = `url("${photoUrl || background}")`;
+    mirror();
+  }
+
+  // Copy the card into the phone after every change, so the story preview always matches the editable card
+  function mirror() {
+    const copy = card.cloneNode(true);
+    copy.removeAttribute("id");
+    copy.querySelectorAll("[id]").forEach(el => el.removeAttribute("id"));
+    copy.querySelectorAll("[contenteditable]").forEach(el => el.removeAttribute("contenteditable"));
+    $("phone-slot").replaceChildren(copy);
+    $("phone-blur").style.backgroundImage = card.style.backgroundImage;
+  }
+  $("controls").addEventListener("input", render);
+  $("controls").addEventListener("submit", e => e.preventDefault());
+  $("f-photo").addEventListener("change", e => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    if (photoUrl) URL.revokeObjectURL(photoUrl);
+    photoUrl = URL.createObjectURL(file);
+    render();
+  });
+  render();
+})();
+</script>
