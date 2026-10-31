@@ -13,7 +13,7 @@ from pathlib import Path
 
 APP_NAME = "PS Focus"
 # Raise for every published build; the installer, the executable's file properties, and the update check all use it
-APP_VERSION = "1.1.27"
+APP_VERSION = "1.1.28"
 APP_PUBLISHER = "Giltyworks"
 APP_USER_MODEL_ID = "PSFocus.PSFocus"
 LEGACY_APP_NAME = "FocusTrace"
