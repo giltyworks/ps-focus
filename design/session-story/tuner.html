@@ -54,7 +54,7 @@ h2 { font-size: 12px; margin: 0 0 10px; font-weight: 650; text-transform: upperc
 .card { --awardSize: 0.66; container-type: inline-size; overflow: hidden; box-shadow: 0 0 0 calc(var(--edgeWidth) * 0.0926cqw) rgba(255, 255, 255, var(--edgeAlpha)); color: #e6e8eb; font-family: "Segoe UI", system-ui, sans-serif; }
 .card-bg { position: absolute; inset: 0; background-image: var(--photo); background-size: cover; background-position: center; }
 .card-scrim { position: absolute; inset: 0; background:
-  linear-gradient(to bottom, rgba(0,0,0,.42) 0%, rgba(0,0,0,.08) 24%, rgba(0,0,0,0) 40%, rgba(0,0,0,.30) 54%, rgba(0,0,0,.36) 100%),
+  linear-gradient(to bottom, rgba(0,0,0,.405) 0%, rgba(0,0,0,.095) 24%, rgba(0,0,0,.02) 40%, rgba(0,0,0,.285) 54%, rgba(0,0,0,.3525) 100%),
   rgba(0, 0, 0, var(--dim)); }
 .card-body { position: absolute; inset: 0; padding: calc(var(--padding) * 1cqw); display: flex; flex-direction: column; justify-content: space-between; }
 .logo { position: absolute; top: calc(var(--padding) * 1cqw); right: calc(var(--padding) * 1cqw); width: calc(var(--logoSize) * 1cqw); height: calc(var(--logoSize) * 1cqw); opacity: var(--logoOpacity); }
@@ -209,7 +209,7 @@ const GROUPS = [
     { k: "cardShare", label: "Width in story", min: 0.6, max: 1, step: 0.01, def: 0.81 },
     { k: "cardRadius", label: "Corner radius", min: 0, max: 0.12, step: 0.005, def: 0.05 },
     { k: "padding", label: "Inner padding", min: 3, max: 12, step: 0.1, def: 7.0 },
-    { k: "dim", label: "Photo darkening", min: 0, max: 0.5, step: 0.01, def: 0.10 },
+    { k: "dim", label: "Photo darkening", min: 0, max: 0.5, step: 0.01, def: 0.11 },
     { k: "logoSize", label: "Logo size", min: 4, max: 14, step: 0.1, def: 8.0 },
     { k: "logoOpacity", label: "Logo opacity", min: 0.05, max: 1, step: 0.01, def: 0.35 },
   ]},

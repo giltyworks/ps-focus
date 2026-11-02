@@ -2,6 +2,13 @@
 
 Updated 31 October 2026. Read this before resuming work.
 
+## Subtler "slice of light" on the story card: 2 November 2026 (installed, not committed or released)
+
+- **What:** the owner found the card's bright middle (the top and bottom fades) a bit strong. After mock-ups they chose a setting a quarter of the way from the old look toward flat: `DIM` 0.10 to 0.11 and `SCRIM` ((0.0, 0.405), (0.24, 0.095), (0.40, 0.02), (0.54, 0.285), (1.0, 0.3525)) in `qt/story_card.py`; `design/session-story/tuner.html` defaults match. The website demo has no story card, so nothing to sync there.
+- **Test fix:** `test_real_drag_slides_along_neighbour_in_both_orientations` failed on this PC with or without the change: the Graph and Calendar panels' heights differ by 76 px here, which put one drag step inside the 8 px bottom-edge snap. The test now skips steps within 8 px of that height difference (the app's behaviour was right).
+- **Checks:** 362 tests and the credential scan pass; reviewer PASS (no CRITICAL). Rebuilt 1.1.28 (installer SHA-256 `25e43cc8d9ecf34135c6495ae5c4715a92ede94c32ee79266eaa0b5aec281a4e`, a local build, not the published one), installed silently (exit 0) and relaunched the normal app.
+- **Next:** the owner checks the real share window; the change is uncommitted. Note the installed file now differs from the published 1.1.28 installer, so the next release should carry a version bump.
+
 ## 1.1.28 released: 31 October 2026 (Share as story)
 
 - **Published:** tag `v1.1.28`, built by GitHub (Build installer run 41177647361, which ran the tests and the credential check), release https://github.com/giltyworks/ps-focus/releases/tag/v1.1.28, marked Latest, with the installer and its SHA256SUMS. Installer 18,692,006 bytes, SHA-256 `9c00ca936ac08b4f7c5858ba0751f7465b09521c3b28865d337fb61c0259de8c`; downloaded back from the public release and compared. `main` is pushed (`b5af4ad` and earlier); the release notes are `release-notes/1.1.28.md`. Reviewer and independent auditor both returned PASS (no CRITICAL) on the release preparation.

@@ -183,7 +183,12 @@ class QtDockingTests(unittest.TestCase):
             start = source.pos() + QPoint(15, 15)
             with patch.object(self.app.docking, "_main_shown", return_value=False):
                 self.app.docking.press("graph", True, start)
+                # Where the two bottom edges come within the 8 px alignment reach the panel snaps to them on purpose, so
+                # those steps are not sliding; how many there are depends on the panels' heights (the text size)
+                lined_up = target.height()-source.height()
                 for offset in range(60, 101):
+                    if abs(offset-lined_up) <= 8:
+                        continue
                     raw = QPoint(target.x()+target.width()+15, target.y()+offset)
                     self.app.docking.drag(raw+QPoint(15, 15))
                     self.application.processEvents()

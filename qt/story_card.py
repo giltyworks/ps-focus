@@ -44,8 +44,8 @@ FAMILY = "Segoe UI"
 PADDING = 7.0
 # Over the photo: a little black everywhere, then a fade that darkens the top behind the title and the bottom evenly
 # behind every stat, as (position down the card, black's strength)
-DIM = 0.10
-SCRIM = ((0.0, 0.42), (0.24, 0.08), (0.40, 0.0), (0.54, 0.30), (1.0, 0.36))
+DIM = 0.11
+SCRIM = ((0.0, 0.405), (0.24, 0.095), (0.40, 0.02), (0.54, 0.285), (1.0, 0.3525))
 TEXT_COLOR = "#e6e8eb"
 # The program line and the stat labels: white, half see-through, so the photo shows through them
 SOFT_TEXT_COLOR = "#ffffff"
