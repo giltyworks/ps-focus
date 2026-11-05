@@ -2,6 +2,14 @@
 
 Updated 31 October 2026. Read this before resuming work.
 
+## Story dim slider: 5 November 2026 (installed, not committed)
+
+- **What:** the card photo's dim is now 0.18 by default (was 0.11), with no blur on the card photo (the owner tried 0.1 to 5 percent blur mock-ups and chose sharp). The share window has a dim button, a half-filled circle over the preview's top left corner, which opens a slider (the transparency popup, reused with `inverted=False`, an `opener` name and a `backed` panel so it shows over a photo). The preview follows the slider; it runs from 0 to `MAX_DIM` 0.5 and is not saved between windows. `render_card` and `render_story` take a `dim`.
+- **Speed:** the slider was laggy because every move re-rendered the whole story (about 115 ms, of which only 21 ms depends on the dim). `qt/story_card.py` now keeps the blurred backdrop and shadow for the same photo (`_kept_backdrop`, GUI thread only), so a render during a drag is about 23 ms with identical output; `qt/story_dialog.py` draws the preview once per batch of slider moves.
+- **Files:** `qt/story_card.py`, `qt/story_dialog.py`, `qt/transparency_popup.py`, tests in `test_session_story.py` (366 pass), the README paragraph on the share window. `design/session-story/tuner.html` still defaults to the old dim 0.11; not touched.
+- **Checks:** reviewer PASS twice (no CRITICAL). Open reviewer notes: the popup's `transparency` parameter name also carries the dim position; no test yet that a second click on the dim button closes the slider. Rebuilt 1.1.28 locally, installed silently (exit 0), normal app and `--dev` relaunched.
+- **Next:** the owner checks the dim button and slider (and how smooth it now is) in the running app. The installed file differs from the published 1.1.28, so the next release needs a version bump.
+
 ## Subtler "slice of light" on the story card: 2 November 2026 (installed, not committed or released)
 
 - **What:** the owner found the card's bright middle (the top and bottom fades) a bit strong. After mock-ups they chose a setting a quarter of the way from the old look toward flat: `DIM` 0.10 to 0.11 and `SCRIM` ((0.0, 0.405), (0.24, 0.095), (0.40, 0.02), (0.54, 0.285), (1.0, 0.3525)) in `qt/story_card.py`; `design/session-story/tuner.html` defaults match. The website demo has no story card, so nothing to sync there.

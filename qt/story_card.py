@@ -42,9 +42,9 @@ FAMILY = "Segoe UI"
 
 # Measurements below are percent of the card's width, as the mock-up's cqw units
 PADDING = 7.0
-# Over the photo: a little black everywhere, then a fade that darkens the top behind the title and the bottom evenly
-# behind every stat, as (position down the card, black's strength)
-DIM = 0.11
+# Over the photo: some black everywhere, which the person can change, then a fade that darkens the top behind the title
+# and the bottom evenly behind every stat, as (position down the card, black's strength)
+DIM = 0.18
 SCRIM = ((0.0, 0.405), (0.24, 0.095), (0.40, 0.02), (0.54, 0.285), (1.0, 0.3525))
 TEXT_COLOR = "#e6e8eb"
 # The program line and the stat labels: white, half see-through, so the photo shows through them
@@ -197,15 +197,15 @@ def hollow_logo() -> QImage:
     return result
 
 
-def render_card(width: int, photo: QImage | None, text: StoryText) -> QImage:
-    """The card on its own, as wide as asked, in the story card's shape"""
+def render_card(width: int, photo: QImage | None, text: StoryText, dim: float = DIM) -> QImage:
+    """The card on its own, as wide as asked, in the story card's shape, its photo darkened by the dim"""
     height = round(width * CARD_ASPECT)
     unit = width / 100
     padding = PADDING * unit
     image = _background(photo, QSize(width, height))
     painter = QPainter(image)
     painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.TextAntialiasing | QPainter.RenderHint.SmoothPixmapTransform)
-    painter.fillRect(image.rect(), QColor(0, 0, 0, round(DIM * 255)))
+    painter.fillRect(image.rect(), QColor(0, 0, 0, round(dim * 255)))
     scrim = QLinearGradient(0, 0, 0, height)
     for position, strength in SCRIM:
         scrim.setColorAt(position, QColor(0, 0, 0, round(strength * 255)))
@@ -288,32 +288,58 @@ def render_card(width: int, photo: QImage | None, text: StoryText) -> QImage:
     return image
 
 
-def render_story(photo: QImage | None, text: StoryText) -> QImage:
+def _card_frame(card_width: int, card_height: int) -> tuple[QRectF, float]:
+    """Where the card sits in the story, and how round its corners are"""
+    frame = QRectF((STORY_SIZE.width() - card_width) / 2, (STORY_SIZE.height() - card_height) // 2, card_width, card_height)
+    return frame, STORY_CARD_RADIUS * STORY_SIZE.width()
+
+
+# The part of the story that does not depend on the dim or the words, the photo blurred and darkened with the card's
+# shadow on it, costs most of a render, so the last one is kept for as long as the same photo is behind it: the
+# photo's cache key, or None for no photo, and the picture
+_kept_backdrop: tuple[int | None, QImage] | None = None
+
+
+def _backdrop(photo: QImage | None) -> QImage:
+    """The story without its card: the photo enlarged, blurred and darkened, or the app's near-black, with the card's
+    soft shadow on it. A copy, to be painted on"""
+    global _kept_backdrop
+    key = photo.cacheKey() if photo is not None and not photo.isNull() else None
+    if _kept_backdrop is None or _kept_backdrop[0] != key:
+        story = QImage(STORY_SIZE, QImage.Format.Format_ARGB32_Premultiplied)
+        painter = QPainter(story)
+        painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
+        if key is not None:
+            painter.drawImage(0, 0, blurred(covered(photo, STORY_SIZE, STORY_PHOTO_ZOOM), STORY_BLUR))
+            painter.fillRect(story.rect(), QColor(0, 0, 0, round(STORY_DARKEN * 255)))
+        else:
+            painter.drawImage(0, 0, _background(None, STORY_SIZE))
+        card_width = round(STORY_SIZE.width() * STORY_CARD_SHARE / 2) * 2
+        frame, radius = _card_frame(card_width, round(card_width * CARD_ASPECT))
+
+        # The shadow: a dark rounded box the card's size, blurred soft
+        shadow = QImage(STORY_SIZE, QImage.Format.Format_ARGB32_Premultiplied)
+        shadow.fill(Qt.GlobalColor.transparent)
+        shadow_painter = QPainter(shadow)
+        shadow_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        shadow_painter.setPen(Qt.PenStyle.NoPen)
+        shadow_painter.setBrush(QColor(0, 0, 0, round(SHADOW_ALPHA * 255)))
+        shadow_painter.drawRoundedRect(frame, radius, radius)
+        shadow_painter.end()
+        painter.drawImage(0, 0, blurred(shadow, SHADOW_BLUR / 2))
+        painter.end()
+        _kept_backdrop = (key, story)
+    return _kept_backdrop[1].copy()
+
+
+def render_story(photo: QImage | None, text: StoryText, dim: float = DIM) -> QImage:
     """The 1080x1920 story: the card sits in the middle over a blurred, darkened copy of its photo, as Runna's shared
     cards do"""
-    story = QImage(STORY_SIZE, QImage.Format.Format_ARGB32_Premultiplied)
+    story = _backdrop(photo)
     painter = QPainter(story)
     painter.setRenderHints(QPainter.RenderHint.Antialiasing | QPainter.RenderHint.SmoothPixmapTransform)
-    if photo is not None and not photo.isNull():
-        painter.drawImage(0, 0, blurred(covered(photo, STORY_SIZE, STORY_PHOTO_ZOOM), STORY_BLUR))
-        painter.fillRect(story.rect(), QColor(0, 0, 0, round(STORY_DARKEN * 255)))
-    else:
-        painter.drawImage(0, 0, _background(None, STORY_SIZE))
-    card_width = round(STORY_SIZE.width() * STORY_CARD_SHARE / 2) * 2
-    card = render_card(card_width, photo, text)
-    frame = QRectF((STORY_SIZE.width() - card.width()) / 2, (STORY_SIZE.height() - card.height()) // 2, card.width(), card.height())
-    radius = STORY_CARD_RADIUS * STORY_SIZE.width()
-
-    # The shadow: a dark rounded box the card's size, blurred soft
-    shadow = QImage(STORY_SIZE, QImage.Format.Format_ARGB32_Premultiplied)
-    shadow.fill(Qt.GlobalColor.transparent)
-    shadow_painter = QPainter(shadow)
-    shadow_painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    shadow_painter.setPen(Qt.PenStyle.NoPen)
-    shadow_painter.setBrush(QColor(0, 0, 0, round(SHADOW_ALPHA * 255)))
-    shadow_painter.drawRoundedRect(frame, radius, radius)
-    shadow_painter.end()
-    painter.drawImage(0, 0, blurred(shadow, SHADOW_BLUR / 2))
+    card = render_card(round(STORY_SIZE.width() * STORY_CARD_SHARE / 2) * 2, photo, text, dim)
+    frame, radius = _card_frame(card.width(), card.height())
 
     path = QPainterPath()
     path.addRoundedRect(frame, radius, radius)

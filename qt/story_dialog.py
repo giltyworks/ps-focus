@@ -10,7 +10,7 @@ import string
 from datetime import date
 from pathlib import Path
 
-from PySide6.QtCore import QPoint, QPointF, QRectF, QStandardPaths, Qt
+from PySide6.QtCore import QPoint, QPointF, QRectF, QStandardPaths, Qt, QTimer
 from PySide6.QtGui import QIcon, QImage, QImageReader, QKeyEvent, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen
 from PySide6.QtWidgets import QApplication, QFileDialog, QWidget
 
@@ -22,9 +22,11 @@ from .app_popup import CLOSE_WIDTH, AppPopup
 from .header import fit_text
 from .module import PaintedButton, draw_rounded_box
 from .settings_page import wrap
-from .story_card import STORY_SIZE, render_story
+from .status_menu import PopupMenu
+from .story_card import DIM, STORY_SIZE, render_story
 from .theme import Fonts, color, draw_text, line_height
 from .title_bar import ICON_SIZE, TITLE_BAR_HEIGHT
+from .transparency_popup import TransparencyPopup
 
 WINDOW_TITLE = "Share session"
 PADDING = 3
@@ -33,6 +35,10 @@ PADDING = 3
 ENLARGE_BUTTON_SIZE = (26, 24)
 ENLARGE_BUTTON_MARGIN = 5
 ENLARGE_BUTTON_ALPHA = 200
+# The dim button sits over the preview's top left corner, as the enlarge button does over its top right; its slider runs
+# from no dim to this much, which is a dim of 100 on the slider
+MAX_DIM = 0.5
+DIM_OPENER = "story dim"
 PREVIEW_SCALE = 0.25
 PREVIEW_RADIUS = 6
 ROW_GAP = 9
@@ -137,6 +143,14 @@ class IconButton(PaintedButton):
             painter.drawRoundedRect(QRectF(x - 6, y - 7, 9, 10), 1.5, 1.5)
             painter.setClipping(False)
             painter.drawRoundedRect(QRectF(x - 3, y - 3, 9, 10), 1.5, 1.5)
+        elif self.glyph == "dim":
+            # A circle with its right half filled
+            painter.drawEllipse(QPointF(x, y), 6, 6)
+            half = QPainterPath()
+            half.moveTo(x, y - 6)
+            half.arcTo(QRectF(x - 6, y - 6, 12, 12), 90, -180)
+            half.closeSubpath()
+            painter.fillPath(half, color(self.text_color if self.enabled else "muted"))
         elif self.glyph == "expand":
             # Four corner brackets of a square
             for sign_x, sign_y in ((-1, -1), (1, -1), (-1, 1), (1, 1)):
@@ -209,8 +223,10 @@ class StoryDialog(AppPopup):
         self.text = text
         self.photo: QImage | None = None
         self.photo_name = ""
+        self.dim = DIM
+        self.render_waiting = False
         self.status = ("", "muted")
-        self.story = render_story(None, text)
+        self.story = render_story(None, text, self.dim)
         self.setMouseTracking(True)
         self.photo_button = IconButton("photo", "Choose photo…", self.choose_photo, fonts, solid=True)
         self.copy_button = IconButton("copy", "Copy to clipboard", self.copy_image, fonts)
@@ -220,7 +236,10 @@ class StoryDialog(AppPopup):
         # Over the preview's top right corner, a little see-through so the picture shows round it
         self.enlarge_button = IconButton("expand", "Expand", self.enlarge_preview, fonts, solid=True)
         self.enlarge_button.alpha = ENLARGE_BUTTON_ALPHA
-        self.buttons = [self.photo_button, self.enlarge_button, self.drive_button, self.icloud_button, self.copy_button, self.save_button]
+        # Over the preview's top left corner, the same
+        self.dim_button = IconButton("dim", "Dim the photo", self.open_dim, fonts, solid=True)
+        self.dim_button.alpha = ENLARGE_BUTTON_ALPHA
+        self.buttons = [self.photo_button, self.enlarge_button, self.dim_button, self.drive_button, self.icloud_button, self.copy_button, self.save_button]
         self._lay_out()
 
     def _lay_out(self) -> None:
@@ -237,6 +256,8 @@ class StoryDialog(AppPopup):
         self.preview = QRectF(PADDING, preview_top, preview_width, preview_height)
         self.enlarge_button.width, self.enlarge_button.height = ENLARGE_BUTTON_SIZE
         self.enlarge_button.place(round(self.preview.right()) - self.enlarge_button.width - ENLARGE_BUTTON_MARGIN, preview_top + ENLARGE_BUTTON_MARGIN)
+        self.dim_button.width, self.dim_button.height = ENLARGE_BUTTON_SIZE
+        self.dim_button.place(round(self.preview.left()) + ENLARGE_BUTTON_MARGIN, preview_top + ENLARGE_BUTTON_MARGIN)
         bottom = preview_top + preview_height
         # Under the preview, as wide as it: the records, if the session set any, then one row of buttons, left to
         # right: iCloud, G Drive, copy and download, the first two as wide as the wider and no wider than the row allows;
@@ -286,8 +307,34 @@ class StoryDialog(AppPopup):
         self.setFixedSize(self.window_width, self.base_height + extra)
 
     def render(self) -> None:
-        self.story = render_story(self.photo, self.text)
+        self.story = render_story(self.photo, self.text, self.dim)
         self.update()
+
+    def open_dim(self) -> None:
+        """The dim slider, beside its button; a click on the button while it is open closes it. The preview follows the
+        slider as it moves"""
+        if not PopupMenu.opens(DIM_OPENER):
+            return
+        popup = TransparencyPopup(self, self.fonts, self._dim_position, self._dim_chosen, inverted=False, opener=DIM_OPENER, backed=True)
+        button = self.dim_button
+        popup.show_at(self.mapToGlobal(QPoint(button.left + button.width + BUTTON_GAP, button.top + (button.height - popup.height()) // 2)))
+
+    def _dim_position(self) -> int:
+        return round(self.dim / MAX_DIM * 100)
+
+    def _dim_chosen(self, position: int, done: bool) -> None:
+        """While the slider moves, the preview is drawn once for however many moves came in since the last drawing, so a
+        quick drag never queues up pictures; it is drawn at once when the slider is let go"""
+        self.dim = position / 100 * MAX_DIM
+        if done:
+            self.render()
+        elif not self.render_waiting:
+            self.render_waiting = True
+            QTimer.singleShot(0, self._render_waiting)
+
+    def _render_waiting(self) -> None:
+        self.render_waiting = False
+        self.render()
 
     def choose_photo(self, path: str | None = None) -> bool:
         """Put a photo behind the card, asking which unless given its path; return whether one was taken"""

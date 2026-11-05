@@ -174,6 +174,38 @@ class StoryImageTests(unittest.TestCase):
         bottom_left = [framed.pixelColor(x, y) for x in range(140, 600, 4) for y in range(1500, 1700, 4)]
         self.assertTrue(any(pixel == QColor("#ffffff") for pixel in bottom_left))
 
+    def test_a_higher_dim_darkens_the_card_photo_and_leaves_the_text_alone(self):
+        from PySide6.QtGui import QColor, QImage
+        from qt.story_card import DIM, render_card
+
+        photo = QImage(str(self.photo()))
+        light, default, dark = (render_card(450, photo, sample_text(), dim) for dim in (0.0, DIM, 0.5))
+        # Part of the photo that no text covers, on the right of the middle of the card
+        spot = (400, 330)
+        self.assertGreater(light.pixelColor(*spot).lightness(), default.pixelColor(*spot).lightness())
+        self.assertGreater(default.pixelColor(*spot).lightness(), dark.pixelColor(*spot).lightness())
+        self.assertEqual(DIM, 0.18)
+        self.assertTrue(any(dark.pixelColor(x, y) == QColor("#ffffff") for x in range(60, 300, 3) for y in range(500, 650, 3)))
+
+    def test_the_blurred_backdrop_is_kept_for_the_same_photo_and_remade_for_another(self):
+        from PySide6.QtGui import QColor, QImage
+        import qt.story_card as story_card
+
+        photo = QImage(str(self.photo()))
+        first = story_card.render_story(photo, sample_text(), 0.1)
+        kept = story_card._kept_backdrop[1]
+        before = kept.copy()
+        second = story_card.render_story(photo, sample_text(), 0.4)
+        # The same picture was reused, and painting a card on a copy of it left it as it was
+        self.assertIs(story_card._kept_backdrop[1], kept)
+        self.assertEqual(kept, before)
+        self.assertNotEqual(first.pixelColor(540, 1000), second.pixelColor(540, 1000))
+        # Another photo, or none, makes a new one
+        other = QImage(200, 200, QImage.Format.Format_RGB32)
+        other.fill(QColor("#c03030"))
+        story_card.render_story(other, sample_text())
+        self.assertIsNot(story_card._kept_backdrop[1], kept)
+
     def test_a_long_title_shrinks_to_stay_on_one_line(self):
         from PySide6.QtGui import QFontMetricsF
         from qt.story_card import TITLE_FONT, _fitted_font
@@ -222,6 +254,47 @@ class StoryDialogTests(unittest.TestCase):
         self.assertEqual(self.dialog.status[1], "red")
         # The photo already chosen stays
         self.assertEqual(self.dialog.photo_name, "red.jpg")
+
+    def test_the_dim_slider_darkens_the_story_and_a_click_on_its_button_opens_it(self):
+        from PySide6.QtCore import QPoint
+        from PySide6.QtGui import QColor, QImage
+        from qt.story_card import DIM
+        from qt.story_dialog import MAX_DIM
+        from qt.transparency_popup import SLIDER_KNOB, SLIDER_WIDTH, TransparencyPopup
+
+        image = QImage(400, 400, QImage.Format.Format_RGB32)
+        image.fill(QColor("#c0c0c0"))
+        image.save(str(self.folder / "grey.jpg"))
+        self.dialog.choose_photo(str(self.folder / "grey.jpg"))
+        self.assertEqual(self.dialog.dim, DIM)
+        before = self.dialog.story.pixelColor(540, 960).lightness()
+        # The button is in the preview's top left corner, and opens a slider that grows towards the right
+        button = self.dialog.dim_button
+        self.assertLess(button.left, self.dialog.preview.center().x())
+        button.command()
+        popup = next(widget for widget in QApplication.topLevelWidgets() if isinstance(widget, TransparencyPopup) and widget.isVisible())
+        self.addCleanup(popup.close)
+        self.assertEqual(popup.transparency(), round(DIM / MAX_DIM * 100))
+        popup._slide_to(QPoint(popup.slider_left + SLIDER_WIDTH, popup.slider_top), True)
+        self.assertAlmostEqual(self.dialog.dim, MAX_DIM)
+        self.assertLess(self.dialog.story.pixelColor(540, 960).lightness(), before)
+        popup._slide_to(QPoint(popup.slider_left - SLIDER_KNOB, popup.slider_top), True)
+        self.assertEqual(self.dialog.dim, 0)
+        self.assertGreater(self.dialog.story.pixelColor(540, 960).lightness(), before)
+
+    def test_a_quick_drag_of_the_dim_slider_draws_the_preview_once(self):
+        from unittest.mock import patch
+
+        with patch.object(self.dialog, "render") as render:
+            for position in (10, 20, 30):
+                self.dialog._dim_chosen(position, False)
+            self.assertEqual(render.call_count, 0)
+            QApplication.processEvents()
+            self.assertEqual(render.call_count, 1)
+            self.assertAlmostEqual(self.dialog.dim, 0.15)
+            # Letting go draws at once
+            self.dialog._dim_chosen(40, True)
+            self.assertEqual(render.call_count, 2)
 
     def test_saving_writes_a_story_sized_png(self):
         from PySide6.QtGui import QImage

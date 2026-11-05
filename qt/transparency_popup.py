@@ -1,5 +1,6 @@
 """The transparency slider, opened from its icon beside the module icons: a small popup with the slider in it, the window
-behind turning see-through as it moves, so the effect shows while it is chosen"""
+behind turning see-through as it moves, so the effect shows while it is chosen. The share session window's dim slider is
+the same popup, running the other way and standing on a backing so it shows over the photo"""
 
 from __future__ import annotations
 
@@ -19,12 +20,15 @@ SLIDER_WIDTH = 80
 SLIDER_TRACK = 4
 SLIDER_KNOB = 12
 PADDING = 6
+# The backing behind a slider that stands over a picture: its corner radius and how solid it is
+BACKING_RADIUS = 6
+BACKING_ALPHA = 215
 
 
-def paint_slider(painter: QPainter, left: float, top: float, transparency: int) -> None:
-    """A track filled in blue up to the knob; fully right is fully solid, leftwards it turns more see-through"""
+def paint_slider(painter: QPainter, left: float, top: float, position: int) -> None:
+    """A track filled in blue up to the knob, which sits this many percent of the way along it"""
     middle = top + SLIDER_KNOB / 2
-    knob_x = left + SLIDER_KNOB / 2 + (SLIDER_WIDTH - SLIDER_KNOB) * (100 - transparency) / 100
+    knob_x = left + SLIDER_KNOB / 2 + (SLIDER_WIDTH - SLIDER_KNOB) * position / 100
     painter.save()
     painter.setRenderHint(QPainter.RenderHint.Antialiasing)
     painter.setPen(Qt.PenStyle.NoPen)
@@ -39,11 +43,15 @@ def paint_slider(painter: QPainter, left: float, top: float, transparency: int) 
 
 
 class TransparencyPopup(QWidget):
-    """Closed by clicking anywhere else, as a menu is; clicking its icon again while it is open closes it"""
+    """Closed by clicking anywhere else, as a menu is; clicking its icon again while it is open closes it. Transparency
+    runs from solid at the right to see-through at the left; a slider that is not `inverted` grows towards the right"""
 
     OPENER = "transparency"
 
-    def __init__(self, parent: QWidget, fonts: Fonts, transparency: Callable[[], int], on_change: Callable[[int, bool], None]) -> None:
+    def __init__(
+        self, parent: QWidget, fonts: Fonts, transparency: Callable[[], int], on_change: Callable[[int, bool], None],
+        inverted: bool = True, opener: str = OPENER, backed: bool = False,
+    ) -> None:
         super().__init__(parent, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setMouseTracking(True)
@@ -52,6 +60,9 @@ class TransparencyPopup(QWidget):
         self.fonts = fonts
         self.transparency = transparency
         self.on_change = on_change
+        self.inverted = inverted
+        self.opener = opener
+        self.backed = backed
         self.dragging = False
         self.slider_left = PADDING
         self.slider_top = PADDING
@@ -69,7 +80,15 @@ class TransparencyPopup(QWidget):
         # All but invisible, yet enough for Windows to give the popup the clicks on it: a fully clear pixel lets
         # them through to what is behind
         painter.fillRect(self.rect(), QColor(0, 0, 0, 1))
-        paint_slider(painter, self.slider_left, self.slider_top, self.transparency())
+        if self.backed:
+            backing = color("panel")
+            backing.setAlpha(BACKING_ALPHA)
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(backing)
+            painter.drawRoundedRect(QRectF(self.rect()), BACKING_RADIUS, BACKING_RADIUS)
+        value = self.transparency()
+        paint_slider(painter, self.slider_left, self.slider_top, 100 - value if self.inverted else value)
         painter.end()
 
     def _over_slider(self, point: QPoint) -> bool:
@@ -78,14 +97,14 @@ class TransparencyPopup(QWidget):
 
     def _slide_to(self, point: QPoint, done: bool) -> None:
         span = SLIDER_WIDTH - SLIDER_KNOB
-        value = 100 - round(max(0, min(span, point.x() - self.slider_left - SLIDER_KNOB / 2)) * 100 / span)
-        self.on_change(value, done)
+        position = round(max(0, min(span, point.x() - self.slider_left - SLIDER_KNOB / 2)) * 100 / span)
+        self.on_change(100 - position if self.inverted else position, done)
         self.update()
 
     def mousePressEvent(self, event: QMouseEvent) -> None:
         point = event.position().toPoint()
         if not self.rect().contains(point):
-            PopupMenu.dismissed = (self.OPENER, time.monotonic())
+            PopupMenu.dismissed = (self.opener, time.monotonic())
             super().mousePressEvent(event)
         elif event.button() == Qt.MouseButton.LeftButton and self._over_slider(point):
             self.dragging = True
