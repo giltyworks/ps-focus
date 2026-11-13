@@ -101,7 +101,7 @@ def main(argv: list[str]) -> None:
 
     application = QApplication.instance() or QApplication([])
     app = PSFocusQt(application)
-    app._save_settings = lambda upload=True: None
+    app.save_settings = lambda upload=True: None
     for timer in (app.tick_timer, app.focus_timer, app.poll_timer, app.backup_timer):
         timer.stop()
     fill_sample_history(app.store)
@@ -116,8 +116,8 @@ def main(argv: list[str]) -> None:
         app._track_and_refresh()
         for name in ("graph", "calendar", "stats"):
             if app.module_ticked[name]:
-                app._refresh_module(name)
-        app._arrange_blocks()
+                app.refresh_module(name)
+        app.arrange_blocks()
         settle()
 
     for name, visible in {"graph": True, "calendar": True, "stats": True, "friends": True}.items():

@@ -153,7 +153,7 @@ def add_sample_history():
 
 add_sample_history()
 app._track_and_refresh()
-app._arrange_blocks()
+app.arrange_blocks()
 app.window.move(area.x() + 36, area.y() + 28)
 
 # ----- Where things are on the screen -----
@@ -172,17 +172,10 @@ def period_button(label) -> QPoint:
     return button_at(app.chart, button)
 
 
-def module_icon(name) -> QPoint:
-    return app.module_controls.mapToGlobal(app.module_controls.areas[name].center())
-
-
 def title_of(name) -> QPoint:
     block = app.modules[name]
     rect = block.title_rect()
     return block.mapToGlobal(QPoint(rect.left() + 70, rect.center().y()))
-
-
-
 
 
 
@@ -285,7 +278,7 @@ def to_friends():
 
 def to_landscape():
     app._set_orientation(True)
-    app._arrange_blocks()
+    app.arrange_blocks()
 
 
 def beside_window() -> QPoint:

@@ -7,7 +7,7 @@ import sqlite3
 import tempfile
 import threading
 import unittest
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import Mock, patch
 
@@ -107,7 +107,7 @@ class QtSettingsTests(unittest.TestCase):
         try:
             for timer in (updated.tick_timer, updated.focus_timer, updated.poll_timer, updated.backup_timer):
                 timer.stop()
-            updated._save_settings(upload=False)
+            updated.save_settings(upload=False)
             saved = json.loads(app_config.SETTINGS_PATH.read_text(encoding="utf-8"))
             for key, value in chosen.items():
                 self.assertEqual(saved.get(key), value, key)
@@ -269,6 +269,14 @@ class QtSettingsTests(unittest.TestCase):
             self.assertFalse(path.with_suffix(".pending.json").exists())
         finally:
             recovered.close()
+
+    def test_exit_still_makes_the_final_backup_when_settings_cannot_be_saved(self):
+        self.app.tray_icon = Mock()
+        with patch("qt.app.threading.Timer"), patch.object(self.app.application, "quit"), patch.object(
+            self.app.docking, "save_positions", side_effect=PermissionError("locked")
+        ), patch.object(self.app.store, "create_local_backups") as backups:
+            self.app.close()
+        backups.assert_called_once()
 
     def test_many_short_switches_preserve_each_programs_fractional_time(self):
         import random
@@ -743,15 +751,15 @@ class QtSettingsTests(unittest.TestCase):
         finally:
             snapshot.close()
         with patch.object(self.app.store, "create_local_backups", side_effect=OSError("folder unavailable")):
-            self.app._backup_activity_now()
+            self.app.backup_activity_now()
         self.assertEqual(self.app.settings_page.backup_status[1], "red")
-        self.app._backup_activity_now()
+        self.app.backup_activity_now()
         self.assertEqual(self.app.settings_page.backup_status, ("Local activity backups saved", "muted"))
 
     def test_partial_backup_reports_unavailable_folder(self):
         folders = self.app.store.backup_directories
         with patch.object(self.app.store, "backup_directories", [*folders, Path(self.temporary.name) / "unavailable"]), patch.object(self.app.store, "create_local_backups", return_value=[folders[0] / "snapshot.sqlite3"]):
-            self.app._backup_activity_now()
+            self.app.backup_activity_now()
         self.assertEqual(self.app.settings_page.backup_status[1], "orange")
 
     def test_periodic_backup_remains_active_with_hidden_window(self):
@@ -783,7 +791,7 @@ class QtSettingsTests(unittest.TestCase):
         after_period = chart.picture.cacheKey()
         self.assertNotEqual(after_period, after_data)
         self.app._set_orientation(True)
-        self.app._arrange_blocks()
+        self.app.arrange_blocks()
         self.assertNotEqual(chart.picture.cacheKey(), after_period)
 
     def test_pause_stops_credit_and_resume_continues(self):
@@ -901,7 +909,7 @@ class QtSettingsTests(unittest.TestCase):
         self.assertEqual(len(uploads), 3)
         # And backing up by hand always uploads
         client.download_activity_backup.return_value = uploads[-1]
-        self.app._backup_activity_now(force=True)
+        self.app.backup_activity_now(force=True)
         controller.poll()
         self.assertEqual(len(uploads), 4)
 
@@ -1067,6 +1075,33 @@ class QtSettingsTests(unittest.TestCase):
         self.assertNotEqual(self.app.header.account_text, "test@example.com")
         self.assertFalse(controller.busy)
 
+    def test_failed_start_up_account_lookup_is_retried_by_the_next_backup(self):
+        # The app starts with Windows, often before the network is up; the account must not stay unknown all session
+        controller, client = self._fake_google()
+        client.connected = True
+        client.account_email.side_effect = RuntimeError("Network is down")
+        controller.backup()
+        controller.poll()
+        self.assertEqual(controller.email, "")
+        self.assertFalse(controller.busy)
+        # A failed lookup waits for the next timer rather than retrying in a loop
+        self.assertEqual(client.account_email.call_count, 1)
+        client.account_email.side_effect = None
+        controller.backup()
+        for _ in range(4):  # account -> download -> upload
+            controller.poll()
+        self.assertEqual(controller.email, "test@example.com")
+        client.download_activity_backup.assert_called_once()
+        client.upload_activity_backup.assert_called_once()
+
+    def test_connect_button_retries_a_failed_account_lookup(self):
+        controller, client = self._fake_google()
+        client.connected = True
+        controller.connect()
+        controller.poll()
+        self.assertEqual(controller.email, "test@example.com")
+        client.upload_settings.assert_called()
+
     def test_minimise_hides_to_tray_and_tray_action_restores_tracking_window(self):
         from qt.app import PSFocusQt
 
@@ -1085,6 +1120,35 @@ class QtSettingsTests(unittest.TestCase):
         self.application.processEvents()
         self.assertTrue(self.app.window.isVisible())
         self.assertFalse(self.app.window.isMinimized())
+
+    def test_calendar_left_open_moves_on_when_the_month_changes(self):
+        this_month = date.today().replace(day=1)
+        last_month = (this_month - timedelta(days=1)).replace(day=1)
+        two_months_ago = (last_month - timedelta(days=1)).replace(day=1)
+        calendar = self.app.calendar
+        # Showing the month that was current when it last looked: it follows into the new one
+        calendar.month = calendar.current_month = last_month
+        calendar.refresh()
+        self.assertEqual(calendar.month, this_month)
+        # Stepped away from it by the user: it stays where they put it
+        calendar.month, calendar.current_month = two_months_ago, last_month
+        calendar.refresh()
+        self.assertEqual(calendar.month, two_months_ago)
+        self.assertEqual(calendar.current_month, this_month)
+
+    def test_hidden_window_skips_the_per_program_queries_each_second(self):
+        self.start_tray_icon(self.app)
+        self.addCleanup(self.app.tray_icon.hide)
+        self.app.window.title_bar.on_minimize()
+        self.application.processEvents()
+        with patch.object(self.app.store, "lifetime_sessions") as sessions:
+            self.app._track_and_refresh()
+        sessions.assert_not_called()
+        self.app.tray_menu.actions()[0].trigger()
+        self.application.processEvents()
+        with patch.object(self.app.store, "lifetime_sessions", return_value=3) as sessions:
+            self.app._track_and_refresh()
+        sessions.assert_called()
 
     def test_the_windows_close_exits_the_app(self):
         # Its X, Alt+F4 or Windows' own close: PS Focus exits rather than hiding in the tray
@@ -1164,14 +1228,14 @@ class QtSettingsTests(unittest.TestCase):
 
 
     def _unlock_feedback(self):
-        self.app._set_feedback_unlocked(True)
+        self.app.set_feedback_unlocked(True)
         self.assertTrue(self.app.header.level_clickable)
         self.assertTrue(self.app.settings_page.feedback_shown)
 
     def _open_feedback(self):
         from qt.feedback_dialog import FeedbackDialog
 
-        self.app._open_feedback_dialog()
+        self.app.open_feedback_dialog()
         dialog = next(
             widget for widget in self.application.topLevelWidgets()
             if isinstance(widget, FeedbackDialog) and widget.isVisible() and not getattr(widget, "_tested", False)
@@ -1224,7 +1288,7 @@ class QtSettingsTests(unittest.TestCase):
         self.assertEqual(dialog.stars.rating, 0)
 
     def test_level_click_reveals_it_and_opens_feedback_only_while_unlocked_and_unrevealed(self):
-        with patch.object(self.app, "_open_feedback_dialog") as open_dialog:
+        with patch.object(self.app, "open_feedback_dialog") as open_dialog:
             self.app._level_clicked()
             open_dialog.assert_not_called()
             self.assertFalse(self.app.level_revealed)
@@ -1350,7 +1414,7 @@ class QtSettingsTests(unittest.TestCase):
         self.app._poll_signals()
         self.assertEqual((self.app.header.version_text, self.app.header.version_is_link), ("Get version 9.9.9", True))
         # The tray says so only the first time
-        self.app._show_available_update(update)
+        self.app.show_available_update(update)
         self.app.tray_icon.showMessage.assert_called_once()
         with patch("qt.app.webbrowser.open") as browser, patch("qt.app.is_safe_download_url", return_value=True):
             self.app.header.on_version()

@@ -9,11 +9,11 @@ from copy import deepcopy
 from typing import NamedTuple
 
 import app_config
+from app_config import NAME_MAX_LENGTH
 from tracker import ActivityStore
 
 from google_drive import GoogleAccountAccessRequired
 
-from .header import NAME_MAX_LENGTH
 
 
 class UploadFingerprint(NamedTuple):
@@ -34,6 +34,8 @@ class GoogleSync:
         self.reauthentication_required = False
         self.pending_settings = False
         self.pending_backup = False
+        # Set when a backup is waiting on the account lookup that a failed start-up lookup left undone
+        self.backup_after_account = False
         # What the last upload held: a fingerprint of the file, and the store and its change count when it was made.
         # While Drive still holds that file and nothing has been recorded since, there is nothing to merge or upload
         self.uploaded: UploadFingerprint | None = None
@@ -124,7 +126,7 @@ class GoogleSync:
             self._set_display_name(legacy_name[:NAME_MAX_LENGTH])
         self.app.settings["google_display_name"] = ""
         # The sync that follows a sign-in uploads the settings anyway; an upload now would hold it up
-        self.app._save_settings(upload=False)
+        self.app.save_settings(upload=False)
 
     def rename(self) -> None:
         """A double click on the connected account edits the name shown for it"""
@@ -138,7 +140,7 @@ class GoogleSync:
             name = "" if name == self.email else name[:NAME_MAX_LENGTH]
             if name != self.display_name():
                 self._set_display_name(name)
-                self.app._save_settings()
+                self.app.save_settings()
                 # Friends see the new name at once
                 self.app.friends_sync.sync()
         self.update_status()
@@ -151,6 +153,11 @@ class GoogleSync:
         if self.busy:
             return
         if self.client.connected and not self.reauthentication_required:
+            if not self.email:
+                # The lookup at start-up failed, often because the network was not up yet; try it again, and the
+                # "connect" result then syncs as after any sign-in
+                self._start("connect", self.client.account_email)
+                return
             self.sync()
             return
         def work():
@@ -200,6 +207,11 @@ class GoogleSync:
         if self.busy:
             self.pending_backup = True
             return
+        if not self.email:
+            # Without the account, friends and the header name stay signed out, so look it up first; the backup
+            # follows once it is found, and a failed lookup waits for the next timer instead of looping
+            self.backup_after_account = self._start("account", self.client.account_email)
+            return
         self._start("download", self.client.download_activity_backup)
 
     def _fingerprint(self, content: bytes) -> UploadFingerprint:
@@ -214,7 +226,7 @@ class GoogleSync:
                 raise ValueError("Google Drive backup was invalid; local history was kept")
         elif not app.restore_activity(content):
             raise ValueError("Google Drive backup was invalid; local history was kept")
-        app._refresh_visible_modules()
+        app.refresh_visible_modules()
 
     def poll(self) -> None:
         if self.app.closing:
@@ -225,6 +237,9 @@ class GoogleSync:
             except queue.Empty:
                 return
             self.busy = False
+            backup_after_account = self.backup_after_account and kind == "account"
+            if kind == "account":
+                self.backup_after_account = False
             if not success:
                 if not self.client.connected:
                     self.email = ""
@@ -247,6 +262,8 @@ class GoogleSync:
                     # Another account's Drive has not had this upload
                     self.uploaded = None
                 self.update_status()
+                if backup_after_account and self.email:
+                    self.pending_backup = True
                 if kind == "logout" and not value:
                     self.app.settings_page.set_google(("Signed out locally; Google token revocation could not be confirmed", "orange"), False, "connect")
                 if kind in ("connect", "switch"):
@@ -255,7 +272,7 @@ class GoogleSync:
                     self.pending_settings = False
                     self.sync()
                 elif kind == "sync":
-                    self.app._backup_activity_now()
+                    self.app.backup_activity_now()
                 elif kind == "download":
                     if value is not None and self.uploaded == self._fingerprint(value):
                         self.app.settings_page.set_backup_status("Activity backup saved to Google Drive", "active_green")

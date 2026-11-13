@@ -13,6 +13,7 @@ from __future__ import annotations
 import ctypes
 import os
 from ctypes import wintypes
+from typing import Callable
 
 from PySide6.QtCore import QEvent, QObject, QPoint, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QCursor, QGuiApplication, QPainter, QPaintEvent, QPen
@@ -43,10 +44,8 @@ HOVER_CHECK_MS = 30
 # How see-through a panel is while it would dock if let go; and how strongly the space it will take is filled in
 DOCKING_OPACITY = 0.7
 PREVIEW_FILL_ALPHA = 60
-# The most see-through a floating panel's background gets, at full transparency: never clear, so its text and figures
-# stay readable over whatever is behind
-# Fully see-through, the background is all but gone; kept a touch above nothing, as Windows lets clicks on wholly
-# clear pixels through to whatever is behind
+# The most see-through a floating panel's background gets, at full transparency: all but gone, yet kept a touch above
+# nothing, as Windows lets clicks on wholly clear pixels through to whatever is behind
 GLASS_MIN_ALPHA = 2
 
 
@@ -180,7 +179,7 @@ class FloatingPanel(QWidget):
     """A window of its own holding one module: no title bar, the module's own name row standing in for it. Owned by
     the main window, so it has no taskbar button, stays above that window and minimizes with it"""
 
-    def __init__(self, owner: QWidget, name: str, block: QWidget, on_hover=None) -> None:
+    def __init__(self, owner: QWidget, name: str, block: QWidget, on_hover: Callable[[str], None]) -> None:
         super().__init__(owner, Qt.WindowType.Tool | Qt.WindowType.FramelessWindowHint)
         self.block_name = name
         self.block = block
@@ -217,13 +216,11 @@ class FloatingPanel(QWidget):
 
     def enterEvent(self, event) -> None:
         super().enterEvent(event)
-        if self.on_hover is not None:
-            self.on_hover(self.block_name)
+        self.on_hover(self.block_name)
 
     def leaveEvent(self, event) -> None:
         super().leaveEvent(event)
-        if self.on_hover is not None:
-            self.on_hover(self.block_name)
+        self.on_hover(self.block_name)
 
     def release_block(self) -> QWidget:
         """Hand the module back, hidden and without a parent, for the window to take in again"""
@@ -366,7 +363,7 @@ class Docking:
         self.floating[name] = None  # type: ignore[assignment]
         self.reparenting = True
         try:
-            self.app._arrange_blocks()
+            self.app.arrange_blocks()
             block.floating = True
             block.set_layout(False, 0)
             panel = FloatingPanel(self.window, name, block, self.update_glass)
@@ -374,7 +371,7 @@ class Docking:
             # Back in the window, rather than in neither
             del self.floating[name]
             block.floating = False
-            self.app._arrange_blocks()
+            self.app.arrange_blocks()
             raise
         finally:
             self.reparenting = False
@@ -385,7 +382,7 @@ class Docking:
         if panel.topmost:
             set_topmost(panel, True)
         self.update_glass(name)
-        self.app._refresh_module(name)
+        self.app.refresh_module(name)
 
     def dock_module(self, name: str, slot: int | None = None, relayout: bool = True) -> None:
         """Put a floating module back in the window: before the slot'th block shown there, or after them all, or with
@@ -404,8 +401,8 @@ class Docking:
             block.set_glass(self.window.glass_alpha)
             panel.deleteLater()
             if relayout:
-                self.app._arrange_blocks()
-                self.app._refresh_module(name)
+                self.app.arrange_blocks()
+                self.app.refresh_module(name)
         finally:
             self.reparenting = False
         if relayout:
@@ -413,7 +410,7 @@ class Docking:
 
     def _shown_names(self) -> list[str]:
         """The blocks shown in the window, in order"""
-        return [name for name in self.app.block_order if self.app._block_shown(name)]
+        return [name for name in self.app.block_order if self.app.block_shown(name)]
 
     def _insert_at_slot(self, name: str, slot: int) -> None:
         shown = [key for key in self._shown_names() if key != name]
@@ -474,7 +471,7 @@ class Docking:
                 block.set_glass(255 if solid else alpha)
                 # The calendar and stats draw themselves again from what they read; the graph reads again
                 if block.glass_alpha != before and name == "graph" and self.floating[name].isVisible():
-                    app._refresh_module(name)
+                    app.refresh_module(name)
 
     def _set_main_glass(self, alpha: int) -> None:
         """The main window's background, header, checkbox row and the blocks in it, all this solid"""
@@ -489,10 +486,10 @@ class Docking:
             block.set_glass(alpha)
             # The graph reads again to draw for the new background, as a floating one does
             if block.glass_alpha != before and name == "graph" and block.isVisible():
-                app._refresh_module(name)
+                app.refresh_module(name)
 
     def _panel_should_show(self, name: str) -> bool:
-        return self.app._block_wanted(name) and self._main_shown()
+        return self.app.block_wanted(name) and self._main_shown()
 
     def sync_visibility(self, hidden: bool = False) -> None:
         """Floating panels go to the tray with the window, and a module unticked hides its panel"""
@@ -517,7 +514,7 @@ class Docking:
             changed = True
         if changed:
             # Where windows stand on this PC means nothing on another, so it is not worth an upload
-            self.app._save_settings(upload=False)
+            self.app.save_settings(upload=False)
 
     def restore(self) -> None:
         """Put the window where it was left, or with no saved place in the top right corner; then float the modules
@@ -737,7 +734,7 @@ class Docking:
             width = block.docked_width() if self.app.landscape else TODAY_PANEL_WIDTH
             # In landscape the app gives it the height every column shares
             self.preview.setFixedSize(width, panel.height())
-        self.app._arrange_blocks()
+        self.app.arrange_blocks()
 
     def shown_with_preview(self, blocks: list) -> list:
         """The blocks to lay out in the window, with the space for a panel being docked among them"""
@@ -753,7 +750,7 @@ class Docking:
             main = self.main_bounds()
             neighbours.append(main)
             # Beside the window, a panel also lines up with the top or bottom of each block in it
-            for block in self.app._shown_blocks():
+            for block in self.app.shown_blocks():
                 if not block.isVisible():
                     continue
                 block_top = block.mapToGlobal(QPoint(0, 0)).y()

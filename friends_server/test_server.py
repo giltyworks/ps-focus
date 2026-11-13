@@ -47,6 +47,16 @@ assert call("amy", "add", {"code": "abc"})[0] == 400
 assert call("nobody", "add", {"code": code_amy})[0] == 409
 assert call("amy", "sync", {}, token="not-a-token")[0] == 401
 assert call("amy", "sync", {}, token="a.b.c")[0] == 401
+# Tokens that are valid JSON but not tokens at all are refused, not a server fault
+import base64
+
+
+def piece(value) -> str:
+    return base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip("=")
+
+
+assert call("amy", "sync", {}, token=f"{piece(None)}.{piece(None)}.AAAA")[0] == 401
+assert call("amy", "sync", {}, token=f"{piece({'alg': 'RS256', 'kid': 5})}.{piece({})}.!!!!")[0] == 401
 
 # A request, seen by both, then accepted; codes are typed any which way
 after = ok("amy", "add", {"code": f"{code_bo[:4].lower()}-{code_bo[4:]}"})

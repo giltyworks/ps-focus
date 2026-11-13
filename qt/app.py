@@ -8,6 +8,7 @@ import queue
 import sys
 import threading
 import time
+import traceback
 import webbrowser
 from datetime import date, datetime, timedelta
 
@@ -82,6 +83,13 @@ EXIT_TIMEOUT_SECONDS = 10
 OPEN_PROGRAMS_CHECK_SECONDS = 5
 # Hidden in the tray, the window's memory is given back this long after, once it has finished going
 IDLE_MEMORY_RELEASE_MS = 2000
+# How often time is counted and the screen brought up to date; the program in front and idleness are read more often,
+# so a switch is noticed within a tenth of a second; and how often results from worker threads are applied
+TICK_MS = 1000
+FOCUS_CHECK_MS = 100
+SIGNAL_POLL_MS = 150
+# Calendar, stats and friends are redrawn this many ticks apart, as nothing they show moves faster
+SLOW_REFRESH_TICKS = 15
 
 
 def level_is_revealed(settings: dict) -> bool:
@@ -176,15 +184,15 @@ class PSFocusQt:
         # The calendar and stats change slowly, so they are worked out again every so many seconds
         self.slow_refresh_ticks = 0
         self.block_drag = BlockDrag(
-            self.blocks_by_name(), lambda: self.block_order, self._blocks_reordered, self._save_settings, lambda: self.landscape,
+            self.blocks_by_name(), lambda: self.block_order, self._blocks_reordered, self.save_settings, lambda: self.landscape,
             self.docking, self._moves_window,
         )
         window = self.window
         self.block_drag.watch(window, window.viewport, window.container, window.clip_margin, window.title_bar, self.header, self.module_controls)
-        self._arrange_blocks()
+        self.arrange_blocks()
         self.settings_page = SettingsPage(self.fonts, self.settings, self._setting_toggled, self._set_orientation, self._settings_resized)
         self.settings_page.exit_button.command = self.close
-        self.settings_page.feedback_button.command = self._open_feedback_dialog
+        self.settings_page.feedback_button.command = self.open_feedback_dialog
         data_copy = bool(app_config.DATA_DIRECTORY_OVERRIDE)
         # Starting with Windows is the installed app's alone: a copy of the data, or a copy run from source, would point
         # the Windows entry at itself
@@ -202,9 +210,9 @@ class PSFocusQt:
             # The developer version shows the made-up friends from the start; its menu turns them off
             self.friends_sync.sample_friends = True
             self.friends_sync.refresh_view()
-        self.settings_page.backup_button.command = lambda: self._backup_activity_now(force=True)
-        self._backup_activity_now()
-        self.backup_timer = QTimer(interval=BACKUP_INTERVAL_MS, timeout=self._backup_activity_now)
+        self.settings_page.backup_button.command = lambda: self.backup_activity_now(force=True)
+        self.backup_activity_now()
+        self.backup_timer = QTimer(interval=BACKUP_INTERVAL_MS, timeout=self.backup_activity_now)
         self.backup_timer.start()
         self._start_tray_icon()
         self.last_tick_time = tracking_clock()
@@ -212,12 +220,12 @@ class PSFocusQt:
         self.tracking_error: str | None = None
         self.activity_state = (None, False, False)
         self._tick()
-        self.tick_timer = QTimer(interval=1000, timeout=self._tick)
+        self.tick_timer = QTimer(interval=TICK_MS, timeout=self._tick)
         self.tick_timer.start()
         # Cheap focus checks make status changes responsive without repainting charts at 10Hz.
-        self.focus_timer = QTimer(interval=100, timeout=self._poll_activity)
+        self.focus_timer = QTimer(interval=FOCUS_CHECK_MS, timeout=self._poll_activity)
         self.focus_timer.start()
-        self.poll_timer = QTimer(interval=150, timeout=self._poll_signals)
+        self.poll_timer = QTimer(interval=SIGNAL_POLL_MS, timeout=self._poll_signals)
         self.poll_timer.start()
         self.docking.hover_timer.start()
         self._send_pending_feedback()
@@ -271,7 +279,7 @@ class PSFocusQt:
         for key in ("tracking_enabled", "tracking_krita", "tracking_clip_studio_paint", "program_panels_chosen"):
             self.settings.pop(key, None)
 
-    def _backup_activity_now(self, force: bool = False) -> None:
+    def backup_activity_now(self, force: bool = False) -> None:
         """Use the shared store's snapshot/retention logic on its owning UI thread."""
         if self.closing:
             return
@@ -324,8 +332,8 @@ class PSFocusQt:
                 self.settings_page._lay_out()
             self.window.show_settings(self.settings_page)
         else:
-            self._arrange_blocks()
-            self._refresh_visible_modules()
+            self.arrange_blocks()
+            self.refresh_visible_modules()
 
     def _setting_toggled(self, key: str) -> None:
         if key in self.settings_page.disabled_settings:
@@ -345,7 +353,7 @@ class PSFocusQt:
         self.settings[key] = value
         if key == "tracking_paused":
             self._tick()
-        self._save_settings()
+        self.save_settings()
         self.settings_page.update()
 
     def _title_bar_menu(self, point) -> None:
@@ -358,7 +366,7 @@ class PSFocusQt:
 
     def _toggle_always_on_top(self) -> None:
         self.settings["always_on_top"] = not self.settings.get("always_on_top")
-        self._save_settings()
+        self.save_settings()
         self.apply_always_on_top()
 
     def apply_always_on_top(self) -> None:
@@ -402,7 +410,7 @@ class PSFocusQt:
         self.module_controls.update()
         self.update_glass()
         if done:
-            self._save_settings()
+            self.save_settings()
 
     def _set_orientation(self, landscape: bool) -> None:
         """Choosing Portrait or Landscape, even the one already chosen, also docks every floating module and puts
@@ -414,21 +422,21 @@ class PSFocusQt:
         self.landscape = landscape
         self.landscape_width = None
         self.settings["landscape"] = landscape
-        self._save_settings()
+        self.save_settings()
         self.settings_page.update()
         if self.settings_shown:
             self._toggle_settings()
 
-    def _refresh_visible_modules(self) -> None:
+    def refresh_visible_modules(self) -> None:
         if self.settings_shown or not self.window.isVisible() or self.window.isMinimized():
             self.modules_were_hidden = True
             return
         self.modules_were_hidden = False
         for name in MODULE_NAMES:
             if self.module_ticked[name]:
-                self._refresh_module(name)
+                self.refresh_module(name)
 
-    def _arrange_blocks(self) -> None:
+    def arrange_blocks(self) -> None:
         """Show the shown blocks in their order, one under another or in landscape side by side, every column then
         stretched to the same height"""
         if self.settings_shown:
@@ -455,8 +463,8 @@ class PSFocusQt:
                 self.docking.preview.setFixedSize(self.docking.preview.width(), height + 2)
             for name in ("graph", "calendar"):
                 if self.module_ticked[name]:
-                    self._refresh_module(name)
-            self.window.show_blocks(self._shown_blocks(), anchor, any(self.module_ticked.values()), self.landscape, self.landscape_width)
+                    self.refresh_module(name)
+            self.window.show_blocks(self.shown_blocks(), anchor, any(self.module_ticked.values()), self.landscape, self.landscape_width)
         finally:
             self.arranging = False
 
@@ -471,7 +479,7 @@ class PSFocusQt:
         overhead = self._header_overhead()
         # With no anchor panel the header stands alone: its height, less a block's border of a pixel each side
         column = today_height + overhead if anchor is not None else overhead - MODULE_GAP - 2
-        stats = self.stats.landscape_height() if self._block_shown("stats") else 0
+        stats = self.stats.landscape_height() if self.block_shown("stats") else 0
         graph = self.chart.landscape_height() if not self.docking.is_floating("graph") else 0
         # The calendar and friends fit themselves to this height, the friends list scrolling, so neither sets it
         return max(graph, stats, today_height, column)
@@ -482,7 +490,7 @@ class PSFocusQt:
         if self.arranging:
             return
         if self.landscape:
-            self._arrange_blocks()
+            self.arrange_blocks()
         else:
             self.window.refit()
 
@@ -498,37 +506,37 @@ class PSFocusQt:
         window = self.window
         return widget in (window, window.viewport, window.container, window.clip_margin, window.title_bar, self.header, self.module_controls)
 
-    def _shown_blocks(self) -> list:
+    def shown_blocks(self) -> list:
         blocks = self.blocks_by_name()
-        return self.docking.shown_with_preview([blocks[name] for name in self.block_order if self._block_shown(name)])
+        return self.docking.shown_with_preview([blocks[name] for name in self.block_order if self.block_shown(name)])
 
     def _anchor_panel(self) -> TodayPanel | None:
         """The program panel, kept in view under the header as the window gets shorter; none while it floats"""
-        return self.today if self._block_shown("today") else None
+        return self.today if self.block_shown("today") else None
 
     def _blocks_reordered(self, order: list[str]) -> None:
         # Kept when the drag ends, see BlockDrag
         self.block_order = order
         self.settings["block_order"] = order.copy()
-        self.window.reorder_blocks(self._shown_blocks())
+        self.window.reorder_blocks(self.shown_blocks())
 
-    def _block_wanted(self, name: str) -> bool:
+    def block_wanted(self, name: str) -> bool:
         """A module ticked in the checkboxes, in the window or floating; the program panel always"""
         return self.module_ticked.get(name, True)
 
-    def _block_shown(self, name: str) -> bool:
+    def block_shown(self, name: str) -> bool:
         """Wanted, and in the window rather than floating"""
-        return self._block_wanted(name) and not self.docking.is_floating(name)
+        return self.block_wanted(name) and not self.docking.is_floating(name)
 
     def _module_toggled(self, name: str) -> None:
         self.settings[f"show_{name}"] = self.module_ticked[name]
-        self._save_settings()
-        self._arrange_blocks()
+        self.save_settings()
+        self.arrange_blocks()
         self.docking.sync_visibility()
         if self.module_ticked[name]:
-            self._refresh_module(name)
+            self.refresh_module(name)
 
-    def _refresh_module(self, name: str) -> None:
+    def refresh_module(self, name: str) -> None:
         # A program panel is brought up to date every second anyway
         if name == "today":
             return
@@ -570,9 +578,9 @@ class PSFocusQt:
 
     def _period_chosen(self, period: str) -> None:
         self.settings["period"] = period
-        self._save_settings()
+        self.save_settings()
 
-    def _save_settings(self, upload: bool = True) -> None:
+    def save_settings(self, upload: bool = True) -> None:
         """Save the settings, and back them up to Google Drive when connected unless told not to"""
         app_config.APP_DATA.mkdir(parents=True, exist_ok=True)
         temporary = app_config.SETTINGS_PATH.with_suffix(".tmp")
@@ -589,7 +597,7 @@ class PSFocusQt:
         self.today.set_application(application)
         self.docking.retitle("today")
         self.settings["today_program"] = application
-        self._save_settings(upload=False)
+        self.save_settings(upload=False)
 
     def _select_program(self, application: str) -> None:
         if application not in PROGRAMS:
@@ -642,7 +650,7 @@ class PSFocusQt:
         self.window.raise_()
         self.window.activateWindow()
         self.docking.sync_visibility()
-        self._refresh_visible_modules()
+        self.refresh_visible_modules()
 
     def _poll_signals(self) -> None:
         self.google_sync.poll()
@@ -653,7 +661,7 @@ class PSFocusQt:
             except queue.Empty:
                 break
             if kind == "update":
-                self._show_available_update(value)
+                self.show_available_update(value)
         if self.instance is None:
             return
         # Starting the app a second time brings up this copy's window instead
@@ -673,7 +681,6 @@ class PSFocusQt:
             self.today.set_text("status", "TRACKING ERROR", "red")
             self.today.setToolTip("Tracking could not save or refresh: " + str(error))
             # One failed update must not stop tracking for good; the timer keeps calling
-            import traceback
 
             traceback.print_exc()
 
@@ -729,16 +736,19 @@ class PSFocusQt:
         total_today_seconds = self.store.total_for_day(today)
         lifetime_seconds = self.store.total_seconds()
         application = self.today.application
-        today_seconds = self.store.total_for_day(today, application)
-        two_weeks_seconds = self.store.total_for_range(today - timedelta(days=13), today, application)
-        total_seconds = self.store.total_seconds(application)
-        last_session = self.store.last_recorded_day(application)
-        self.today.set_text("total", format_duration(today_seconds))
-        self.today.set_text("two_week", f"{two_weeks_seconds / 3600:.1f} hrs past 2 weeks")
-        self.today.set_text("sessions", f"{self.store.lifetime_sessions(application=application)} SESSIONS")
-        self.today.set_text("record_hours", f"{total_seconds / 3600:.1f} hrs on record")
-        last_session_text = last_session.strftime("%d %b").lstrip("0") if last_session else "--"
-        self.today.set_text("last_session", f"last session on {last_session_text}")
+        # The per-program lines are only read from the screen: with the window in the tray, five database queries a
+        # second would feed text nobody sees, and the first tick after it shows again brings them up to date
+        if self.window.isVisible() and not self.window.isMinimized():
+            today_seconds = self.store.total_for_day(today, application)
+            two_weeks_seconds = self.store.total_for_range(today - timedelta(days=13), today, application)
+            total_seconds = self.store.total_seconds(application)
+            last_session = self.store.last_recorded_day(application)
+            self.today.set_text("total", format_duration(today_seconds))
+            self.today.set_text("two_week", f"{two_weeks_seconds / 3600:.1f} hrs past 2 weeks")
+            self.today.set_text("sessions", f"{self.store.lifetime_sessions(application=application)} SESSIONS")
+            self.today.set_text("record_hours", f"{total_seconds / 3600:.1f} hrs on record")
+            last_session_text = last_session.strftime("%d %b").lstrip("0") if last_session else "--"
+            self.today.set_text("last_session", f"last session on {last_session_text}")
         app_active = self.active and foreground_app == application
         self.today.set_text("name", application, "active_green" if app_active else "name_online" if application in open_programs else "muted")
         self.today.set_text(
@@ -754,7 +764,7 @@ class PSFocusQt:
         self.update_glass()
         self._celebrate_level_up(level)
         override = self.feedback_unlock_override
-        self._set_feedback_unlocked(lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS if override is None else override)
+        self.set_feedback_unlocked(lifetime_seconds >= FEEDBACK_UNLOCK_SECONDS if override is None else override)
         self.friends_sync.tick(foreground_app if self.active else None, idle_active)
         # Tracking continues in the tray and Settings; drawing the modules out of sight waits for them to show.
         # Floating ones stay in view with Settings open, so they keep up
@@ -765,17 +775,17 @@ class PSFocusQt:
             return
         refreshed_on_restore = self.modules_were_hidden
         if refreshed_on_restore:
-            self._refresh_visible_modules()
+            self.refresh_visible_modules()
         # The graph moves on with the time being counted, and with a new day
         if self.module_ticked["graph"] and (refreshed_on_restore or self.active or self.chart_drawn_day != today):
             if not refreshed_on_restore:
                 self.chart.refresh()
             self.chart_drawn_day = today
-        # As in the Tk app, the calendar and stats are brought up to date every 15 seconds
-        if not refreshed_on_restore and self.slow_refresh_ticks % 15 == 0:
+        # The calendar, stats and friends are brought up to date every few seconds
+        if not refreshed_on_restore and self.slow_refresh_ticks % SLOW_REFRESH_TICKS == 0:
             for name in ("calendar", "stats", "friends"):
                 if self.module_ticked[name]:
-                    self._refresh_module(name)
+                    self.refresh_module(name)
         self.slow_refresh_ticks += 1
 
     def _refresh_floating_modules(self, today: date) -> None:
@@ -783,13 +793,13 @@ class PSFocusQt:
         if self.docking.is_floating("graph") and self.module_ticked["graph"] and (self.active or self.chart_drawn_day != today):
             self.chart.refresh()
             self.chart_drawn_day = today
-        if self.slow_refresh_ticks % 15 == 0:
+        if self.slow_refresh_ticks % SLOW_REFRESH_TICKS == 0:
             for name in ("calendar", "stats", "friends"):
                 if self.docking.is_floating(name) and self.module_ticked[name]:
-                    self._refresh_module(name)
+                    self.refresh_module(name)
         self.slow_refresh_ticks += 1
 
-    def _set_feedback_unlocked(self, unlocked: bool) -> None:
+    def set_feedback_unlocked(self, unlocked: bool) -> None:
         """Feedback opens once enough time has been tracked: Settings shows Got feedback?, and the level, until it is
         revealed, opens the form"""
         self.feedback_unlocked = unlocked
@@ -801,7 +811,7 @@ class PSFocusQt:
         without sending anything leaves the level shown"""
         if self.feedback_unlocked and not self.level_revealed:
             self._reveal_level()
-            self._open_feedback_dialog()
+            self.open_feedback_dialog()
 
     def _reveal_level(self) -> None:
         """Show the level instead of blurring it, kept between runs"""
@@ -809,12 +819,12 @@ class PSFocusQt:
             return
         self.level_revealed = True
         self.settings["level_revealed"] = True
-        self._save_settings()
+        self.save_settings()
         self.header.level_clickable = False
         if self.header.badge_state is not None:
             self.header.set_level(self.header.badge_state[0], True)
 
-    def _open_feedback_dialog(self) -> None:
+    def open_feedback_dialog(self) -> None:
         dialog = FeedbackDialog(
             self.window, self.fonts, self.feedback, self._feedback_cooldown_remaining, self._feedback_submitted
         )
@@ -841,7 +851,7 @@ class PSFocusQt:
         if count >= 2:
             self.settings["feedback_cooldown_until"] = (datetime.now() + FEEDBACK_COOLDOWN).isoformat(timespec="seconds")
         self.settings["feedback_submitted"] = True
-        self._save_settings()
+        self.save_settings()
         self._reveal_level()
 
     def _send_pending_feedback(self) -> None:
@@ -898,7 +908,7 @@ class PSFocusQt:
         if update is not None:
             self.results.put(("update", update))
 
-    def _show_available_update(self, update: tuple[str, str]) -> None:
+    def show_available_update(self, update: tuple[str, str]) -> None:
         """The version at the top of Settings becomes a link to the new one; the first time, the tray says so too"""
         self.available_update = update
         self.header.version_text, self.header.version_is_link = f"Get version {update[0]}", True
@@ -935,11 +945,15 @@ class PSFocusQt:
                 try:
                     self.store.save_pending_activity(self._pending_rows())
                 except Exception:
-                    import traceback
-                    traceback.print_exc()
+                            traceback.print_exc()
         if self.fireworks is not None:
             self.fireworks.stop()
-        self.docking.save_positions()
+        try:
+            self.docking.save_positions()
+        except OSError:
+            # A settings file locked by antivirus or a sync program must not stop the rest of the exit, or the final
+            # backup below would be skipped and the app left to the watchdog
+            pass
         self.docking.sync_visibility(hidden=True)
         self.window.hide()
         self.tray_icon.hide()
@@ -1027,7 +1041,7 @@ def main(data_copy: bool, smoke_test: bool = False, dev: bool = False) -> None:
             app.module_ticked[name] = True
         for landscape in (False, True):
             app.landscape = landscape
-            app._arrange_blocks()
+            app.arrange_blocks()
             application.processEvents()
             # The friends module draws as it paints, with no picture made ahead
             if any(module.picture is None or module.picture.isNull() for name, module in app.modules.items() if name != "friends"):

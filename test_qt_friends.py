@@ -483,6 +483,53 @@ class QtFriendsTests(unittest.TestCase):
         self._settle()
         self.assertEqual(len(self.service.calls), count)
 
+    def test_offline_sends_a_daily_keep_alive_so_the_server_does_not_forget_the_user(self):
+        from qt import friends_sync
+
+        self._turn_on()
+        self.sync.set_status("offline")
+        self._settle()
+        self.assertTrue(self.sync.offline_announced)
+        count = len(self.service.calls)
+        self.sync.sync()
+        self._settle()
+        self.assertEqual(len(self.service.calls), count)
+        self.sync.last_sync -= friends_sync.OFFLINE_KEEPALIVE_SECONDS
+        self.sync.sync()
+        self._settle()
+        self.assertEqual(len(self.service.calls), count + 1)
+        self.assertEqual(self.service.calls[-1][2]["status"], "offline")
+
+    def test_a_failed_offline_announcement_is_tried_again(self):
+        self._turn_on()
+        self.service.error = RuntimeError("no network")
+        self.sync.set_status("offline")
+        self._settle()
+        self.assertFalse(self.sync.offline_announced)
+        self.service.error = None
+        self.sync.sync()
+        self._settle()
+        self.assertTrue(self.sync.offline_announced)
+
+    def test_deleting_data_after_a_failed_offline_announcement_stays_deleted(self):
+        from qt import friends_sync
+
+        self._turn_on()
+        self.service.error = RuntimeError("no network")
+        self.sync.set_status("offline")
+        self._settle()
+        self.assertFalse(self.sync.offline_announced)
+        self.service.error = None
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+            self.app.friends.actions.delete_data()
+        self._settle()
+        self.assertEqual(self.service.calls[-1], ("leave",))
+        count = len(self.service.calls)
+        self.sync.last_sync -= friends_sync.OFFLINE_KEEPALIVE_SECONDS
+        self.sync.sync()
+        self._settle()
+        self.assertEqual(len(self.service.calls), count)
+
     def test_a_friends_menu_sets_favourites_and_nicknames(self):
         from PySide6.QtCore import QPoint
 
@@ -567,7 +614,7 @@ class QtFriendsTests(unittest.TestCase):
         self.assertGreater(heights, 150)
         for landscape in (True, False):
             self.app.landscape = landscape
-            self.app._arrange_blocks()
+            self.app.arrange_blocks()
             self.application.processEvents()
 
     def test_a_long_list_scrolls_and_stays_level_in_landscape(self):
@@ -588,7 +635,7 @@ class QtFriendsTests(unittest.TestCase):
         self.assertEqual(module.person_areas[-1][1], "AAAA2211")
         self.assertEqual(module.height(), tall)
         self.app.landscape = True
-        self.app._arrange_blocks()
+        self.app.arrange_blocks()
         # As tall as the columns beside it, inside their borders
         self.assertEqual(module.height(), self.app._landscape_height(self.app._anchor_panel()) + 2)
 

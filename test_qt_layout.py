@@ -203,3 +203,19 @@ class TimeAgoTests(unittest.TestCase):
         self.assertEqual(time_ago(60), "1 minute ago")
         self.assertEqual(time_ago(11 * 3600 + 59 * 60), "11 hours ago")
         self.assertEqual(time_ago(3 * 86400), "3 days ago")
+
+
+@unittest.skipIf(QApplication is None, "PySide6 is not installed")
+class GlowCacheTests(unittest.TestCase):
+    def test_the_glow_cache_stays_bounded_as_the_total_changes_every_second(self):
+        from PySide6.QtGui import QFont
+
+        from qt import theme
+
+        application = QApplication.instance() or QApplication([])
+        self.assertIsNotNone(application)
+        theme._glow.cache_clear()
+        font = QFont()
+        for second in range(theme.GLOW_CACHE_SIZE + 50):
+            theme._glow(f"12h 0{second % 10}m {second}s", font.toString(), 1.0)
+        self.assertLessEqual(theme._glow.cache_info().currsize, theme.GLOW_CACHE_SIZE)

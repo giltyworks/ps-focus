@@ -9,7 +9,7 @@ from PySide6.QtCore import QAbstractAnimation, QPoint, QPointF, QRect, QRectF, Q
 from PySide6.QtGui import QColor, QCursor, QFocusEvent, QFont, QFontMetrics, QImage, QKeyEvent, QMouseEvent, QPainter, QPaintEvent, QPen
 from PySide6.QtWidgets import QLineEdit, QToolTip, QWidget
 
-from app_config import EDGE_PADDING, LEVEL_BADGE_SIZE, TODAY_PANEL_WIDTH
+from app_config import EDGE_PADDING, LEVEL_BADGE_SIZE, NAME_MAX_LENGTH, TODAY_PANEL_WIDTH
 
 from .badge import render_level_badge
 from .module import paint_hover_box, paint_dropdown_arrow, DROPDOWN_BUTTON_SIZE
@@ -52,7 +52,6 @@ MODULE_BUTTON_GAP = 2
 MODULE_ICON_OFF = "#4f5857"
 # The display name field is as wide as this many characters, as the Tk entry; a name may be this long
 NAME_ENTRY_CHARACTERS = 20
-NAME_MAX_LENGTH = 32
 
 Area = tuple[int, int, int, int]
 NO_AREA: Area = (0, 0, 0, 0)

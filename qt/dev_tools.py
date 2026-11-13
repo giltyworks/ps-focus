@@ -125,18 +125,18 @@ class DevTools:
         self.feedback_reset()
         app = self.app
         app.feedback_unlock_override = True
-        app._set_feedback_unlocked(True)
+        app.set_feedback_unlocked(True)
 
     def feedback(self) -> None:
-        self.app._open_feedback_dialog()
+        self.app.open_feedback_dialog()
 
     def feedback_reset(self) -> None:
         app = self.app
         for key in ("level_revealed", "feedback_submitted", "feedback_count", "feedback_cooldown_until"):
             app.settings.pop(key, None)
-        app._save_settings()
+        app.save_settings()
         app.level_revealed = False
-        app._set_feedback_unlocked(app.feedback_unlocked)
+        app.set_feedback_unlocked(app.feedback_unlocked)
         if app.header.badge_state is not None:
             app.header.set_level(app.header.badge_state[0], False)
 
@@ -144,7 +144,7 @@ class DevTools:
         """Got feedback? in Settings, and the level opening the form, shown or hidden whatever has been tracked"""
         app = self.app
         app.feedback_unlock_override = not app.feedback_unlocked
-        app._set_feedback_unlocked(app.feedback_unlock_override)
+        app.set_feedback_unlocked(app.feedback_unlock_override)
         self._redraw_panel()
 
     def update(self) -> None:
@@ -152,7 +152,7 @@ class DevTools:
         app = self.app
         if app.available_update is None:
             app.update_announced = False
-            app._show_available_update(("9.9.9", "https://github.com/giltyworks/ps-focus/releases/latest"))
+            app.show_available_update(("9.9.9", "https://github.com/giltyworks/ps-focus/releases/latest"))
         else:
             app.available_update = None
             app.header.version_text, app.header.version_is_link = f"Version {APP_VERSION}", False
@@ -222,7 +222,7 @@ class DevTools:
 
     def _refresh(self) -> None:
         self.app._tick()
-        self.app._refresh_visible_modules()
+        self.app.refresh_visible_modules()
 
     def _tell(self, message: str) -> None:
         self.app.tray_icon.showMessage(f"{APP_NAME} Dev", message)

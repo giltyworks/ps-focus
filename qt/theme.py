@@ -120,7 +120,12 @@ def halo_strength(glass_alpha: int) -> int:
     return round(max(0, 255 - glass_alpha) * HALO_MAX / 253)
 
 
-@lru_cache(maxsize=2048)
+# Each glow image is tens of kilobytes, and the Today total draws a new text every second, so the cache is kept small:
+# the least recently drawn texts go first, and the few hundred texts on screen at once stay
+GLOW_CACHE_SIZE = 512
+
+
+@lru_cache(maxsize=GLOW_CACHE_SIZE)
 def _glow(text: str, font_description: str, ratio: float) -> QImage:
     """The text's shape in black, blurred into a soft glow that spreads GLOW_SPREAD pixels round it, ready to draw at
     the text's top left less the spread. Kept, as the same texts are drawn every second"""

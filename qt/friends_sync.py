@@ -12,12 +12,11 @@ from datetime import date, timedelta
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QMessageBox
 
-from app_config import APP_NAME, user_level
+from app_config import APP_NAME, NAME_MAX_LENGTH, user_level
 from friends import FriendsService
 from google_drive import GoogleAccountAccessRequired
 
 from .friends_module import FriendsModule, FriendsView, friend_section
-from .header import NAME_MAX_LENGTH
 from .status_menu import PopupMenu, StatusMenu
 
 # How often PS Focus checks in: every minute while the friends module is on screen, or a request the user sent waits for
@@ -27,6 +26,9 @@ SEEN_SYNC_SECONDS = 60
 UNSEEN_SYNC_SECONDS = 10 * 60
 # With no friends and no requests either way nobody sees the figures, so only now and then, for a request arriving
 LONELY_SYNC_SECONDS = 30 * 60
+# While offline, one check-in a day tells the server the person is still there; without it the server's clean-up
+# deletes them, friends and code, after 180 days away
+OFFLINE_KEEPALIVE_SECONDS = 24 * 3600
 # Drawing counts as going on for this long after the last tracked second, so a moment in another window does not
 # tell friends the user stopped
 ACTIVE_LINGER_SECONDS = 120
@@ -83,8 +85,10 @@ class FriendsSync:
         self.reported_active: str | None = None
         # Whether anyone has used the PC in the last few minutes, see sync_interval
         self.present = True
-        # Whether friends have been told the user went offline, after which nothing more is sent
+        # Whether friends have been told the user went offline, after which only a daily keep-alive is sent. Set once
+        # the server has taken the check-in, so a failed one is tried again
         self.offline_announced = False
+        self.sending_offline = False
         # Answers to requests waiting for a check-in to finish
         self.pending_actions: list = []
         # Made-up friends shown beside the real ones, never sent anywhere; and, from the developer menu, made-up
@@ -173,7 +177,7 @@ class FriendsSync:
         if status == self.status():
             return
         self.app.settings["friends_status"] = status
-        self.app._save_settings()
+        self.app.save_settings()
         self.offline_announced = False
         self.app.google_sync.update_status()
         self.refresh_view()
@@ -213,13 +217,16 @@ class FriendsSync:
             self.sync()
 
     def sync(self) -> None:
-        if not self.enabled() or (self.status() == "offline" and self.offline_announced):
+        if not self.enabled():
             return
+        if self.status() == "offline" and self.offline_announced:
+            # Nothing to send but the keep-alive, and nothing at all once the user's data has been deleted
+            if self.state is None or time.monotonic() - self.last_sync < OFFLINE_KEEPALIVE_SECONDS:
+                return
         if self.busy:
             self.pending_sync = True
             return
-        if self.status() == "offline":
-            self.offline_announced = True
+        self.sending_offline = self.status() == "offline"
         name, stats = self.name(), self.stats()
         self.reported_active = stats["active"]
         self.asked_account = self.account()
@@ -260,9 +267,15 @@ class FriendsSync:
                 self.message = None
                 if kind == "leave":
                     self.state = None
+                    # Deleted for good while offline: no check-in, not even the daily one, may make a new account, even
+                    # if the offline announcement had failed before
+                    if self.status() == "offline":
+                        self.offline_announced = True
                     self.message = ("Your friends list and code were deleted", "muted")
                 else:
                     self.state, self.state_account = value, account
+                    if kind == "sync" and self.sending_offline:
+                        self.offline_announced = True
                     if kind == "add":
                         # Sent, or with a request from them already waiting, friends at once
                         self.module.flash("Request sent" if value.get("outgoing") else "Added")
@@ -319,7 +332,7 @@ class FriendsSync:
         saved = dict(saved) if isinstance(saved, dict) else {}
         saved[self.account()] = value
         self.app.settings[key] = saved
-        self.app._save_settings()
+        self.app.save_settings()
         self.refresh_view()
 
     def person_menu(self, code: str, name: str, point) -> None:

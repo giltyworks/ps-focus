@@ -11,6 +11,7 @@ const CODE_ALPHABET = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const CODE_LENGTH = 8;
 const MAX_FRIENDS = 100;
 const MAX_PENDING = 50;
+// NAME_MAX_LENGTH and PROGRAMS match app_config.py, and are changed together with it
 const NAME_MAX_LENGTH = 32;
 const PROGRAMS = ['Photoshop', 'Krita', 'Clip Studio Paint', 'PhotoCraft'];
 // What friends see of someone: online, away, or offline (also what someone invisible sends)
@@ -31,7 +32,9 @@ class HttpError extends Error {
   }
 }
 
-let certificates = { keys: new Map(), expires: 0 };
+let certificates = { keys: new Map(), expires: 0, fetched: 0 };
+// An unknown key id, such as from a made-up token, may fetch Google's certificates again only this often
+const CERTIFICATE_REFETCH_SECONDS = 60;
 const recentRequests = new Map();
 
 export default {
@@ -88,7 +91,8 @@ function base64UrlBytes(text) {
 }
 
 async function googleKey(kid) {
-  if (Date.now() >= certificates.expires || !certificates.keys.has(kid)) {
+  const unknownKeyMayBeNew = !certificates.keys.has(kid) && Date.now() - certificates.fetched >= CERTIFICATE_REFETCH_SECONDS * 1000;
+  if (Date.now() >= certificates.expires || unknownKeyMayBeNew) {
     const response = await fetch(GOOGLE_CERTS);
     if (!response.ok) throw new HttpError(503, 'Could not check your Google sign-in, try again later');
     const maxAge = Number((response.headers.get('Cache-Control') || '').match(/max-age=(\d+)/)?.[1] || 3600);
@@ -96,7 +100,7 @@ async function googleKey(kid) {
     for (const jwk of (await response.json()).keys) {
       keys.set(jwk.kid, await crypto.subtle.importKey('jwk', jwk, { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' }, false, ['verify']));
     }
-    certificates = { keys, expires: Date.now() + maxAge * 1000 };
+    certificates = { keys, expires: Date.now() + maxAge * 1000, fetched: Date.now() };
   }
   return certificates.keys.get(kid);
 }
@@ -114,9 +118,19 @@ async function authenticate(request, env) {
   } catch {
     throw new HttpError(401, 'Your Google sign-in could not be read, reconnect your account');
   }
-  const key = header.alg === 'RS256' ? await googleKey(header.kid) : null;
+  // Valid JSON can still be null or a number, which is not a token either
+  if (typeof header !== 'object' || header === null || typeof payload !== 'object' || payload === null) {
+    throw new HttpError(401, 'Your Google sign-in could not be read, reconnect your account');
+  }
+  const key = header.alg === 'RS256' && typeof header.kid === 'string' ? await googleKey(header.kid) : null;
   const signed = new TextEncoder().encode(`${parts[0]}.${parts[1]}`);
-  if (!key || !(await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, base64UrlBytes(parts[2]), signed))) {
+  let genuine = false;
+  try {
+    genuine = Boolean(key) && (await crypto.subtle.verify('RSASSA-PKCS1-v1_5', key, base64UrlBytes(parts[2]), signed));
+  } catch {
+    // A signature that is not even base64 is simply not genuine
+  }
+  if (!genuine) {
     throw new HttpError(401, 'Your Google sign-in could not be confirmed, reconnect your account');
   }
   const now = Date.now() / 1000;

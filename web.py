@@ -75,21 +75,11 @@ ERROR_MEANINGS = {
 class Response(io.BytesIO):
     """The whole body of a response, read like the one urllib returns"""
 
-    def __init__(self, body: bytes, status: int, reason: str, headers: Message, url: str) -> None:
+    def __init__(self, body: bytes, status: int, reason: str, headers: Message) -> None:
         super().__init__(body)
-        self.status = self.code = status
+        self.status = status
         self.reason = reason
         self.headers = headers
-        self.url = url
-
-    def getcode(self) -> int:
-        return self.status
-
-    def geturl(self) -> str:
-        return self.url
-
-    def info(self) -> Message:
-        return self.headers
 
 
 def _failure(what: str) -> urllib.error.URLError:
@@ -164,7 +154,7 @@ def _send_once(session, method: str, url: str, headers: dict[str, str], body: by
                 if not read.value:
                     break
                 chunks.append(ctypes.string_at(chunk, read.value))
-            return Response(b"".join(chunks), status.value, reason, response_headers, url)
+            return Response(b"".join(chunks), status.value, reason, response_headers)
         finally:
             _winhttp.WinHttpCloseHandle(request)
     finally:

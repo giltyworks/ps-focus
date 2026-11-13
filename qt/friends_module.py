@@ -11,10 +11,10 @@ from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, QTimer
 from PySide6.QtGui import QColor, QKeyEvent, QMouseEvent, QPainter, QPainterPath, QPaintEvent, QPen
 from PySide6.QtWidgets import QLineEdit, QWidget
 
-from app_config import EDGE_PADDING, LINE_PADDING, MODULE_MARGIN, TODAY_PANEL_WIDTH
+from app_config import EDGE_PADDING, LINE_PADDING, MODULE_MARGIN, NAME_MAX_LENGTH, TODAY_PANEL_WIDTH
 from friends import format_code
 
-from .header import NAME_MAX_LENGTH, fit_text
+from .header import fit_text
 from .module import DOCK_CONTROL_SIZE, MODULE_TITLE_PADDING, ModuleBlock, PaintedButton, paint_hover_box, paint_dropdown_arrow, DROPDOWN_BUTTON_SIZE
 from .theme import Fonts, color, draw_anchored, draw_text, line_height, text_width
 

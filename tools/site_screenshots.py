@@ -47,7 +47,7 @@ screen = application.primaryScreen().availableGeometry()
 backdrop.setGeometry(screen)
 backdrop.show()
 app = PSFocusQt(application)
-app._save_settings = lambda upload=True: None
+app.save_settings = lambda upload=True: None
 app.tick_timer.stop()
 app.focus_timer.stop()
 
@@ -73,8 +73,8 @@ def refresh():
     app._track_and_refresh()
     for name in ("graph", "calendar", "stats"):
         if app.module_ticked[name]:
-            app._refresh_module(name)
-    app._arrange_blocks()
+            app.refresh_module(name)
+    app.arrange_blocks()
     settle()
 
 
@@ -120,7 +120,7 @@ header.update()
 app.docking.dock_all()
 app.landscape = True
 app.landscape_width = None
-app._arrange_blocks()
+app.arrange_blocks()
 app.window.move(screen.x() + 40, screen.y() + 40)
 shoot("screenshot-landscape", app.window)
 sys.stdout.flush()

@@ -164,6 +164,10 @@ class GoogleDriveSync:
         completed = threading.Event()
 
         class CallbackHandler(http.server.BaseHTTPRequestHandler):
+            # A browser often opens a spare connection and sends nothing on it; without a limit, reading it would
+            # hold the sign-in loop past its own deadline
+            timeout = 5
+
             def do_GET(self) -> None:
                 query = urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query)
                 if not secrets.compare_digest(query.get("state", [""])[0], state):
@@ -327,8 +331,10 @@ class GoogleDriveSync:
                 payload = json.loads(error.read().decode("utf-8"))
             except (OSError, json.JSONDecodeError):
                 payload = {}
-            details = payload.get("error", {})
-            reasons = {item.get("reason") for item in details.get("errors", []) if isinstance(item, dict)}
+            # The body is Google's to shape, so anything but the usual nesting of objects is simply "no reasons"
+            details = payload.get("error", {}) if isinstance(payload, dict) else {}
+            errors = details.get("errors", []) if isinstance(details, dict) else []
+            reasons = {item.get("reason") for item in errors if isinstance(item, dict)}
             if error.code == 403 and "SERVICE_DISABLED" in reasons:
                 raise RuntimeError("Enable the Google Drive API in Google Cloud Console, then retry") from error
             raise RuntimeError(f"Google Drive sync failed: {error}") from error
@@ -340,6 +346,9 @@ class GoogleDriveSync:
         query = urllib.parse.urlencode({
             "spaces": "appDataFolder",
             "q": f"name='{name}'",
+            # Two PCs that first upload at the same moment leave two files; the oldest, which every PC picks, keeps
+            # them reading and writing the same one
+            "orderBy": "createdTime",
             "fields": "files(id)",
         })
         files = self._api(f"{DRIVE_API}/files?{query}").get("files", [])

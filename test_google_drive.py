@@ -6,6 +6,7 @@ import os
 import tempfile
 import time
 import unittest
+import urllib.error
 import urllib.parse
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -128,6 +129,49 @@ class GoogleAccountTests(unittest.TestCase):
         self.assertEqual(server.handle_request.call_count, 2)
         self.assertEqual(exchange.call_args.args[0]["code"], "test-code")
         self.assertTrue(exchange.call_args.args[0]["redirect_uri"].startswith("http://127.0.0.1:"))
+
+    def test_sign_in_does_not_wait_forever_on_a_silent_connection(self):
+        handler_classes = []
+        server = MagicMock()
+        server.server_port = 12345
+
+        def make_server(address, handler_class):
+            handler_classes.append(handler_class)
+
+            def request():
+                url = urllib.parse.parse_qs(urllib.parse.urlsplit(browser_urls[0]).query)
+                handler = object.__new__(handler_class)
+                handler.path = "/?" + urllib.parse.urlencode({"state": url["state"][0], "code": "test-code"})
+                handler.wfile = io.BytesIO()
+                handler.send_response = handler.send_header = handler.end_headers = MagicMock()
+                handler.do_GET()
+
+            server.handle_request.side_effect = request
+            return server
+
+        browser_urls = []
+        with patch("google_drive.http.server.HTTPServer", side_effect=make_server), patch(
+            "google_drive.webbrowser.open", side_effect=browser_urls.append
+        ), patch.object(self.sync, "_request_token", return_value={"access_token": "test-token"}):
+            self.sync.sign_in()
+
+        self.assertLessEqual(handler_classes[0].timeout, 10)
+
+    def test_odd_error_bodies_from_drive_still_give_a_clear_error(self):
+        for body in (b'"just a string"', b'{"error": "text"}', b"[1, 2]"):
+            with self.subTest(body=body):
+                error = urllib.error.HTTPError("https://example.test", 500, "Server Error", {}, io.BytesIO(body))
+                self.addCleanup(error.close)
+                with patch.object(self.sync, "_access_token", return_value="test-token"), patch(
+                    "google_drive.urlopen", side_effect=error
+                ):
+                    with self.assertRaisesRegex(RuntimeError, "Google Drive sync failed"):
+                        self.sync._api("https://example.test/files")
+
+    def test_file_lookup_takes_the_oldest_file_when_two_share_a_name(self):
+        with patch.object(self.sync, "_api", return_value={"files": [{"id": "oldest"}]}) as api_mock:
+            self.assertEqual(self.sync._find_file("activity.sqlite3"), "oldest")
+        self.assertIn("orderBy=createdTime", api_mock.call_args.args[0])
 
     @unittest.skipUnless(os.name == "nt", "Token protection uses Windows DPAPI")
     def test_saved_token_is_encrypted_and_plain_tokens_are_upgraded(self):

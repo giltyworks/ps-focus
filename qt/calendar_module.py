@@ -81,6 +81,8 @@ class CalendarModule(ModuleBlock):
         self.on_height_changed = on_height_changed
         self.view = "Month"
         self.month = date.today().replace(day=1)
+        # The month that was today's when the calendar last looked, so a calendar left open can follow into the next
+        self.current_month = self.month
         self.toggle = PaintedButton("month", self._toggle_view, fonts, 11, 6, width_in_digits=6, text_color="text")
         self.previous_button = PaintedButton("<", lambda: self._step(-1), fonts, 14, 6, text_color="text")
         self.next_button = PaintedButton(">", lambda: self._step(1), fonts, 14, 6, text_color="text")
@@ -212,8 +214,14 @@ class CalendarModule(ModuleBlock):
 
     def refresh(self, force: bool = False) -> None:
         """Read the days shown again, and draw them when anything has changed since they were last drawn"""
-        year, month = self.month.year, self.month.month
         today = date.today()
+        # A calendar left showing this month, in a tray app running past the 1st, moves on to the new month; one the
+        # user has stepped away from stays where they put it
+        if today.replace(day=1) != self.current_month:
+            if self.month == self.current_month:
+                self.month = today.replace(day=1)
+            self.current_month = today.replace(day=1)
+        year, month = self.month.year, self.month.month
         streaks = self.store.calendar_streaks()
         if self.view == "Year":
             title = str(year)

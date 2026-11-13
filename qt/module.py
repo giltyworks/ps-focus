@@ -28,7 +28,7 @@ STRIP_GAP = 4
 OUTLINE_MIN_ALPHA = 110
 
 
-def paint_title_strip(painter: QPainter, rect: QRect, hovered: bool, alpha: int = 255, line: bool = True) -> None:
+def paint_title_strip(painter: QPainter, rect: QRect, hovered: bool, alpha: int = 255) -> None:
     """The strip a block's name sits on, as a panel's tab bar in Photoshop: black, the app's background, a touch
     lighter under the mouse, with a line under it. The whole strip is where the block is taken by"""
     fill = color("calendar_blank" if hovered else "background")
@@ -39,8 +39,7 @@ def paint_title_strip(painter: QPainter, rect: QRect, hovered: bool, alpha: int 
     # On a see-through block it replaces the background under it, so the two do not add up to something more solid
     painter.setCompositionMode(QPainter.CompositionMode.CompositionMode_Source)
     painter.fillRect(rect, fill)
-    if line:
-        painter.fillRect(rect.left(), rect.bottom() + 1, rect.width(), 1, edge)
+    painter.fillRect(rect.left(), rect.bottom() + 1, rect.width(), 1, edge)
     painter.restore()
 
 

@@ -13,7 +13,7 @@ from pathlib import Path
 
 APP_NAME = "PS Focus"
 # Raise for every published build; the installer, the executable's file properties, and the update check all use it
-APP_VERSION = "1.1.29"
+APP_VERSION = "1.1.30"
 APP_PUBLISHER = "Giltyworks"
 APP_USER_MODEL_ID = "PSFocus.PSFocus"
 LEGACY_APP_NAME = "FocusTrace"
@@ -99,7 +99,11 @@ CHART_PERIOD_CAPTIONS = {
     "3 Months": "Past 90 days",
     "6 Months": "Past 180 days",
 }
-# The programs PS Focus counts time in, every one always; the one panel shows whichever is in front
+# The longest a display name or nickname may be; the friends server holds the same limit (NAME_MAX_LENGTH in
+# friends_server/src/index.js), so the two are changed together
+NAME_MAX_LENGTH = 32
+# The programs PS Focus counts time in, every one always; the one panel shows whichever is in front. The friends server
+# keeps the same list (PROGRAMS in friends_server/src/index.js)
 PROGRAMS = ("Photoshop", "Krita", "Clip Studio Paint", "PhotoCraft")
 COLORS = {
     # A near-black background, the logo's own, under panels only a little lighter, so the two do not contrast
@@ -152,7 +156,7 @@ DEFAULT_SETTINGS = {
     "show_friends": False,
     # online, away, invisible or offline, chosen in the menu next to the account name
     "friends_status": "online",
-    # Program panels and modules side by side instead of one under another, see PSFocusQt._arrange_blocks
+    # Program panels and modules side by side instead of one under another, see PSFocusQt.arrange_blocks
     "landscape": False,
     # The program the panel last showed, kept while none of them is in front
     "today_program": "Photoshop",

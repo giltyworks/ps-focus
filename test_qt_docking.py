@@ -144,7 +144,7 @@ class QtDockingTests(unittest.TestCase):
         self.assertTrue(self.app.stats.floating)
         self.assertIs(self.app.stats.parent(), panel)
         self.assertEqual(panel.pos(), QPoint(300, 400) - grabbed)
-        self.assertNotIn(self.app.stats, self.app._shown_blocks())
+        self.assertNotIn(self.app.stats, self.app.shown_blocks())
         self.assertLess(self.app.window.height(), height)
         self.assertEqual(self.app.settings["floating_modules"], {"stats": [panel.x(), panel.y()]})
 
@@ -153,7 +153,7 @@ class QtDockingTests(unittest.TestCase):
             for name in self.app.blocks_by_name():
                 self.app.docking.dock_all()
                 self.app.landscape = landscape
-                self.app._arrange_blocks()
+                self.app.arrange_blocks()
                 self.application.processEvents()
                 block = self.app.blocks_by_name()[name]
                 offset = QPoint(100, block.title_rect().center().y())
@@ -174,7 +174,7 @@ class QtDockingTests(unittest.TestCase):
         for landscape in (False, True):
             self.app.docking.dock_all()
             self.app.landscape = landscape
-            self.app._arrange_blocks()
+            self.app.arrange_blocks()
             self.app.docking.float_module("calendar", QPoint(1000, 500))
             self.app.docking.float_module("graph", QPoint(1500, 600))
             target = self.app.docking.floating["calendar"]
@@ -201,7 +201,7 @@ class QtDockingTests(unittest.TestCase):
         for landscape in (False, True):
             self.app.docking.dock_all()
             self.app.landscape = landscape
-            self.app._arrange_blocks()
+            self.app.arrange_blocks()
             for name, block in self.app.blocks_by_name().items():
                 self.app.docking.float_module(name, QPoint(1500, 800))
                 self.application.processEvents()
@@ -231,7 +231,7 @@ class QtDockingTests(unittest.TestCase):
         self._drag(block, grip, grip + QPoint(10, 0), drop)
         self.assertFalse(self.app.docking.is_floating("graph"))
         self.assertFalse(self.app.chart.floating)
-        self.assertIn(self.app.chart, self.app._shown_blocks())
+        self.assertIn(self.app.chart, self.app.shown_blocks())
         # Dropped on the last module shown, the stats, it goes after them
         self.assertEqual(self.app.block_order.index("graph"), self.app.block_order.index("stats") + 1)
         self.assertEqual(self.app.settings["floating_modules"], {})
@@ -362,7 +362,7 @@ class QtDockingTests(unittest.TestCase):
                         continue
                     self.app.docking.dock_all()
                     self.app.landscape = landscape
-                    self.app._arrange_blocks()
+                    self.app.arrange_blocks()
                     self.app.docking.float_module(target_name, QPoint(1200, 800))
                     self.app.docking.float_module(name, QPoint(1700, 800))
                     self.application.processEvents()
@@ -410,7 +410,7 @@ class QtDockingTests(unittest.TestCase):
 
     def test_landscape_docked_grip_floats_in_portrait_layout(self):
         self.app.landscape = True
-        self.app._arrange_blocks()
+        self.app.arrange_blocks()
         self.application.processEvents()
         self._float("graph", QPoint(300, 900))
         self.assertFalse(self.app.chart.landscape)
@@ -498,7 +498,7 @@ class QtDockingTests(unittest.TestCase):
         self.assertTrue(self.app.docking.is_floating("today"))
         self.assertTrue(photoshop.floating)
         self.assertIsNotNone(photoshop.dock_rect())
-        self.assertNotIn(photoshop, self.app._shown_blocks())
+        self.assertNotIn(photoshop, self.app.shown_blocks())
         # The header stands alone now
         self.assertIsNone(self.app._anchor_panel())
         # Its figures keep counting while it floats
@@ -576,11 +576,11 @@ class QtDockingTests(unittest.TestCase):
         self.assertEqual(self.app.docking.dock_slot, len(self.app.docking._shown_names()))
         self._mouse(block, QEvent.Type.MouseButtonRelease, aim)
         self.assertFalse(self.app.docking.is_floating("graph"))
-        self.assertEqual(self.app._shown_blocks()[-1], self.app.chart)
+        self.assertEqual(self.app.shown_blocks()[-1], self.app.chart)
 
     def test_in_landscape_let_go_just_right_of_the_window_docks_at_the_end(self):
         self.app.landscape = True
-        self.app._arrange_blocks()
+        self.app.arrange_blocks()
         self.application.processEvents()
         self._float("stats", QPoint(100, 1200))
         block = self.app.modules["stats"]
@@ -589,7 +589,7 @@ class QtDockingTests(unittest.TestCase):
         aim = QPoint(right + 10, top) + (start - self.app.docking.floating["stats"].pos())
         self._drag(block, start, start + QPoint(10, 0), aim)
         self.assertFalse(self.app.docking.is_floating("stats"))
-        self.assertEqual(self.app._shown_blocks()[-1], self.app.stats)
+        self.assertEqual(self.app.shown_blocks()[-1], self.app.stats)
 
     def test_a_group_of_panels_dragged_over_the_window_does_not_dock(self):
         first = self._float("stats", QPoint(100, 50))
@@ -607,14 +607,14 @@ class QtDockingTests(unittest.TestCase):
 
     def test_switching_to_landscape_keeps_the_full_width_on_later_layouts(self):
         self.app.landscape = True
-        self.app._arrange_blocks()
-        self.app._arrange_blocks()
+        self.app.arrange_blocks()
+        self.app.arrange_blocks()
         self.assertIsNone(self.app.landscape_width)
         self.assertEqual(self.app.window.width(), self.app.window.full_size()[0])
 
     def test_only_a_drag_of_the_edge_chooses_the_landscape_width(self):
         self.app.landscape = True
-        self.app._arrange_blocks()
+        self.app.arrange_blocks()
         window = self.app.window
         # A resize Windows applies late, as the Settings page's after leaving it, is not the user's choice
         window.resize(320, window.height())

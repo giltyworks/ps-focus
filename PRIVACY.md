@@ -32,7 +32,7 @@ Friends works whenever you are signed in to Google. Unless you choose **Offline*
 - **Your name.** This is the display name you chose for your Google account in PS Focus or, if you have not chosen one, the part of your email address before the @.
 - **Your figures.** These are your hours over the past two weeks, this week, today, and in total, your level, your week streak, and which supported program you are drawing in at the moment, if any.
 
-Choosing **Invisible** in that menu makes you appear offline to friends: your status and the program you're drawing in are not sent, but your figures still are. Choosing **Offline** tells friends you went offline and then sends nothing until you go online again.
+Choosing **Invisible** in that menu makes you appear offline to friends: your status and the program you're drawing in are not sent, but your figures still are. Choosing **Offline** tells friends you went offline and then sends only a short once-a-day check-in, with your name and current figures, so the server does not delete your account for being away; nothing else is sent until you go online again.
 
 The service keeps these, a random friend code, your friends list, and friend requests you sent or received. Your name and figures are shown only to people you have accepted as friends. Someone who has your friend code sees your name only when they send you a request. No activity history, ratings, or session times are sent.
 
