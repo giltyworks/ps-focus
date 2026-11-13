@@ -341,8 +341,8 @@ class GoogleDriveSync:
         except urllib.error.URLError as error:
             raise RuntimeError(f"Google Drive sync failed: {error}") from error
 
-    def _find_file(self, name: str) -> str | None:
-        """Return the id of the named file in the private Drive app-data area"""
+    def _find_files(self, name: str) -> list[str]:
+        """Return the ids of the files with this name in the private Drive app-data area, the oldest first"""
         query = urllib.parse.urlencode({
             "spaces": "appDataFolder",
             "q": f"name='{name}'",
@@ -352,7 +352,12 @@ class GoogleDriveSync:
             "fields": "files(id)",
         })
         files = self._api(f"{DRIVE_API}/files?{query}").get("files", [])
-        return files[0]["id"] if files else None
+        return [item["id"] for item in files if isinstance(item, dict) and isinstance(item.get("id"), str)]
+
+    def _find_file(self, name: str) -> str | None:
+        """Return the id of the named file, or of the oldest when there are two"""
+        ids = self._find_files(name)
+        return ids[0] if ids else None
 
     def _upload_file(self, name: str, content: bytes, content_type: str) -> None:
         """Replace the named app-data file, creating it on the first upload"""
@@ -390,9 +395,24 @@ class GoogleDriveSync:
 
     def download_activity_backup(self) -> bytes | None:
         file_id = self._find_file(self.activity_filename)
-        if file_id is None:
-            return None
+        return None if file_id is None else self._download(file_id)
 
+    def download_duplicate_backups(self) -> list[tuple[str, bytes]]:
+        """The activity backups beyond the oldest, as (file id, content): two PCs that first uploaded at the same
+        moment left two files, and the time in the newer one is not read otherwise"""
+        return [(file_id, self._download(file_id)) for file_id in self._find_files(self.activity_filename)[1:]]
+
+    def delete_files(self, file_ids: list[str]) -> None:
+        """Remove files from the private app-data area, once what they held has been merged and uploaded elsewhere"""
+        for file_id in file_ids:
+            try:
+                self._api(f"{DRIVE_API}/files/{file_id}", method="DELETE")
+            except RuntimeError as error:
+                # Already gone, as when two PCs tidy at the same moment
+                if "404" not in str(error):
+                    raise
+
+    def _download(self, file_id: str) -> bytes:
         request = urllib.request.Request(
             f"{DRIVE_API}/files/{file_id}?alt=media",
             headers={"Authorization": f"Bearer {self._access_token()}"},

@@ -212,7 +212,11 @@ class GoogleSync:
             # follows once it is found, and a failed lookup waits for the next timer instead of looping
             self.backup_after_account = self._start("account", self.client.account_email)
             return
-        self._start("download", self.client.download_activity_backup)
+        self._start("download", self._download_work)
+
+    def _download_work(self) -> tuple[bytes | None, list[tuple[str, bytes]]]:
+        """On the worker thread: Drive's backup, and any further copies two PCs left by uploading at the same moment"""
+        return self.client.download_activity_backup(), self.client.download_duplicate_backups()
 
     def _fingerprint(self, content: bytes) -> UploadFingerprint:
         """What an upload of this file holds, set beside the store as it is now, see uploaded"""
@@ -227,6 +231,21 @@ class GoogleSync:
         elif not app.restore_activity(content):
             raise ValueError("Google Drive backup was invalid; local history was kept")
         app.refresh_visible_modules()
+
+    def _merge_duplicates(self, duplicates: list[tuple[str, bytes]]) -> list[str]:
+        """Merge the further backups into this PC's history; the ids of those taken, which are then safe to delete. One
+        that is not a valid backup is left where it is"""
+        merged = []
+        for file_id, content in duplicates:
+            if self.app.store.merge_backup_bytes(content) is not None:
+                merged.append(file_id)
+        return merged
+
+    def _upload_and_tidy(self, content: bytes, merged: list[str]) -> None:
+        """On the worker thread: upload the merged history, and only once that has worked delete the copies it holds"""
+        self.client.upload_activity_backup(content)
+        if merged:
+            self.client.delete_files(merged)
 
     def poll(self) -> None:
         if self.app.closing:
@@ -274,20 +293,22 @@ class GoogleSync:
                 elif kind == "sync":
                     self.app.backup_activity_now()
                 elif kind == "download":
-                    if value is not None and self.uploaded == self._fingerprint(value):
+                    value, duplicates = value
+                    if value is not None and not duplicates and self.uploaded == self._fingerprint(value):
                         self.app.settings_page.set_backup_status("Activity backup saved to Google Drive", "active_green")
                     else:
                         try:
                             # SQLite belongs to the UI thread, including restore and module rebinding.
                             if value is not None:
                                 self._apply_download(value)
+                            merged = self._merge_duplicates(duplicates)
                             path = self.app.store.create_local_backups()[0]
                             content = path.read_bytes()
                         except Exception as error:
                             self.app.settings_page.set_backup_status(f"Could not merge Google Drive backup: {error}", "red")
                         else:
                             self.uploading = self._fingerprint(content)
-                            self._start("upload", lambda payload=content: self.client.upload_activity_backup(payload))
+                            self._start("upload", lambda payload=content, taken=merged: self._upload_and_tidy(payload, taken))
                 elif kind == "upload":
                     self.uploaded = self.uploading
                     self.app.settings_page.set_backup_status("Activity backup saved to Google Drive", "active_green")

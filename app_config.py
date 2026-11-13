@@ -156,6 +156,9 @@ DEFAULT_SETTINGS = {
     "show_friends": False,
     # online, away, invisible or offline, chosen in the menu next to the account name
     "friends_status": "online",
+    # The Google account whose friends data the user deleted while offline, so that no check-in, even after a restart,
+    # makes a new account for it; going online again clears it
+    "friends_data_deleted": "",
     # Program panels and modules side by side instead of one under another, see PSFocusQt.arrange_blocks
     "landscape": False,
     # The program the panel last showed, kept while none of them is in front

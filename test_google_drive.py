@@ -168,6 +168,26 @@ class GoogleAccountTests(unittest.TestCase):
                     with self.assertRaisesRegex(RuntimeError, "Google Drive sync failed"):
                         self.sync._api("https://example.test/files")
 
+    def test_duplicate_backups_are_downloaded_and_deleted_by_id(self):
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.read.return_value = b"newer copy"
+        with patch.object(self.sync, "_api", return_value={"files": [{"id": "oldest"}, {"id": "newer"}]}), patch.object(
+            self.sync, "_access_token", return_value="test-token"
+        ), patch("google_drive.urlopen", return_value=response) as urlopen_mock:
+            self.assertEqual(self.sync.download_duplicate_backups(), [("newer", b"newer copy")])
+        self.assertIn("/files/newer?alt=media", urlopen_mock.call_args.args[0].full_url)
+        with patch.object(self.sync, "_api", return_value={}) as api_mock:
+            self.sync.delete_files(["newer"])
+        self.assertEqual(api_mock.call_args.kwargs["method"], "DELETE")
+        self.assertIn("/files/newer", api_mock.call_args.args[0])
+        # A copy another PC has already removed is not an error
+        with patch.object(self.sync, "_api", side_effect=RuntimeError("Google Drive sync failed: HTTP Error 404: Not Found")):
+            self.sync.delete_files(["newer"])
+        with patch.object(self.sync, "_api", side_effect=RuntimeError("Google Drive sync failed: HTTP Error 403")):
+            with self.assertRaises(RuntimeError):
+                self.sync.delete_files(["newer"])
+
     def test_file_lookup_takes_the_oldest_file_when_two_share_a_name(self):
         with patch.object(self.sync, "_api", return_value={"files": [{"id": "oldest"}]}) as api_mock:
             self.assertEqual(self.sync._find_file("activity.sqlite3"), "oldest")

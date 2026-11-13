@@ -852,6 +852,7 @@ class QtSettingsTests(unittest.TestCase):
         client.connected = False
         client.account_email.return_value = "test@example.com"
         client.download_activity_backup.return_value = None
+        client.download_duplicate_backups.return_value = []
         client.sign_in.side_effect = lambda: setattr(client, "connected", True)
         def sign_out():
             client.connected = False
@@ -991,6 +992,37 @@ class QtSettingsTests(unittest.TestCase):
         self.assertEqual(self.app.store.total_for_day(date.today(), "Photoshop"), 1)
         self.assertEqual(self.app.store.total_for_day(date.today(), "Krita"), 1)
         self.assertEqual(self.app.settings_page.backup_status, ("Activity backup saved to Google Drive", "active_green"))
+
+    def _remote_backup(self, program: str) -> bytes:
+        from tracker import ActivityStore
+
+        folder = Path(self.temporary.name) / f"remote-{program}"
+        remote = ActivityStore(folder / "activity.sqlite3", [folder / "backups"])
+        remote.record_active_second(application=program)
+        content = remote.create_local_backups()[0].read_bytes()
+        remote.close()
+        return content
+
+    def test_a_second_drive_backup_is_merged_and_deleted_only_after_the_upload(self):
+        controller, client = self._fake_google()
+        client.download_activity_backup.return_value = self._remote_backup("Krita")
+        client.download_duplicate_backups.return_value = [("newer-id", self._remote_backup("PhotoCraft")), ("junk-id", b"not a database")]
+        controller.connect()
+        controller.poll()
+        self.assertEqual(self.app.store.total_for_day(date.today(), "Krita"), 1)
+        self.assertEqual(self.app.store.total_for_day(date.today(), "PhotoCraft"), 1)
+        client.upload_activity_backup.assert_called_once()
+        # The one that was merged goes; the one that could not be read is left where it is
+        client.delete_files.assert_called_once_with(["newer-id"])
+
+    def test_a_failed_upload_deletes_no_drive_backup(self):
+        controller, client = self._fake_google()
+        client.download_activity_backup.return_value = self._remote_backup("Krita")
+        client.download_duplicate_backups.return_value = [("newer-id", self._remote_backup("PhotoCraft"))]
+        client.upload_activity_backup.side_effect = RuntimeError("offline")
+        controller.connect()
+        controller.poll()
+        client.delete_files.assert_not_called()
 
     def test_google_results_are_ignored_after_shutdown_starts(self):
         controller, client = self._fake_google()

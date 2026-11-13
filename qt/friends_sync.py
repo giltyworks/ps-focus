@@ -177,6 +177,8 @@ class FriendsSync:
         if status == self.status():
             return
         self.app.settings["friends_status"] = status
+        # Whatever was deleted, going to another status starts afresh
+        self.app.settings["friends_data_deleted"] = ""
         self.app.save_settings()
         self.offline_announced = False
         self.app.google_sync.update_status()
@@ -219,7 +221,8 @@ class FriendsSync:
     def sync(self) -> None:
         if not self.enabled():
             return
-        if self.status() == "offline" and self.offline_announced:
+        deleted = bool(self.account()) and self.app.settings.get("friends_data_deleted") == self.account()
+        if self.status() == "offline" and (self.offline_announced or deleted):
             # Nothing to send but the keep-alive, and nothing at all once the user's data has been deleted
             if self.state is None or time.monotonic() - self.last_sync < OFFLINE_KEEPALIVE_SECONDS:
                 return
@@ -271,6 +274,9 @@ class FriendsSync:
                     # if the offline announcement had failed before
                     if self.status() == "offline":
                         self.offline_announced = True
+                        # Remembered, as a restart would otherwise announce offline again and make a new account
+                        self.app.settings["friends_data_deleted"] = self.account()
+                        self.app.save_settings(upload=False)
                     self.message = ("Your friends list and code were deleted", "muted")
                 else:
                     self.state, self.state_account = value, account

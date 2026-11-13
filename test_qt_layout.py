@@ -207,15 +207,10 @@ class TimeAgoTests(unittest.TestCase):
 
 @unittest.skipIf(QApplication is None, "PySide6 is not installed")
 class GlowCacheTests(unittest.TestCase):
-    def test_the_glow_cache_stays_bounded_as_the_total_changes_every_second(self):
-        from PySide6.QtGui import QFont
-
+    def test_the_glow_cache_is_small_as_the_total_changes_every_second(self):
+        # Each image is tens of kilobytes and the Today total is a new text every second, so the cache must not hold
+        # thousands of them (drawing them for real in a test crashes the Qt tests that follow it)
         from qt import theme
 
-        application = QApplication.instance() or QApplication([])
-        self.assertIsNotNone(application)
-        theme._glow.cache_clear()
-        font = QFont()
-        for second in range(theme.GLOW_CACHE_SIZE + 50):
-            theme._glow(f"12h 0{second % 10}m {second}s", font.toString(), 1.0)
-        self.assertLessEqual(theme._glow.cache_info().currsize, theme.GLOW_CACHE_SIZE)
+        self.assertEqual(theme._glow.cache_info().maxsize, theme.GLOW_CACHE_SIZE)
+        self.assertLessEqual(theme.GLOW_CACHE_SIZE, 512)

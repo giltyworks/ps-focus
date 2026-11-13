@@ -530,6 +530,37 @@ class QtFriendsTests(unittest.TestCase):
         self._settle()
         self.assertEqual(len(self.service.calls), count)
 
+    def test_deleted_friends_data_stays_deleted_after_a_restart_while_offline(self):
+        from qt.friends_sync import FriendsSync
+
+        self._turn_on()
+        self.sync.set_status("offline")
+        self._settle()
+        with patch.object(QMessageBox, "question", return_value=QMessageBox.StandardButton.Yes):
+            self.app.friends.actions.delete_data()
+        self._settle()
+        self.assertEqual(self.app.settings["friends_data_deleted"], self.sync.account())
+        # A new run starts with nothing known, and must not announce offline, which would make a new account
+        restarted = FriendsSync(self.app, self.app.friends, self.service)
+        restarted.state = None
+        count = len(self.service.calls)
+        restarted.sync()
+        self._settle()
+        self.assertEqual(len(self.service.calls), count)
+        # Another account signed in on this PC still announces itself
+        self.sync.account = lambda: "another@example.com"
+        restarted.account = self.sync.account
+        restarted.sync()
+        for _ in range(200):
+            restarted.poll()
+            if not restarted.busy:
+                break
+            time.sleep(0.01)
+        self.assertEqual(len(self.service.calls), count + 1)
+        # Going online again starts afresh
+        self.sync.set_status("online")
+        self.assertEqual(self.app.settings["friends_data_deleted"], "")
+
     def test_a_friends_menu_sets_favourites_and_nicknames(self):
         from PySide6.QtCore import QPoint
 
