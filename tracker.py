@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ctypes
 from ctypes import wintypes
+from functools import cache
 import os
 import math
 import json
@@ -995,14 +996,41 @@ def running_applications() -> set[str]:
     return found
 
 
-def _desktop_receives_input(user32, kernel32) -> bool:
-    """Exclude the lock screen and secure desktop, even if an old foreground handle remains."""
+class _LastInputInfo(ctypes.Structure):
+    _fields_ = (("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD))
+
+
+@cache
+def _windows_libraries():
+    """user32 and kernel32 with the calls the foreground and idle checks make set up once, as these run ten times a
+    second and setting them up each time was most of their cost"""
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     kernel32.GetCurrentThreadId.restype = wintypes.DWORD
     user32.GetThreadDesktop.argtypes = [wintypes.DWORD]
     user32.GetThreadDesktop.restype = wintypes.HANDLE
     user32.GetUserObjectInformationW.argtypes = [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p,
                                                wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)]
     user32.GetUserObjectInformationW.restype = wintypes.BOOL
+    user32.GetForegroundWindow.restype = wintypes.HWND
+    user32.IsWindowVisible.argtypes = [wintypes.HWND]
+    user32.IsWindowVisible.restype = wintypes.BOOL
+    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
+    kernel32.OpenProcess.restype = wintypes.HANDLE
+    kernel32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
+    kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
+    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
+    kernel32.CloseHandle.restype = wintypes.BOOL
+    user32.GetLastInputInfo.argtypes = [ctypes.POINTER(_LastInputInfo)]
+    user32.GetLastInputInfo.restype = wintypes.BOOL
+    kernel32.GetTickCount.restype = wintypes.DWORD
+    return user32, kernel32
+
+
+def _desktop_receives_input(user32, kernel32) -> bool:
+    """Exclude the lock screen and secure desktop, even if an old foreground handle remains."""
     desktop = user32.GetThreadDesktop(kernel32.GetCurrentThreadId())
     receives_input = wintypes.BOOL()
     # UOI_IO asks whether this desktop is currently receiving user input.
@@ -1016,21 +1044,9 @@ def foreground_application() -> str | None:
     if not hasattr(ctypes, "windll"):
         return None
 
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    user32, kernel32 = _windows_libraries()
     if not _desktop_receives_input(user32, kernel32):
         return None
-    user32.GetForegroundWindow.restype = wintypes.HWND
-    user32.IsWindowVisible.argtypes = [wintypes.HWND]
-    user32.IsWindowVisible.restype = wintypes.BOOL
-    user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
-    user32.GetWindowThreadProcessId.restype = wintypes.DWORD
-    kernel32.OpenProcess.argtypes = [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD]
-    kernel32.OpenProcess.restype = wintypes.HANDLE
-    kernel32.QueryFullProcessImageNameW.argtypes = [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)]
-    kernel32.QueryFullProcessImageNameW.restype = wintypes.BOOL
-    kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
-    kernel32.CloseHandle.restype = wintypes.BOOL
     window = user32.GetForegroundWindow()
     if not window or not user32.IsWindowVisible(window):
         return None
@@ -1059,17 +1075,10 @@ def user_is_active(max_idle_seconds: int = 300) -> bool:
     if not hasattr(ctypes, "windll"):
         return True
 
-    class LastInputInfo(ctypes.Structure):
-        _fields_ = (("cbSize", wintypes.UINT), ("dwTime", wintypes.DWORD))
-
-    user32 = ctypes.WinDLL("user32", use_last_error=True)
-    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    user32, kernel32 = _windows_libraries()
     get_last_input_info = user32.GetLastInputInfo
-    get_last_input_info.argtypes = [ctypes.POINTER(LastInputInfo)]
-    get_last_input_info.restype = wintypes.BOOL
     get_tick_count = kernel32.GetTickCount
-    get_tick_count.restype = wintypes.DWORD
-    info = LastInputInfo(ctypes.sizeof(LastInputInfo), 0)
+    info = _LastInputInfo(ctypes.sizeof(_LastInputInfo), 0)
     if not get_last_input_info(ctypes.byref(info)):
         return False
     elapsed_ms = (get_tick_count() - info.dwTime) & 0xFFFFFFFF

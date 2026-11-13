@@ -313,6 +313,36 @@ class QtDockingTests(unittest.TestCase):
         self.assertEqual(third.x(), first.x() + first.width())
         self.assertEqual(first.pos(), first_position)
 
+    def test_pulling_off_a_panel_attached_to_the_left_or_top_leaves_the_other_where_it_is(self):
+        for side in ("left", "top"):
+            with self.subTest(side=side):
+                self.app.docking.dock_all()
+                stays = self._float("stats", QPoint(300, 700))
+                pulled = self._float("graph", QPoint(1200, 1300))
+                if side == "left":
+                    pulled.move(stays.x() - pulled.width(), stays.y())
+                else:
+                    pulled.move(stays.x(), stays.y() - pulled.height())
+                stays_position = stays.pos()
+                block = self.app.modules["graph"]
+                grip = block.mapToGlobal(block.title_rect().center())
+                self._drag(block, grip, grip + QPoint(0, 10), grip + QPoint(600, 900))
+                self.assertEqual(stays.pos(), stays_position)
+
+    def test_pulling_the_first_panel_off_a_row_of_three_leaves_the_other_two_where_they_are(self):
+        self.app.docking.dock_all()
+        pulled = self._float("graph", QPoint(100, 700))
+        middle = self._float("stats", QPoint(900, 1300))
+        last = self._float("calendar", QPoint(1500, 1300))
+        middle.move(pulled.x() + pulled.width(), pulled.y())
+        last.move(middle.x() + middle.width(), pulled.y())
+        middle_position, last_position = middle.pos(), last.pos()
+        block = self.app.modules["graph"]
+        grip = block.mapToGlobal(block.title_rect().center())
+        self._drag(block, grip, grip + QPoint(0, 10), grip + QPoint(0, 900))
+        self.assertEqual(middle.pos(), middle_position)
+        self.assertEqual(last.pos(), last_position)
+
     def test_grip_drop_on_another_floating_panel_allows_overlap(self):
         first = self._float("stats", QPoint(200, 600))
         # Clear of the window's far end, where a panel let go would dock

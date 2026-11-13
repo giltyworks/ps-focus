@@ -7,7 +7,7 @@ import calendar
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 
-from app_config import COLORS, MONTHLY_AVERAGE_DAYS, ROLLING_AVERAGE_DAYS
+from app_config import COLORS, LEVEL_CAP, MONTHLY_AVERAGE_DAYS, ROLLING_AVERAGE_DAYS
 from tracker import ActivityStore
 
 DAY_ABBREVIATIONS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
@@ -15,6 +15,11 @@ ROLLING_AVERAGES = (ROLLING_AVERAGE_DAYS, MONTHLY_AVERAGE_DAYS)
 # The medal shown beside this week's total, by how its total ranks among past weeks: the colour for a week
 # in the top 10, 25 or 50 percent. Drawn like the longest-session award, in the tier's colour
 MEDAL_TIERS = ((10, "gold"), (25, "silver"), (50, "bronze"))
+
+
+def level_title_text(level: int) -> str:
+    """The level against the highest, as RuneScape shows it, for the Stats module's title strip: 'Level 7 / 99'"""
+    return f"Level {level} / {LEVEL_CAP}"
 
 
 def format_change(seconds: float) -> str:

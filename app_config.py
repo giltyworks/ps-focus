@@ -160,6 +160,9 @@ DEFAULT_SETTINGS = {
     # Names chosen for each Google account, keyed by its email; google_display_name is the single name of earlier versions
     "google_display_names": {},
     "google_display_name": "",
+    # The level, blurred until its first click once feedback has unlocked; also counted as revealed when feedback_submitted
+    # is set, as it was by earlier versions, which revealed it by sending feedback
+    "level_revealed": False,
     "feedback_submitted": False,
     "feedback_count": 0,
     "feedback_cooldown_until": "",

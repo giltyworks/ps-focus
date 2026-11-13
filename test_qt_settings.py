@@ -311,6 +311,85 @@ class QtSettingsTests(unittest.TestCase):
             self.app._track_and_refresh(("Krita", True, False))
             self.assertEqual(running.call_count, 1)
 
+    def test_running_programs_are_read_every_few_seconds_not_every_tick(self):
+        import time
+        from qt.app import OPEN_PROGRAMS_CHECK_SECONDS
+        with patch("qt.app.foreground_application", return_value=None), patch("qt.app.user_is_active", return_value=True), patch("qt.app.running_applications", return_value=set()) as running:
+            self.app.open_programs_checked = time.monotonic() - 1
+            self.app._track_and_refresh()
+            self.assertEqual(running.call_count, 0)
+            self.app.open_programs_checked = time.monotonic() - OPEN_PROGRAMS_CHECK_SECONDS
+            self.app._track_and_refresh()
+            self.assertEqual(running.call_count, 1)
+
+    def test_stats_title_shows_the_level_against_the_cap_only_once_revealed(self):
+        from app_config import LEVEL_CAP, user_level
+        self.app.level_revealed = False
+        self.app._track_and_refresh()
+        self.assertEqual(self.app.stats.level_text, "")
+        self.app.level_revealed = True
+        self.app._track_and_refresh()
+        level = user_level(self.app.store.total_seconds())
+        self.assertEqual(self.app.stats.level_text, f"Level {level} / {LEVEL_CAP}")
+        self.app.level_revealed = False
+        self.app._track_and_refresh()
+        self.assertEqual(self.app.stats.level_text, "")
+
+    def _stats_changed_area(self, floating: bool):
+        """Where the stats block's drawing changes when the level is added: the box of changed pixels, and the dock icon"""
+        stats = self.app.stats
+        stats.floating = floating
+        stats.set_level_text("")
+        stats.resize(stats.width(), stats.height())
+        before = stats.grab().toImage()
+        stats.set_level_text("Level 7 / 99")
+        after = stats.grab().toImage()
+        self.assertEqual(after.size(), before.size())
+        changed = [(x, y) for y in range(after.height()) for x in range(after.width()) if after.pixel(x, y) != before.pixel(x, y)]
+        self.assertTrue(changed)
+        xs, ys = [x for x, _ in changed], [y for _, y in changed]
+        return (min(xs), min(ys), max(xs), max(ys)), stats.dock_rect(), stats
+
+    def test_stats_level_is_drawn_in_the_title_strip_without_changing_the_block(self):
+        box, _dock, stats = self._stats_changed_area(floating=False)
+        # Only the title strip changes, at the right, so the figures and the block's height stay as they were
+        self.assertLess(box[3], stats.strip_height + 1)
+        from qt.theme import text_width
+        self.assertGreater(box[0], 1 + text_width(stats.fonts.bold, "Stats"))
+        self.assertLess(box[2], stats.width() - 1)
+
+    def test_stats_level_stands_left_of_the_dock_icon_while_floating(self):
+        box, dock, _stats = self._stats_changed_area(floating=True)
+        self.assertIsNotNone(dock)
+        self.assertLess(box[2], dock.left())
+
+    def test_the_mouse_is_watched_only_while_the_window_is_in_sight(self):
+        timer = self.app.docking.hover_timer
+        self.app.window.show()
+        self.application.processEvents()
+        self.assertTrue(timer.isActive())
+        self.app.window.hide()
+        self.application.processEvents()
+        self.assertFalse(timer.isActive())
+        self.app.window.show()
+        self.application.processEvents()
+        self.assertTrue(timer.isActive())
+
+    def test_memory_is_given_back_only_once_the_window_stays_hidden(self):
+        window = self.app.window
+        # The real timer is left out, and the window's state is set here, as the offscreen window's is not steady
+        self.app.memory_timer.stop()
+        for visible, minimised, released in ((True, False, False), (False, False, True), (True, True, True)):
+            with self.subTest(visible=visible, minimised=minimised), patch("qt.app.release_idle_memory") as release, \
+                    patch.object(window, "isVisible", return_value=visible), patch.object(window, "isMinimized", return_value=minimised):
+                self.app._release_idle_memory()
+                self.assertEqual(release.called, released)
+
+    @unittest.skipUnless(os.name == "nt", "Windows working set")
+    def test_releasing_idle_memory_works_on_this_process(self):
+        from windows_startup import release_idle_memory
+        self.assertTrue(release_idle_memory())
+
     def test_popup_clamps_to_monitor_at_requested_position(self):
         from PySide6.QtCore import QPoint, QRect
         from qt.status_menu import PopupMenu
@@ -617,6 +696,8 @@ class QtSettingsTests(unittest.TestCase):
         self.assertTrue(controls.interactive_at(point))
         QApplication.sendEvent(controls, QMouseEvent(QEvent.Type.MouseButtonPress, QPointF(point), QPointF(controls.mapToGlobal(point)), Qt.MouseButton.LeftButton, Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier))
         popup = next(widget for widget in QApplication.topLevelWidgets() if isinstance(widget, TransparencyPopup) and widget.isVisible())
+        # Windows' shadow round a popup would show as a box behind the slider over a see-through window
+        self.assertTrue(popup.windowFlags() & Qt.WindowType.NoDropShadowWindowHint)
         # Fully left on the slider is fully see-through
         left = QPoint(popup.slider_left, popup.slider_top + 5)
         for kind, buttons in ((QEvent.Type.MouseButtonPress, Qt.MouseButton.LeftButton), (QEvent.Type.MouseButtonRelease, Qt.MouseButton.NoButton)):
@@ -1087,10 +1168,10 @@ class QtSettingsTests(unittest.TestCase):
         self.assertTrue(self.app.header.level_clickable)
         self.assertTrue(self.app.settings_page.feedback_shown)
 
-    def _open_feedback(self, reveal_prompt=False):
+    def _open_feedback(self):
         from qt.feedback_dialog import FeedbackDialog
 
-        self.app._open_feedback_dialog(reveal_prompt)
+        self.app._open_feedback_dialog()
         dialog = next(
             widget for widget in self.application.topLevelWidgets()
             if isinstance(widget, FeedbackDialog) and widget.isVisible() and not getattr(widget, "_tested", False)
@@ -1101,8 +1182,8 @@ class QtSettingsTests(unittest.TestCase):
 
     def test_feedback_needs_a_rating_or_message_and_reveals_the_level(self):
         self._unlock_feedback()
-        dialog = self._open_feedback(reveal_prompt=True)
-        self.assertEqual(dialog.title, "Rate us to reveal your level")
+        dialog = self._open_feedback()
+        self.assertEqual(dialog.title, "Rate your experience")
         dialog.submit()
         self.assertEqual(dialog.status[1], "red")
         self.assertEqual(self.app.feedback.pending(), [])
@@ -1142,16 +1223,44 @@ class QtSettingsTests(unittest.TestCase):
         dialog.stars.choose(3)
         self.assertEqual(dialog.stars.rating, 0)
 
-    def test_level_click_opens_feedback_only_while_unlocked_and_unrevealed(self):
+    def test_level_click_reveals_it_and_opens_feedback_only_while_unlocked_and_unrevealed(self):
         with patch.object(self.app, "_open_feedback_dialog") as open_dialog:
             self.app._level_clicked()
             open_dialog.assert_not_called()
+            self.assertFalse(self.app.level_revealed)
             self._unlock_feedback()
             self.app._level_clicked()
-            open_dialog.assert_called_once_with(reveal_prompt=True)
-            self.app.level_revealed = True
+            open_dialog.assert_called_once_with()
+            self.assertTrue(self.app.level_revealed)
+            self.assertFalse(self.app.header.level_clickable)
             self.app._level_clicked()
             open_dialog.assert_called_once()
+
+    def test_closing_the_form_without_sending_keeps_the_level_shown_for_good(self):
+        self._unlock_feedback()
+        self.app._level_clicked()
+        dialog = next(widget for widget in self.application.topLevelWidgets() if widget.__class__.__name__ == "FeedbackDialog" and widget.isVisible())
+        dialog.close()
+        self.application.processEvents()
+        self.assertTrue(self.app.level_revealed)
+        self.assertTrue(self.app.settings["level_revealed"])
+        # Nothing was sent or counted: the form was only offered
+        self.assertEqual(self.app.feedback.pending(), [])
+        self.assertFalse(self.app.settings.get("feedback_submitted"))
+        self.assertEqual(self.app.settings.get("feedback_count") or 0, 0)
+        self.assertTrue(self._level_is_revealed_by_saved_settings())
+
+    def _level_is_revealed_by_saved_settings(self):
+        from qt.app import level_is_revealed
+        return level_is_revealed(self.app.settings)
+
+    def test_the_level_counts_as_revealed_when_clicked_or_when_feedback_was_sent_before(self):
+        from qt.app import level_is_revealed
+        self.assertFalse(level_is_revealed({}))
+        self.assertFalse(level_is_revealed({"level_revealed": False, "feedback_submitted": False}))
+        self.assertTrue(level_is_revealed({"level_revealed": True}))
+        # Users of earlier versions, which revealed the level by sending feedback, keep it shown
+        self.assertTrue(level_is_revealed({"feedback_submitted": True}))
 
     def test_goal_callback_sees_the_goal_as_already_reached(self):
         header = self.app.header
@@ -1440,10 +1549,16 @@ class DevToolsTests(unittest.TestCase):
         from qt.feedback_dialog import FeedbackDialog
 
         self.app.settings.update(feedback_submitted=True, feedback_count=2, feedback_cooldown_until="2999-01-01T00:00:00")
+        self.app.settings["level_revealed"] = True
         self.app.level_revealed = True
         self.tools.feedback_reveal()
+        # Hidden again and clickable, even with nothing tracked; clicking it shows it and opens the form
         self.assertFalse(self.app.level_revealed)
+        self.assertNotIn("level_revealed", self.app.settings)
         self.assertNotIn("feedback_cooldown_until", self.app.settings)
+        self.assertTrue(self.app.header.level_clickable)
+        self.app._level_clicked()
+        self.assertTrue(self.app.level_revealed)
         dialogs = [widget for widget in QApplication.topLevelWidgets() if isinstance(widget, FeedbackDialog) and widget.isVisible()]
         self.assertEqual(len(dialogs), 1)
         dialogs[0].close()

@@ -1,4 +1,4 @@
-"""The feedback form, opened from the level badge until the level is revealed, and from Settings' Got feedback?"""
+"""The feedback form, opened by the first click on the level badge (which shows the level), and from Settings' Got feedback?"""
 
 from __future__ import annotations
 
@@ -159,7 +159,7 @@ class StarRow(QWidget):
 
 class FeedbackDialog(AppDialog):
     """The app passes in the outbox to keep the feedback in, how long until more may be sent (None when it may be sent
-    now), and what to do once it has been kept: counting it, sending it and revealing the level"""
+    now), and what to do once it has been kept: counting it and sending it on"""
 
     def __init__(
         self,
@@ -168,7 +168,6 @@ class FeedbackDialog(AppDialog):
         outbox: FeedbackOutbox,
         cooldown_remaining: Callable[[], object],
         on_submitted: Callable[[], None],
-        reveal_prompt: bool = False,
     ) -> None:
         super().__init__(parent, "Feedback")
         self.fonts = fonts
@@ -176,7 +175,7 @@ class FeedbackDialog(AppDialog):
         self.cooldown_remaining = cooldown_remaining
         self.on_submitted = on_submitted
         self.setMouseTracking(True)
-        self.title = "Rate us to reveal your level" if reveal_prompt else "Rate your experience"
+        self.title = "Rate your experience"
         self.status = ("", "muted")
         self.stars = StarRow(self._clear_status)
         self.stars.setParent(self)

@@ -52,7 +52,9 @@ class TransparencyPopup(QWidget):
         self, parent: QWidget, fonts: Fonts, transparency: Callable[[], int], on_change: Callable[[int, bool], None],
         inverted: bool = True, opener: str = OPENER, backed: bool = False,
     ) -> None:
-        super().__init__(parent, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint)
+        # No shadow: Windows draws one round a popup, which shows as a box behind the slider once the window under it
+        # is see-through (a drop shadow measured up to 113 of 255 darker beside it over a bright window)
+        super().__init__(parent, Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose)
         self.setMouseTracking(True)
         # No box: the slider stands on the row beside its icon, over the window's own background

@@ -802,7 +802,10 @@ class Docking:
         else:
             # A row or column apart from the window keeps its first panel where it is
             leading = [key for key in remaining if panels[key][2] <= left + TOUCH_TOLERANCE or panels[key][3] <= top + TOUCH_TOLERANCE]
-            anchor = min(leading, key=lambda key: (panels[key][1], panels[key][0])) if leading else None
+            # When the panel pulled out was the first (attached on the top or left), nothing leads it, so the first of
+            # those left stays instead of jumping into its slot
+            candidates = leading or remaining
+            anchor = min(candidates, key=lambda key: (panels[key][1], panels[key][0])) if candidates else None
             anchored = ({anchor} | attached_panels(panels[anchor], panels)) if anchor else set()
         pending = remaining - anchored
         anchors = [panels[key] for key in anchored]

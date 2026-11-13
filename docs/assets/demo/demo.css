@@ -160,6 +160,8 @@
 .psf-strip:hover { background: rgba(16, 16, 16, max(var(--a), .3)); }
 .psf-strip .psf-spacer { flex: 1; }
 .psf-strip .psf-strip-text { font-weight: 400; color: var(--psf-muted); font-size: 12px; }
+/* While a block floats, its dock icon is at the right end and the level stands just left of it */
+.psf-floating .psf-level-text { margin-right: 6px; }
 .psf-dock { width: 18px; height: 18px; display: none; }
 .psf-floating .psf-dock { display: grid; }
 /* The space a panel will dock into, as the app's: a blue outline, lightly filled in */

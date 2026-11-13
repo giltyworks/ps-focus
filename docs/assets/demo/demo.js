@@ -333,6 +333,8 @@
 
   const dockIcon = () => el("button", { type: "button", class: "psf-icon-button psf-dock", title: "Back into the window", "data-dock": "" }, svg(ICONS.dock));
   const strip = (title, extra = []) => el("div", { class: "psf-strip" }, el("span", {}, title), el("span", { class: "psf-spacer" }), extra, dockIcon());
+  // The level against the highest, in grey at the right of the Stats name, as the app shows it
+  const statsLevel = el("span", { class: "psf-strip-text psf-level-text" });
 
   // The program panel
   const today_ = {
@@ -383,6 +385,7 @@
     today_.last.textContent = `last session on ${lastSession.getDate()} ${MONTHS[lastSession.getMonth()]}`;
     progressDot.classList.toggle("psf-reached", todaySeconds >= SESSION_MINIMUM);
     levelBadge.textContent = String(levelFor(lifetime / 3600));
+    statsLevel.textContent = `Level ${levelFor(lifetime / 3600)} / ${LEVEL_HOURS.length}`;
   }
 
   // ----- The graph -----
@@ -637,7 +640,7 @@
   // ----- Stats: label and value rows, as the app's -----
 
   const statsBody = el("div", { class: "psf-stats" });
-  const statsBlock = el("div", { class: "psf-block psf-stats-block", "data-name": "stats" }, strip("Stats"), statsBody);
+  const statsBlock = el("div", { class: "psf-block psf-stats-block", "data-name": "stats" }, strip("Stats", statsLevel), statsBody);
   const MEDALS = [[10, "gold"], [25, "silver"], [50, "bronze"]];
   const MEDAL_COLORS = { gold: "#f0c33c", silver: "#c3cbd1", bronze: "#d0874a" };
   // The app's award: a disc over two swallowtailed ribbons, a thin gap between them

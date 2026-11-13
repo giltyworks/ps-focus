@@ -8,7 +8,7 @@ from ctypes import wintypes
 from typing import Callable
 
 from PySide6.QtCore import QEvent, QPoint, QRect, Qt
-from PySide6.QtGui import QCloseEvent, QGuiApplication, QIcon, QMoveEvent, QPainter, QPaintEvent, QResizeEvent
+from PySide6.QtGui import QCloseEvent, QGuiApplication, QHideEvent, QIcon, QMoveEvent, QPainter, QPaintEvent, QResizeEvent, QShowEvent
 from PySide6.QtWidgets import QWidget
 
 from app_config import APP_NAME, COMPACT_BOTTOM_SPACE, MODULE_GAP, TODAY_PANEL_WIDTH, WINDOW_MARGIN, resource_path
@@ -147,6 +147,8 @@ class MainWindow(QWidget):
         # Told when the window moves, and when it is minimized or brought back, for the floating modules
         self.on_moved: Callable[[], None] | None = None
         self.on_state_changed: Callable[[], None] | None = None
+        # Told when the window is shown or goes out of sight, hidden in the tray or minimised
+        self.on_shown_changed: Callable[[bool], None] | None = None
         # Told when the mouse comes onto the window or leaves it, which turns it solid or see-through
         self.on_hover: Callable[[], None] | None = None
         self.setWindowTitle(APP_NAME)
@@ -461,6 +463,16 @@ class MainWindow(QWidget):
         super().changeEvent(event)
         if event.type() == QEvent.Type.WindowStateChange and self.on_state_changed is not None:
             self.on_state_changed()
+
+    def showEvent(self, event: QShowEvent) -> None:
+        super().showEvent(event)
+        if self.on_shown_changed is not None:
+            self.on_shown_changed(True)
+
+    def hideEvent(self, event: QHideEvent) -> None:
+        super().hideEvent(event)
+        if self.on_shown_changed is not None:
+            self.on_shown_changed(False)
 
     def place_top_right(self) -> None:
         """Put the window in the top right corner of its screen's work area, its visible frame flush with the corner"""

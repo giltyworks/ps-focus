@@ -26,6 +26,21 @@ def set_app_user_model_id(app_id: str = APP_USER_MODEL_ID) -> None:
         raise OSError(f"Could not set Windows AppUserModelID: HRESULT {result:#x}")
 
 
+def release_idle_memory() -> bool:
+    """Hand the memory this program is not using right now back to Windows, as Task Manager counts it; what is needed
+    again comes back as it is used. False when Windows would not, or off Windows"""
+    if os.name != "nt":
+        return False
+    try:
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+        kernel32.K32EmptyWorkingSet.argtypes = [ctypes.c_void_p]
+        kernel32.K32EmptyWorkingSet.restype = ctypes.c_int
+        return bool(kernel32.K32EmptyWorkingSet(kernel32.GetCurrentProcess()))
+    except (OSError, AttributeError):
+        return False
+
+
 def system_directory() -> Path:
     """Return the Windows system folder as reported by Windows itself, not by an environment variable"""
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)

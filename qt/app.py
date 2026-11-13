@@ -36,6 +36,7 @@ from app_config import (
 )
 from feedback import FeedbackOutbox
 from session_story import story_text
+from stat_lines import level_title_text
 from tracker import ActivityStore, activity_slices, tracking_clock, foreground_application, user_is_active, running_applications
 from unpack_cleanup import remove_stale_unpack_folders
 from update_check import UPDATE_CHECK_INTERVAL_MS, available_update, is_safe_download_url
@@ -45,6 +46,7 @@ from windows_startup import (
     migrate_legacy_app_data,
     migrate_legacy_startup,
     refresh_startup_entry,
+    release_idle_memory,
     set_startup,
 )
 from friends import FriendsService
@@ -75,6 +77,16 @@ MODULE_NAMES = ("graph", "calendar", "stats", "friends")
 BLOCK_NAMES = ("today", "friends", "graph", "calendar", "stats")
 # Longest the app may take to close after Exit before it is ended regardless
 EXIT_TIMEOUT_SECONDS = 10
+# How often the list of running programs is read, only to colour the program's name: it takes longer than the rest of a
+# tick together, and the program in front is read on every tick regardless
+OPEN_PROGRAMS_CHECK_SECONDS = 5
+# Hidden in the tray, the window's memory is given back this long after, once it has finished going
+IDLE_MEMORY_RELEASE_MS = 2000
+
+
+def level_is_revealed(settings: dict) -> bool:
+    """The level is shown once it has been clicked, or once feedback has been sent, as earlier versions revealed it"""
+    return bool(settings.get("level_revealed") or settings.get("feedback_submitted"))
 
 
 class PSFocusQt:
@@ -94,7 +106,7 @@ class PSFocusQt:
         self.store = ActivityStore(app_config.DATABASE_PATH, app_config.BACKUP_DIRECTORIES)
         self.fonts = Fonts()
         self.active = False
-        self.level_revealed = bool(self.settings.get("feedback_submitted"))
+        self.level_revealed = level_is_revealed(self.settings)
         self.feedback_unlocked = False
         # Set by the developer menu to show or hide Got feedback? whatever has been tracked; None follows the hours
         self.feedback_unlock_override: bool | None = None
@@ -158,6 +170,9 @@ class PSFocusQt:
             self.window.on_moved = lambda: (self.docking.main_moved(), self.dev_tools.window_moved())
         self.window.on_hover = self.update_glass
         self.window.on_state_changed = lambda: self.docking.sync_visibility()
+        # Owned by the window, so it cannot fire once the window is gone
+        self.memory_timer = QTimer(self.window, singleShot=True, interval=IDLE_MEMORY_RELEASE_MS, timeout=self._release_idle_memory)
+        self.window.on_shown_changed = self._window_shown_changed
         # The calendar and stats change slowly, so they are worked out again every so many seconds
         self.slow_refresh_ticks = 0
         self.block_drag = BlockDrag(
@@ -598,6 +613,25 @@ class PSFocusQt:
         )
         self.tray_icon.show()
 
+    def _window_shown_changed(self, shown: bool) -> None:
+        """Out of sight, in the tray or minimised, nothing is on screen to turn solid or see-through, so the mouse is
+        not watched, and the memory the window took is given back until it is needed again"""
+        if self.closing:
+            return
+        if shown:
+            self.docking.hover_timer.start()
+            self.memory_timer.stop()
+        else:
+            self.docking.hover_timer.stop()
+            self.memory_timer.start()
+
+    def _release_idle_memory(self) -> None:
+        if self.closing:
+            return
+        # A minimised window still counts as visible to Qt
+        if not self.window.isVisible() or self.window.isMinimized():
+            release_idle_memory()
+
     def window_hidden(self) -> None:
         self.docking.save_positions()
         self.window.hide()
@@ -687,7 +721,7 @@ class PSFocusQt:
         if self.active or not self.manual_program:
             self._follow_program(foreground_app)
         now = time.monotonic()
-        if now - self.open_programs_checked >= 1:
+        if now - self.open_programs_checked >= OPEN_PROGRAMS_CHECK_SECONDS:
             self.open_programs = running_applications()
             self.open_programs_checked = now
         open_programs = self.open_programs | ({foreground_app} if foreground_app else set())
@@ -716,6 +750,7 @@ class PSFocusQt:
         level = user_level(lifetime_seconds)
         self.header.set_level(level, self.level_revealed)
         self.header.set_level_tip(level_xp_text(lifetime_seconds) if self.level_revealed else "")
+        self.stats.set_level_text(level_title_text(level) if self.level_revealed else "")
         self.update_glass()
         self._celebrate_level_up(level)
         override = self.feedback_unlock_override
@@ -762,12 +797,26 @@ class PSFocusQt:
         self.header.level_clickable = unlocked and not self.level_revealed
 
     def _level_clicked(self) -> None:
+        """The first click on the blurred level shows it, for good, and offers the feedback form; closing the form
+        without sending anything leaves the level shown"""
         if self.feedback_unlocked and not self.level_revealed:
-            self._open_feedback_dialog(reveal_prompt=True)
+            self._reveal_level()
+            self._open_feedback_dialog()
 
-    def _open_feedback_dialog(self, reveal_prompt: bool = False) -> None:
+    def _reveal_level(self) -> None:
+        """Show the level instead of blurring it, kept between runs"""
+        if self.level_revealed:
+            return
+        self.level_revealed = True
+        self.settings["level_revealed"] = True
+        self._save_settings()
+        self.header.level_clickable = False
+        if self.header.badge_state is not None:
+            self.header.set_level(self.header.badge_state[0], True)
+
+    def _open_feedback_dialog(self) -> None:
         dialog = FeedbackDialog(
-            self.window, self.fonts, self.feedback, self._feedback_cooldown_remaining, self._feedback_submitted, reveal_prompt
+            self.window, self.fonts, self.feedback, self._feedback_cooldown_remaining, self._feedback_submitted
         )
         dialog.show_centred_on(self.window)
 
@@ -780,7 +829,8 @@ class PSFocusQt:
         return remaining if remaining > timedelta(0) else None
 
     def _feedback_submitted(self) -> None:
-        """Count the feedback, sending it on and revealing the level; from the second one on, more waits a while"""
+        """Count the feedback and send it on; from the second one on, more waits a while. The level is shown too, as
+        feedback sent from Settings before the level was clicked shows it as it always did"""
         self._send_pending_feedback()
         count = int(self.settings.get("feedback_count") or 0)
         if count == 0 and self.settings.get("feedback_submitted"):
@@ -792,10 +842,7 @@ class PSFocusQt:
             self.settings["feedback_cooldown_until"] = (datetime.now() + FEEDBACK_COOLDOWN).isoformat(timespec="seconds")
         self.settings["feedback_submitted"] = True
         self._save_settings()
-        self.level_revealed = True
-        self.header.level_clickable = False
-        if self.header.badge_state is not None:
-            self.header.set_level(self.header.badge_state[0], True)
+        self._reveal_level()
 
     def _send_pending_feedback(self) -> None:
         # Feedback tried out in the developer version stays on this PC

@@ -221,7 +221,10 @@ class TrackingAccuracyTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "Windows foreground APIs")
     def test_foreground_detects_executable_not_window_title_and_closes_handles(self):
-        from tracker import foreground_application
+        from tracker import _windows_libraries, foreground_application
+        # The real Windows calls are set up once and kept, so the stand-ins need a fresh start, and the real ones back after
+        _windows_libraries.cache_clear()
+        self.addCleanup(_windows_libraries.cache_clear)
         user32, kernel32 = Mock(), Mock()
         user32.GetForegroundWindow.return_value = 123
         user32.IsWindowVisible.return_value = True
@@ -250,7 +253,9 @@ class TrackingAccuracyTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "Windows input APIs")
     def test_idle_timer_wrap_and_input_api_failure(self):
-        from tracker import user_is_active
+        from tracker import _windows_libraries, user_is_active
+        _windows_libraries.cache_clear()
+        self.addCleanup(_windows_libraries.cache_clear)
         user32, kernel32 = Mock(), Mock()
         def last_input(value):
             value._obj.dwTime = 0xfffffff0

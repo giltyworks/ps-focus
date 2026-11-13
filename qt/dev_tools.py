@@ -70,7 +70,7 @@ class DevTools:
         choices = [
             ("level_up", "Level up", "Adds the hours to reach the next level"),
             ("celebrate", "Replay the level-up celebration", ""),
-            ("feedback_reveal", "Feedback: reveal-your-level form", "Hides the level again first"),
+            ("feedback_reveal", "Level: hide, click to reveal", "Hides it; click it to show"),
             ("feedback", "Feedback: regular form", ""),
             ("feedback_reset", "Reset feedback", "Clears the wait and hides the level"),
             ("feedback_unlock", f"Got feedback?: {'shown' if self.app.feedback_unlocked else 'hidden'}", "Whatever has been tracked"),
@@ -120,15 +120,19 @@ class DevTools:
         self.app.goal_reached()
 
     def feedback_reveal(self) -> None:
+        """The level hidden again and clickable whatever has been tracked, to try the reveal: clicking it shows it and
+        opens the form"""
         self.feedback_reset()
-        self.app._open_feedback_dialog(reveal_prompt=True)
+        app = self.app
+        app.feedback_unlock_override = True
+        app._set_feedback_unlocked(True)
 
     def feedback(self) -> None:
         self.app._open_feedback_dialog()
 
     def feedback_reset(self) -> None:
         app = self.app
-        for key in ("feedback_submitted", "feedback_count", "feedback_cooldown_until"):
+        for key in ("level_revealed", "feedback_submitted", "feedback_count", "feedback_cooldown_until"):
             app.settings.pop(key, None)
         app._save_settings()
         app.level_revealed = False

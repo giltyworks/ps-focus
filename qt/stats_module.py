@@ -8,13 +8,13 @@ from typing import Callable
 from PySide6.QtCore import QPoint
 from PySide6.QtGui import QColor, QPainter, QPaintEvent, QPixmap
 
-from app_config import EDGE_PADDING, LINE_PADDING, MODULE_CANVAS_WIDTH
+from app_config import EDGE_PADDING, LINE_PADDING, MODULE_CANVAS_WIDTH, MODULE_MARGIN
 from stat_lines import StatLine, figure_lines, session_summary_lines
 from tracker import ActivityStore
 
 from .icons import icon
-from .module import ModuleBlock
-from .theme import Fonts, anchored_top_left, draw_anchored, draw_outline_text, halo_strength, line_height, text_width
+from .module import MODULE_TITLE_PADDING, ModuleBlock
+from .theme import Fonts, anchored_top_left, color, draw_anchored, draw_outline_text, draw_text, halo_strength, line_height, text_width
 
 # The same measurements as the Tk stats, see ui_calendar.py: the space kept on each side of the lines and under
 # the last; the medal and the gap between it and its value; the gap between a value and the column of notes
@@ -27,6 +27,8 @@ MEDAL_GAP = 4
 # The least space between a row's label and its value
 STAT_LABEL_GAP = 10
 STAT_NOTE_GAP = 8
+# The space between the level in the title strip and the dock icon beside it, while the block floats
+LEVEL_DOCK_GAP = 6
 
 
 class StatsModule(ModuleBlock):
@@ -37,10 +39,31 @@ class StatsModule(ModuleBlock):
         self.drawn_lines: list[StatLine] | None = None
         self.drawn_ratio: float | None = None
         self.picture: QPixmap | None = None
+        self.level_text = ""
         # Height of the lines, and in landscape the height the modules share, inside the border
         self.lines_height = 1
         self.shared_height = 0
         self.set_content_height(1)
+
+    def set_level_text(self, text: str) -> None:
+        """The level at the right of the name, in grey like the rest of the muted text; empty while the level is
+        still hidden, as it is in the header until feedback has been sent"""
+        if text != self.level_text:
+            self.level_text = text
+            self.update()
+
+    def paint_title(self, painter: QPainter) -> None:
+        super().paint_title(painter)
+        if not self.level_text:
+            return
+        font = self.fonts.small
+        right = self.width() - 1 - MODULE_MARGIN
+        dock = self.dock_rect()
+        # A floating block has its dock icon at the right end, so the level stands just left of it
+        if dock is not None:
+            right = dock.left() - LEVEL_DOCK_GAP
+        top = 1 + MODULE_TITLE_PADDING + (line_height(self.fonts.bold) - line_height(font)) // 2
+        draw_text(painter, right - text_width(font, self.level_text), top, self.level_text, color("muted"), font)
 
     def landscape_height(self) -> int:
         """Height the stats need in landscape, inside their border, with their name above the lines"""

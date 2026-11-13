@@ -51,7 +51,7 @@ Lifetime tracked time across all programs sets a level from 1 to 99, shown besid
 
 ## Stats
 
-The Stats module lists each figure as a label on the left and its value in a column on the right: this week's total, the 7- and 30-day daily averages with their change against the period before, the best weekday, the longest session, the best start time once a day has been rated, and a count of the sessions in the month or year the calendar shows. When this week ranks in your top 10, 25 or 50 percent of weeks, a gold, silver or bronze medal appears beside its total with the percentile underneath. The week so far is compared with the same days of each of the past 52 weeks, from Monday up to today, so a week in progress is not measured against finished ones and a busy stretch more than a year ago stops setting the bar. No rank is shown until there are four weeks of history (`ActivityStore.week_rank`).
+Once the level has been revealed (by clicking it in the top left), the Stats title shows it in grey at the right, against the highest, such as `Level 7 / 99`; until then it is left out, as the level in the top left is blurred. The Stats module lists each figure as a label on the left and its value in a column on the right: this week's total, the 7- and 30-day daily averages with their change against the period before, the best weekday, the longest session, the best start time once a day has been rated, and a count of the sessions in the month or year the calendar shows. When this week ranks in your top 10, 25 or 50 percent of weeks, a gold, silver or bronze medal appears beside its total with the percentile underneath. The week so far is compared with the same days of each of the past 52 weeks, from Monday up to today, so a week in progress is not measured against finished ones and a busy stretch more than a year ago stops setting the bar. No rank is shown until there are four weeks of history (`ActivityStore.week_rank`).
 
 ## Share a session
 
@@ -69,7 +69,7 @@ Run from source (`py -m qt --uninstall`), the dialog removes the startup entry a
 
 ## Feedback
 
-Feedback unlocks after two hours of tracked time across all art applications. From then on the level in the top left, which stays blurred until feedback has been submitted, opens the feedback dialog when clicked, and **Got feedback?** appears in Settings to open it again later. Submissions are queued in `%APPDATA%\PS Focus\feedback-outbox.json` and posted to a Google Apps Script web app, which emails everything received in each six-hour period as one message. To set it up:
+Feedback unlocks after two hours of tracked time across all art applications. From then on the level in the top left, which stays blurred until it is first clicked, shows itself when clicked and offers the feedback dialog (closing the dialog without sending anything leaves the level shown; the saved `level_revealed` setting keeps it so, and anyone who already sent feedback under an earlier version stays revealed), and **Got feedback?** appears in Settings to open it again later. Submissions are queued in `%APPDATA%\PS Focus\feedback-outbox.json` and posted to a Google Apps Script web app, which emails everything received in each six-hour period as one message. To set it up:
 
 - Create a project at script.google.com while signed in to the account that should send the email, and paste in `feedback_endpoint/Code.gs`
 - Run the `setup` function once and approve the permissions it requests
