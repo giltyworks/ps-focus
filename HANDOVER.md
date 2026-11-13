@@ -2,6 +2,11 @@
 
 Updated 13 November 2026. Read this before resuming work.
 
+## 1.1.29 re-published with the review fixes: 13 November 2026
+
+- **What:** at the owner's request the published 1.1.29 release was replaced (not a new 1.1.30). The version stays 1.1.29; the release notes gained a "Friends and Google" bullet and a calendar line. Main is pushed (`e102290`), the old release and tag were deleted and `v1.1.29` now points at `e102290`. Installer from GitHub build run 43388956086 (a manual run on main, not the tag-triggered one: the tag push also started a build that was not used), 18,716,052 bytes, SHA-256 `c536e363894e953c4a6d27b9b03620225481a70d274006fb78b1e7069d92a96b`; the downloaded-back exe, the SHA256SUMS file and the notes all match. Installed it silently on this PC (exit 0), normal app and `--dev` relaunched.
+- **Not done / for the owner:** `Code.gs` `LATEST_VERSION` is still 1.1.29, so PCs that installed the earlier 1.1.29 get no update notice and keep the old build until the next version bump; VirusTotal scan of the new installer; the friends server (deployed earlier today) is already live. The earlier "1.1.30" local builds were never published, and the installed app's version number is 1.1.29 again.
+
 ## Full code quality review and fixes: 13 November 2026 (not committed, not built, nothing deployed)
 
 Ran the full-scope review (four reviewers, 1.1.29 code). The owner picked "1 and 2" from the list. 388 tests and the credential check pass; reviewer PASS (no CRITICAL); the independent audit returned BLOCK on one point, fixed afterwards and not re-audited: a failed offline announcement followed by "Delete my friends data" could have let the daily keep-alive make a new account (now `offline_announced` is set when the delete succeeds, with a test). 389 tests pass.
